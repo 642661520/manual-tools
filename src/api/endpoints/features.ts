@@ -16,7 +16,7 @@ import type {
   ImportApplyBody,
 } from '@shared/types'
 
-const BASE = '/api/features'
+const BASE = '/api/v1/features'
 
 function q(projectId?: string): string {
   return projectId ? `?projectId=${projectId}` : ''

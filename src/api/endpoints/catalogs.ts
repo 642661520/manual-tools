@@ -10,7 +10,7 @@ import type {
 } from '@shared/types'
 import type { CreateCatalogBody, UpdateCatalogBody } from '@shared/types'
 
-const BASE = '/api/catalogs'
+const BASE = '/api/v1/catalogs'
 
 function q(projectId?: string): string {
   return projectId ? `?projectId=${projectId}` : ''

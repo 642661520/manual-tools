@@ -1,9 +1,9 @@
 import { api } from '../client'
 
 export function downloadBackup(): Promise<void> {
-  return api.download('/api/backup/download', 'backup.db')
+  return api.download('/api/v1/backup/download', 'backup.db')
 }
 
 export function getBackupUrl(): string {
-  return '/api/backup/download'
+  return '/api/v1/backup/download'
 }

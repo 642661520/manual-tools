@@ -2,7 +2,7 @@ import { api } from '../client'
 import type { ProjectInfo, MemberInfo, ReviewChainData, OkResponse } from '@shared/types'
 import type { CreateProjectBody, UpdateProjectBody } from '@shared/types'
 
-const BASE = '/api/projects'
+const BASE = '/api/v1/projects'
 
 export function getProjects(): Promise<ProjectInfo[]> {
   return api.get<ProjectInfo[]>(BASE)

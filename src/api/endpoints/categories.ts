@@ -2,7 +2,7 @@ import { api } from '../client'
 import type { CategoryInfo, OkResponse } from '@shared/types'
 import type { CreateCategoryBody, UpdateCategoryBody } from '@shared/types'
 
-const BASE = '/api/categories'
+const BASE = '/api/v1/categories'
 
 function q(projectId?: string): string {
   return projectId ? `?projectId=${projectId}` : ''

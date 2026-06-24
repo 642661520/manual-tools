@@ -7,6 +7,7 @@
 // ============================================================
 
 import { ApiRequestError } from '@shared/types'
+import { toCamelCase } from './transform'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 
@@ -79,7 +80,9 @@ async function request<T>(
     return res as unknown as T
   }
 
-  const data = await res.json().catch(() => ({} as Record<string, unknown>))
+  const data = toCamelCase<Record<string, unknown>>(
+    await res.json().catch(() => ({} as Record<string, unknown>)),
+  )
 
   if (!res.ok) {
     throw new ApiRequestError(
@@ -89,6 +92,11 @@ async function request<T>(
     )
   }
 
+  // 解包标准响应格式：{ ok: true, data: T } → T
+  if (data && typeof data === 'object' && 'ok' in data && data.ok === true && 'data' in data) {
+    return data.data as T
+  }
+  // 如果后端已经解包（如 ok() 返回的 { ok: true } 无 data），直接返回整个对象
   return data as T
 }
 
