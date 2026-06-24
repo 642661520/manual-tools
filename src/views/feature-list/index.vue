@@ -17,16 +17,16 @@ import { getFeatures, createFeature, updateFeature, deleteFeature, getFeature, i
 import { getCategories, createCategory as apiCreateCategory, updateCategory, deleteCategory as apiDeleteCategory } from '@/api/endpoints/categories'
 import type { FeatureSummary, CategoryInfo, ImportDiffResponse, ImportFeatureItem, SectionDef } from '@shared/types'
 
-// The API still returns snake_case; extend shared types with aliases for template compatibility
+// API 响应已自动转为 camelCase
 type FeatureRow = FeatureSummary & {
-  orphaned_count: number
-  approved_sections: number
-  total_sections: number
-  completed_sections: number
-  edited_sections: number
-  category_id: string | null
+  orphanedCount: number
+  approvedSections: number
+  totalSections: number
+  completedSections: number
+  editedSections: number
+  categoryId: string | null
 }
-type CategoryItem = CategoryInfo & { sort_order: number }
+type CategoryItem = CategoryInfo & { sortOrder: number }
 
 const router = useRouter()
 const { isPM } = useAuth()
@@ -73,7 +73,7 @@ const showCategoryDialog = ref(false)
 const categoryError = ref('')
 const newCategory = ref({ name: '', color: '#6366f1' })
 const editingCategory = ref<CategoryItem | null>(null)
-const editCategoryForm = ref({ name: '', color: '#6366f1', sort_order: 0 })
+const editCategoryForm = ref({ name: '', color: '#6366f1', sortOrder: 0 })
 
 async function loadCategories() {
   try {
@@ -97,7 +97,7 @@ async function createCategory() {
 
 function openEditCategory(c: CategoryItem) {
   editingCategory.value = c
-  editCategoryForm.value = { name: c.name, color: c.color, sort_order: c.sort_order }
+  editCategoryForm.value = { name: c.name, color: c.color, sortOrder: c.sortOrder }
 }
 
 async function saveEditCategory() {
@@ -108,7 +108,7 @@ async function saveEditCategory() {
     await updateCategory(editingCategory.value.id, {
       name: editCategoryForm.value.name,
       color: editCategoryForm.value.color,
-      sortOrder: editCategoryForm.value.sort_order,
+      sortOrder: editCategoryForm.value.sortOrder,
     })
     editingCategory.value = null
     await loadCategories()
@@ -215,7 +215,7 @@ const groupedFeatures = computed(() => {
   return sorted
 })
 
-function getOverallStatus(f: FeatureRow): string {
+function getOverallStatus(f: FeatureRow): 'draft' | 'in_progress' | 'pending_review' | 'approved' {
   if (f.approvedSections === f.totalSections && f.totalSections > 0) return 'approved'
   if (f.completedSections > 0) return 'pending_review'
   if (f.editedSections > 0) return 'in_progress'
@@ -367,13 +367,13 @@ watch(currentProjectId, loadFeatures)
                   <div class="flex items-center gap-2">
                     <span class="font-medium text-gray-900">{{ f.title }}</span>
                     <span class="text-xs text-gray-400 font-mono">{{ f.id }}</span>
-                    <span v-if="f.orphaned_count > 0" class="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5" :title="`${f.orphaned_count} 个游离文档`"><span class="i-lucide-alert-triangle w-3 h-3 inline-block align-middle" />{{ f.orphaned_count }}</span>
+                    <span v-if="f.orphanedCount > 0" class="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5" :title="`${f.orphanedCount} 个游离文档`"><span class="i-lucide-alert-triangle w-3 h-3 inline-block align-middle" />{{ f.orphanedCount }}</span>
                   </div>
                   <p class="text-sm text-gray-500 mt-0.5 truncate">{{ f.description }}</p>
                 </div>
                 <div class="flex items-center gap-4 text-sm flex-shrink-0">
-                  <span class="text-xs text-gray-400">{{ f.approved_sections }}/{{ f.total_sections || 1 }} 已审核</span>
-                  <StatusBadge :status="getOverallStatus(f) as any" variant="badge" />
+                  <span class="text-xs text-gray-400">{{ f.approvedSections }}/{{ f.totalSections || 1 }} 已审核</span>
+                  <StatusBadge :status="getOverallStatus(f)" variant="badge" />
                   <button v-if="isPM" class="text-blue-400 hover:text-blue-600 text-sm" @click.stop="openEditDialog(f.id)">编辑</button>
                   <button v-if="isPM" class="text-red-400 hover:text-red-600 text-sm" @click.stop="deleteCustomFeature(f.id)"><span class="i-lucide-x w-4 h-4 inline-block align-middle" /></button>
                 </div>
@@ -562,12 +562,12 @@ watch(currentProjectId, loadFeatures)
           <span class="w-4 h-4 rounded-full flex-shrink-0" :style="{ backgroundColor: c.color }"></span>
           <div v-if="editingCategory?.id !== c.id" class="flex-1 flex items-center gap-2">
             <span class="font-medium text-sm">{{ c.name }}</span>
-            <span class="text-xs text-gray-400">排序: {{ c.sort_order }}</span>
+            <span class="text-xs text-gray-400">排序: {{ c.sortOrder }}</span>
           </div>
           <div v-else class="flex-1 flex items-center gap-2">
             <input v-model="editCategoryForm.name" class="input text-sm flex-1" />
             <ColorPicker v-model="editCategoryForm.color" class="flex-shrink-0" />
-            <input v-model.number="editCategoryForm.sort_order" type="number" class="input text-sm w-16" />
+            <input v-model.number="editCategoryForm.sortOrder" type="number" class="input text-sm w-16" />
           </div>
           <div class="flex items-center gap-2">
             <template v-if="editingCategory?.id === c.id">

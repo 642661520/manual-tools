@@ -17,19 +17,19 @@ const { isPM } = useAuth()
 const { prompt, alert } = useDialog()
 
 // ====== 目录列表 ======
-const catalogs = ref<any[]>([])
+const catalogs = ref<CatalogInfo[]>([])
 const selectedCatalogId = ref<string | null>(null)
 
 async function loadCatalogs() {
   const pid = currentProjectId.value
   try {
     const data = await getCatalogs(pid || undefined)
-    catalogs.value = data as any
+    catalogs.value = data
     // 默认选中：URL params（/preview/:id）> URL query（?catalog=）> 第一个
     const fromParam = route.params.id as string | undefined
     const fromQuery = route.query.catalog as string | undefined
     const fromUrl = fromParam || fromQuery
-    if (fromUrl && catalogs.value.some((c: any) => c.id === fromUrl)) {
+    if (fromUrl && catalogs.value.some((c: CatalogInfo) => c.id === fromUrl)) {
       selectedCatalogId.value = fromUrl
     } else if (catalogs.value.length > 0) {
       selectedCatalogId.value = catalogs.value[0].id
@@ -49,16 +49,16 @@ function selectCatalog(id: string | number | null) {
 }
 
 // ====== 版本列表 ======
-const versions = ref<any[]>([])
+const versions = ref<CatalogVersionInfo[]>([])
 const selectedVersionId = ref<string | null>(null)
 
 async function loadVersions() {
   if (!selectedCatalogId.value) { versions.value = []; selectedVersionId.value = null; return }
   try {
     const data = await getVersions(selectedCatalogId.value)
-    versions.value = data as any
+    versions.value = data
     const fromUrl = route.query.version as string | undefined
-    selectedVersionId.value = (fromUrl && versions.value.some((v: any) => v.id === fromUrl)) ? fromUrl : null
+    selectedVersionId.value = (fromUrl && versions.value.some((v: CatalogVersionInfo) => v.id === fromUrl)) ? fromUrl : null
   } catch { /* ignore */ }
 }
 
@@ -170,9 +170,9 @@ function renderMarkdown(md: string): string {
 // ====== 变更记录 ======
 const changelogVersions = computed(() => {
   if (!selectedVersionId.value) return versions.value
-  const t = versions.value.find((v: any) => v.id === selectedVersionId.value)
+  const t = versions.value.find((v: CatalogVersionInfo) => v.id === selectedVersionId.value)
   if (!t) return versions.value
-  return versions.value.filter((v: any) => v.version_major < t.version_major || (v.version_major === t.version_major && v.version_minor <= t.version_minor))
+  return versions.value.filter((v: CatalogVersionInfo) => v.versionMajor < t.versionMajor || (v.versionMajor === t.versionMajor && v.versionMinor <= t.versionMinor))
 })
 
 // ====== 生命周期 ======
@@ -214,7 +214,7 @@ watch([selectedVersionId, previewMode], () => { loadPreview() })
           :model-value="selectedVersionId || ''"
           :options="[
             { value: '', label: '当前最新（实时内容）' },
-            ...versions.map(v => ({ value: v.id, label: `v${v.version_major}.${v.version_minor} · ${v.created_at.slice(0, 10)}` }))
+            ...versions.map(v => ({ value: v.id, label: `v${v.versionMajor}.${v.versionMinor} · ${v.createdAt.slice(0, 10)}` }))
           ]"
           @update:model-value="selectVersion"
         />
@@ -289,9 +289,9 @@ watch([selectedVersionId, previewMode], () => { loadPreview() })
               class="flex items-start gap-3 text-sm border-b border-gray-50 pb-2"
               :class="{ 'cursor-pointer text-blue-600 hover:text-blue-800': v.id !== selectedVersionId }"
               @click="v.id !== selectedVersionId && selectVersion(v.id)">
-              <span class="font-mono text-gray-500 flex-shrink-0">v{{ v.version_major }}.{{ v.version_minor }}</span>
-              <span class="text-gray-400 flex-shrink-0">{{ v.created_at.slice(0, 10) }}</span>
-              <span class="text-gray-600">{{ v.change_notes || '（无变更说明）' }}</span>
+              <span class="font-mono text-gray-500 flex-shrink-0">v{{ v.versionMajor }}.{{ v.versionMinor }}</span>
+              <span class="text-gray-400 flex-shrink-0">{{ v.createdAt.slice(0, 10) }}</span>
+              <span class="text-gray-600">{{ v.changeNotes || '（无变更说明）' }}</span>
             </div>
           </div>
         </div>

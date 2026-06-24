@@ -5,6 +5,21 @@ import { getFeatures } from '@/api/endpoints/features'
 import type { FeatureSummary } from '@shared/types'
 import ModalDialog from './ModalDialog.vue'
 
+// API 返回的原始特征数据（sections 为 JSON 字符串）
+interface FeatureApiEntry {
+  id: string
+  title: string
+  sections: string
+  module: string
+}
+
+interface FeatureEntry {
+  id: string
+  title: string
+  module: string
+  sections: { key: string; title: string }[]
+}
+
 const emit = defineEmits<{
   close: []
   select: [featureId: string, label: string, sectionKey: string, sectionTitle: string]
@@ -19,7 +34,7 @@ const props = defineProps<{
 
 const { currentProjectId } = useProject()
 
-const features = ref<any[]>([])
+const features = ref<FeatureEntry[]>([])
 const searchQuery = ref('')
 const selectedFeatureId = ref<string | null>(null)
 const selectedSectionKey = ref<string | null>(null)
@@ -30,14 +45,14 @@ const error = ref('')
 
 const moduleGroups = computed(() => {
   const filtered = searchQuery.value
-    ? features.value.filter((f: any) =>
+    ? features.value.filter((f: FeatureEntry) =>
         f.title.includes(searchQuery.value) ||
         f.module.includes(searchQuery.value) ||
-        f.sections.some((s: any) => s.title.includes(searchQuery.value)),
+        f.sections.some((s: { key: string; title: string }) => s.title.includes(searchQuery.value)),
       )
     : features.value
 
-  const groups: Record<string, any[]> = {}
+  const groups: Record<string, FeatureEntry[]> = {}
   for (const f of filtered) {
     const mod = f.module || '未分类'
     if (!groups[mod]) groups[mod] = []
@@ -48,10 +63,10 @@ const moduleGroups = computed(() => {
 
 const selectedLabel = computed(() => {
   if (!selectedFeatureId.value) return ''
-  const f = features.value.find((f: any) => f.id === selectedFeatureId.value)
+  const f = features.value.find((f: FeatureEntry) => f.id === selectedFeatureId.value)
   if (!f) return ''
   if (selectedSectionKey.value) {
-    const sec = f.sections.find((s: any) => s.key === selectedSectionKey.value)
+    const sec = f.sections.find((s: { key: string; title: string }) => s.key === selectedSectionKey.value)
     return sec ? `${f.title} › ${sec.title}` : f.title
   }
   return f.title
@@ -62,7 +77,7 @@ async function loadFeatures() {
   loading.value = true
   error.value = ''
   try {
-    const list = await getFeatures(currentProjectId.value) as any[]
+    const list = await getFeatures(currentProjectId.value) as unknown as FeatureApiEntry[]
     features.value = list.map(f => ({
       id: f.id,
       title: f.title,

@@ -336,10 +336,10 @@ onMounted(() => {
         <!-- 当前成员 -->
         <div v-if="members.length === 0" class="text-sm text-gray-400 py-2">暂无成员</div>
         <div v-for="m in members" :key="m.id" class="flex items-center gap-2 py-1.5 border-b border-gray-50">
-          <img v-if="m.feishu_avatar_url" :src="m.feishu_avatar_url" class="w-6 h-6 rounded-full flex-shrink-0" alt="" />
-          <span v-else class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 text-xs font-semibold flex-shrink-0">{{ (m.feishu_name || m.display_name || m.username || '?')[0] }}</span>
+          <img v-if="m.feishuAvatarUrl" :src="m.feishuAvatarUrl" class="w-6 h-6 rounded-full flex-shrink-0" alt="" />
+          <span v-else class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 text-xs font-semibold flex-shrink-0">{{ (m.feishuName || m.displayName || m.username || '?')[0] }}</span>
           <div class="flex-1 min-w-0">
-            <span class="text-sm">{{ m.feishu_name || m.display_name }}</span>
+            <span class="text-sm">{{ m.feishuName || m.displayName }}</span>
             <span class="text-xs text-gray-400 ml-1">({{ roleLabel(m.role) }})</span>
           </div>
           <button class="text-red-400 hover:text-red-600 text-xs" @click="removeMember(m.id)">移除</button>
@@ -354,12 +354,12 @@ onMounted(() => {
                 width-class="flex-1"
                 placeholder="选择用户..."
                 :options="nonMembers().map((u: any) => {
-                  const name = u.feishu_name || u.display_name
+                  const name = u.feishuName || u.displayName
                   return {
                     value: u.id,
                     label: `${name} (${roleLabel(u.role)})`,
-                    avatar: u.feishu_avatar_url || undefined,
-                    initial: u.feishu_avatar_url ? undefined : (name || '?')[0],
+                    avatar: u.feishuAvatarUrl || undefined,
+                    initial: u.feishuAvatarUrl ? undefined : (name || '?')[0],
                   }
                 })"
                 @update:model-value="(val: string | number | null) => { if (val) { addMember(val as string); newMemberId = null } }"
@@ -386,10 +386,10 @@ onMounted(() => {
         </div>
         <div v-for="(u, i) in reviewChainUsers" :key="u.id" class="flex items-center gap-2 py-1.5 border-b border-gray-50">
           <span class="text-xs text-gray-400 w-6">{{ i + 1 }}.</span>
-          <img v-if="u.feishu_avatar_url" :src="u.feishu_avatar_url" class="w-6 h-6 rounded-full flex-shrink-0" alt="" />
-          <span v-else class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 text-xs font-semibold flex-shrink-0">{{ (u.feishu_name || u.display_name || u.username || '?')[0] }}</span>
+          <img v-if="u.feishuAvatarUrl" :src="u.feishuAvatarUrl" class="w-6 h-6 rounded-full flex-shrink-0" alt="" />
+          <span v-else class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 text-xs font-semibold flex-shrink-0">{{ (u.feishuName || u.displayName || u.username || '?')[0] }}</span>
           <div class="flex-1 min-w-0">
-            <span class="text-sm">{{ u.feishu_name || u.display_name }}</span>
+            <span class="text-sm">{{ u.feishuName || u.displayName }}</span>
             <span class="text-xs text-gray-400 ml-1">(产品)</span>
           </div>
           <button
@@ -410,12 +410,12 @@ onMounted(() => {
               v-model="newReviewerId"
               placeholder="选择产品..."
               :options="[{ value: null, label: '选择产品...' }, ...availablePMs.map((u: any) => {
-                const name = u.feishu_name || u.display_name
+                const name = u.feishuName || u.displayName
                 return {
                   value: u.id,
                   label: `${name} (产品)`,
-                  avatar: u.feishu_avatar_url || undefined,
-                  initial: u.feishu_avatar_url ? undefined : (name || '?')[0],
+                  avatar: u.feishuAvatarUrl || undefined,
+                  initial: u.feishuAvatarUrl ? undefined : (name || '?')[0],
                 }
               })]"
               @update:model-value="(val: string | number | null) => { if (val) addReviewer(val as string) }"
@@ -436,15 +436,15 @@ onMounted(() => {
 
       <div v-for="u in localUsers" :key="u.id" class="flex items-center gap-3 py-3 border-t border-gray-100">
         <img
-          v-if="u.feishu_avatar_url"
-          :src="u.feishu_avatar_url"
+          v-if="u.feishuAvatarUrl"
+          :src="u.feishuAvatarUrl"
           class="w-8 h-8 rounded-full flex-shrink-0"
           alt=""
         />
-        <span v-else class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 text-sm font-semibold flex-shrink-0">{{ (u.feishu_name || u.display_name || u.username || '?')[0] }}</span>
+        <span v-else class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 text-sm font-semibold flex-shrink-0">{{ (u.feishuName || u.displayName || u.username || '?')[0] }}</span>
         <div class="flex-1 min-w-0">
           <div class="font-medium text-sm truncate">
-            {{ u.feishu_name || u.display_name }}
+            {{ u.feishuName || u.displayName }}
           </div>
           <div class="text-xs text-gray-400 truncate">{{ u.username }} · {{ roleLabel(u.role) }}</div>
         </div>

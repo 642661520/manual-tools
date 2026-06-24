@@ -31,7 +31,7 @@ export function useYjsDoc(docId: string) {
 
   function sendRaw(data: Uint8Array) {
     if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(data)
+      ws.send(data as unknown as ArrayBuffer)
     }
   }
 

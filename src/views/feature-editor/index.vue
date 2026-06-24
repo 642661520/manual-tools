@@ -6,26 +6,32 @@ import { useDialog } from '@/composables/useDialog'
 import { getFeature, updateSectionStatus, deleteOrphaned as apiDeleteOrphaned } from '@/api/endpoints/features'
 import { getUsers } from '@/api/endpoints/auth'
 import { getMembers } from '@/api/endpoints/projects'
-import type { FeatureDetail } from '@shared/types'
+import type { FeatureDetail, UpdateSectionStatusBody } from '@shared/types'
 
-// 后端 /api/auth/users 和 /api/projects/:id/members 返回 snake_case 字段
+// API 响应已自动转为 camelCase
+interface FeatureDetailExt extends FeatureDetail {
+  reviewChain?: string
+}
 interface ApiUser {
   id: string
   username: string
-  display_name: string
+  displayName: string
   role: string
-  feishu_open_id: string | null
-  feishu_name: string | null
-  feishu_avatar_url: string | null
-  created_at: string
+  feishuOpenId: string | null
+  feishuName: string | null
+  feishuAvatarUrl: string | null
+  createdAt: string
 }
 import TiptapEditor from '@/components/TiptapEditor.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
+import StatusTransitionModal from '@/components/StatusTransitionModal.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import SelectDropdown from '@/components/SelectDropdown.vue'
 
 const route = useRoute()
 const router = useRouter()
+
+type ComponentStatus = 'draft' | 'in_progress' | 'completed' | 'pending_review' | 'rejected' | 'approved'
 const { isPM, isGuest } = useAuth()
 const { confirm, dangerConfirm, prompt } = useDialog()
 const featureId = computed(() => route.params.id as string)
@@ -60,14 +66,16 @@ const isOrphaned = computed(() =>
 
 // 审核链信息（从项目 review_chain 中获取）
 const reviewChain = computed(() => {
-  try { return JSON.parse((feature.value as any)?.review_chain || '[]') as string[] } catch { return [] as string[] }
+  try { return JSON.parse((feature.value as FeatureDetailExt)?.reviewChain || '[]') as string[] } catch { return [] as string[] }
 })
 
 const currentReviewStep = computed(() => currentSectionData.value?.reviewStep || 0)
 
 // 当前章节的审核日志
 const sectionReviewLog = computed(() => {
-  try { return JSON.parse((currentSectionData.value as any)?.reviewLog || '[]') as { action: string; reviewerId: string; note: string; step: number; created_at: string }[] }
+  try {
+    return JSON.parse((currentSectionData.value as { reviewLog?: string })?.reviewLog || '[]') as { action: string; reviewerId: string; note: string; step: number; createdAt: string }[]
+  }
   catch { return [] }
 })
 
@@ -90,7 +98,7 @@ async function loadFeature() {
   loadError.value = ''
   try {
     const data = await getFeature(featureId.value)
-    feature.value = data as any
+    feature.value = data as FeatureDetailExt
     const fromUrl = route.query.section as string | undefined
     currentSection.value = (fromUrl && data.sections.find((s: any) => s.key === fromUrl))
       ? fromUrl
@@ -108,7 +116,7 @@ onMounted(() => {
 })
 
 function userDisplayName(u: ApiUser): string {
-  return u.feishu_name || u.display_name || u.username || '未知'
+  return u.feishuName || u.displayName || u.username || '未知'
 }
 
 const users = ref<ApiUser[]>([])
@@ -117,20 +125,21 @@ const newAssigneeId = ref<string | null>(null)
 
 async function loadUsers() {
   try {
-    users.value = await getUsers() as unknown as ApiUser[]
+    users.value = await getUsers() as ApiUser[]
   } catch { /* ignore */ }
 }
 
 async function loadProjectMembers() {
-  if (!(feature.value as any)?.project_id) return
+  const pid = feature.value?.projectId
+  if (!pid) return
   try {
-    const members = await getMembers((feature.value as any).project_id)
+    const members = await getMembers(pid)
     projectMemberIds.value = new Set(members.map(m => m.id))
   } catch { /* ignore */ }
 }
 
 function getCurrentAssignees(): string[] {
-  const raw = (currentSectionData.value as any)?.assignees || '[]'
+  const raw = (currentSectionData.value as { assignees?: string })?.assignees || '[]'
   try { return JSON.parse(raw) as string[] } catch { return [] }
 }
 
@@ -140,12 +149,12 @@ function getUserName(uid: string): string {
 }
 
 function getUserAvatar(uid: string): string | null {
-  return (users.value.find(u => u.id === uid)?.feishu_avatar_url as string) || null
+  return (users.value.find(u => u.id === uid)?.feishuAvatarUrl as string) || null
 }
 
 function getUserInitial(uid: string): string {
   const u = users.value.find(u => u.id === uid)
-  return ((u?.feishu_name || u?.display_name || '?') as string)[0]
+  return ((u?.feishuName || u?.displayName || '?') as string)[0]
 }
 
 function availableUsers() {
@@ -168,7 +177,7 @@ async function updateAssignees(sectionKey: string, assignees: string[]) {
   const sec = feature.value?.sections.find(s => s.key === sectionKey)
   try {
     await updateSectionStatus(featureId.value, sectionKey, { assignees })
-    if (sec) { (sec as any).assignees = JSON.stringify(assignees) }
+    if (sec) { (sec as { assignees?: string }).assignees = JSON.stringify(assignees) }
   } catch { /* ignore */ }
 }
 
@@ -191,64 +200,35 @@ watch(currentSection, (val) => {
 })
 
 // 状态更新
-async function setStatus(sectionKey: string, newStatus: string, reviewNote?: string, direct?: boolean) {
-  const sec = feature.value?.sections.find(s => s.key === sectionKey)
-  const note = reviewNote !== undefined ? reviewNote
-    : (newStatus === 'approved') ? ''
-    : (sec?.reviewNote || '')
+const showStatusModal = ref(false)
 
-  const body: Record<string, unknown> = { status: newStatus, reviewNote: note }
-  if (direct) body.direct = true
+const hasStatusTransitions = computed(() => {
+  const s = currentSectionData.value?.status || 'draft'
+  if (!isPM.value) return s === 'draft' || s === 'in_progress' || s === 'rejected'
+  return true // PM 始终有可用操作
+})
+
+const statusActionLabel = computed(() => {
+  const s = currentSectionData.value?.status || 'draft'
+  if (!isPM.value && (s === 'draft' || s === 'in_progress')) return '提交审核'
+  if (!isPM.value && s === 'rejected') return '重新提交审核'
+  if (isPM.value && s === 'pending_review' && isCurrentReviewer.value) return '审核...'
+  return '变更状态'
+})
+
+async function handleStatusTransition(sectionKey: string, payload: { target: string; note: string; direct?: boolean }) {
+  const body: Record<string, unknown> = { status: payload.target, reviewNote: payload.note || '' }
+  if (payload.direct) body.direct = true
   try {
-    await updateSectionStatus(featureId.value, sectionKey, body as any)
-    // 重新加载 feature 以获取服务端更新的 review_step、review_log 等
-    if (['pending_review', 'approved', 'rejected'].includes(newStatus)) {
+    await updateSectionStatus(featureId.value, sectionKey, body as UpdateSectionStatusBody)
+    showStatusModal.value = false
+    if (['pending_review', 'approved', 'rejected'].includes(payload.target)) {
       await loadFeature()
-    } else if (sec) {
-      sec.status = newStatus; sec.reviewNote = note
+    } else if (feature.value) {
+      const sec = feature.value.sections.find(s => s.key === sectionKey)
+      if (sec) { sec.status = payload.target; sec.reviewNote = payload.note || '' }
     }
   } catch { /* ignore */ }
-}
-
-// 运维：提交审核
-async function submitForReview(sectionKey: string) {
-  if (!await confirm('确定提交审核？')) return
-  setStatus(sectionKey, 'pending_review', '')
-}
-
-// 运维：PM 退回后重新提交
-async function resubmitForReview(sectionKey: string) {
-  if (!await confirm('确定重新提交审核？')) return
-  setStatus(sectionKey, 'pending_review', '')
-}
-
-// PM：审核通过
-async function approve(sectionKey: string) {
-  setStatus(sectionKey, 'approved', '')
-}
-
-// PM：退回修改（必须填写理由）
-async function reject(sectionKey: string) {
-  const note = await prompt('请填写退回理由：')
-  if (!note) return  // 取消或空输入
-  setStatus(sectionKey, 'rejected', note.trim())
-}
-
-// PM：直接通过（跳过审核链）
-async function directApprove(sectionKey: string) {
-  if (!await confirm('确定将此章节直接设为已审核？将跳过审核流程。')) return
-  setStatus(sectionKey, 'approved', undefined, true)
-}
-
-// PM：需要修改（从 approved 打回）
-async function requestChanges(sectionKey: string) {
-  setStatus(sectionKey, 'in_progress')
-}
-
-// PM：重置为未开始
-async function resetToDraft(sectionKey: string) {
-  if (!await confirm('确定重置为未开始？')) return
-  setStatus(sectionKey, 'draft')
 }
 
 // 删除游离文档
@@ -306,7 +286,7 @@ async function deleteOrphaned(sectionKey: string) {
             >
               <span :class="statusIcon(section.status || 'draft')" class="w-4 h-4 inline-block flex-shrink-0" />
               <span class="flex-1 truncate">{{ section.title }}</span>
-              <StatusBadge :status="(section.status || 'draft') as any" variant="text" />
+              <StatusBadge :status="(section.status || 'draft') as ComponentStatus" variant="text" />
             </button>
           </nav>
         </div>
@@ -346,69 +326,28 @@ async function deleteOrphaned(sectionKey: string) {
 
           <div class="text-xs font-semibold text-gray-400 uppercase mb-2 flex items-center gap-2">
             状态
-            <StatusBadge :status="(currentSectionData.status || 'draft') as any" />
+            <StatusBadge :status="(currentSectionData.status || 'draft') as ComponentStatus" />
           </div>
 
-          <!-- 操作按钮 -->
+          <!-- 状态操作入口 -->
           <div class="space-y-1">
-            <!-- 运维：提交审核 -->
             <button
-              v-if="!isPM && (currentSectionData.status === 'draft' || currentSectionData.status === 'in_progress')"
+              v-if="hasStatusTransitions"
               class="btn-primary text-sm w-full"
-              @click="submitForReview(currentSection)"
+              @click="showStatusModal = true"
             >
-              提交审核
-            </button>
-            <!-- 运维：PM 退回后重新提交 -->
-            <button
-              v-if="!isPM && currentSectionData.status === 'rejected'"
-              class="btn-primary text-sm w-full"
-              @click="resubmitForReview(currentSection)"
-            >
-              重新提交审核
-            </button>
-            <!-- PM 审核操作 -->
-            <template v-if="isPM && currentSectionData.status === 'pending_review'">
-              <template v-if="isCurrentReviewer">
-                <button class="btn-primary text-sm w-full !bg-emerald-500 hover:!bg-emerald-600" @click="approve(currentSection)">
-                  审核通过
-                </button>
-                <button class="btn-secondary text-sm w-full !text-orange-600 !border-orange-300 hover:!bg-orange-50" @click="reject(currentSection)">
-                  退回修改
-                </button>
-              </template>
-              <div v-else class="text-xs text-gray-400 text-center py-1">
-                等待审核中（当前：
-                <img v-if="getUserAvatar(reviewChain[currentReviewStep])" :src="getUserAvatar(reviewChain[currentReviewStep])!" class="w-4 h-4 rounded-full inline-block align-middle" alt="" />
-                <span v-else class="w-4 h-4 rounded-full bg-blue-100 inline-flex items-center justify-center text-blue-500 text-[8px] font-semibold align-middle">{{ getUserInitial(reviewChain[currentReviewStep]) }}</span>
-                {{ getUserName(reviewChain[currentReviewStep]) }}）
-              </div>
-            </template>
-            <!-- PM：已审核的需要修改 -->
-            <button
-              v-if="isPM && currentSectionData.status === 'approved'"
-              class="btn-secondary text-sm w-full !text-orange-600 !border-orange-300 hover:!bg-orange-50"
-              @click="requestChanges(currentSection)"
-            >
-              需要修改
-            </button>
-            <!-- PM：直接通过（非已审核且非当前审核人） -->
-            <button
-              v-if="isPM && currentSectionData.status !== 'approved' && !(currentSectionData.status === 'pending_review' && isCurrentReviewer)"
-              class="btn-secondary text-sm w-full !text-emerald-600 !border-emerald-300 hover:!bg-emerald-50"
-              @click="directApprove(currentSection)"
-            >
-              直接通过
-            </button>
-            <!-- PM：重置为未开始 -->
-            <button
-              v-if="isPM && currentSectionData.status !== 'draft'"
-              class="btn-secondary text-sm w-full text-gray-400"
-              @click="resetToDraft(currentSection)"
-            >
-              重置为未开始
+              {{ statusActionLabel }}
             </button>
           </div>
+
+          <StatusTransitionModal
+            :visible="showStatusModal"
+            :current-status="(currentSectionData?.status || 'draft') as ComponentStatus"
+            :is-p-m="isPM"
+            :is-current-reviewer="isCurrentReviewer"
+            @close="showStatusModal = false"
+            @confirm="(payload) => handleStatusTransition(currentSection, payload)"
+          />
 
           <!-- 指派操作人 -->
           <div class="mt-3">
@@ -434,12 +373,12 @@ async function deleteOrphaned(sectionKey: string) {
                 :options="[
                   { value: null, label: '添加编写人...' },
                   ...availableUsers().map(u => {
-                    const name = u.feishu_name || u.display_name
+                    const name = u.feishuName || u.displayName
                     return {
                       value: u.id,
                       label: userDisplayName(u),
-                      avatar: u.feishu_avatar_url || undefined,
-                      initial: u.feishu_avatar_url ? undefined : (name || '?')[0],
+                      avatar: u.feishuAvatarUrl || undefined,
+                      initial: u.feishuAvatarUrl ? undefined : (name || '?')[0],
                     }
                   })
                 ]"
@@ -484,7 +423,7 @@ async function deleteOrphaned(sectionKey: string) {
                 <span v-else class="w-4 h-4 rounded-full bg-blue-100 inline-flex items-center justify-center text-blue-500 text-[8px] font-semibold">{{ getUserInitial(entry.reviewerId) }}</span>
                 <span class="font-medium">{{ getUserName(entry.reviewerId) }}</span>
                 <span class="text-gray-400">{{ entry.action === 'approved' ? '通过审核' : '退回修改' }}</span>
-                <span class="text-xs text-gray-400 ml-auto">{{ entry.created_at.slice(0, 16).replace('T', ' ') }}</span>
+                <span class="text-xs text-gray-400 ml-auto">{{ entry.createdAt.slice(0, 16).replace('T', ' ') }}</span>
               </div>
               <div v-if="entry.note" class="text-gray-500 ml-5 text-xs mt-0.5">{{ entry.note }}</div>
             </div>

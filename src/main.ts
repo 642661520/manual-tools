@@ -43,6 +43,11 @@ async function validateToken(): Promise<boolean> {
 
 // 路由守卫：检查认证
 router.beforeEach(async (to, _from, next) => {
+  // 已登录用户访问登录页 → 重定向到首页
+  if (to.name === 'login' && localStorage.getItem('auth_token')) {
+    return next('/features')
+  }
+
   if (to.meta.requiresAuth) {
     const valid = await validateToken()
     if (!valid) return next('/login')
