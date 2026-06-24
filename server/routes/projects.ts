@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { getDb } from '../db/index.js'
 import { authMiddleware, requireRole } from '../auth/middleware.js'
+import { success, ok, fail } from '../lib/response.js'
 import { isProjectMember, isExplicitMember } from '../auth/membership.js'
 import { notifyJoinProject, notifyLeaveProject } from '../services/notifications.js'
 import { v4 as uuid } from 'uuid'
@@ -8,35 +9,37 @@ import type { ProjectRow, CreateProjectBody, UpdateProjectBody, UserRow } from '
 
 export async function projectRoutes(app: FastifyInstance) {
   // 获取项目列表（pm 看全部，ops/guest 只看自己加入的）
-  app.get('/api/projects', { preHandler: authMiddleware }, async (req) => {
+  app.get('/api/v1/projects', { preHandler: authMiddleware }, async (req) => {
     const db = getDb()
     const userId = req.user!.userId
     const role = req.user!.role
 
     if (role === 'pm') {
-      return db.prepare('SELECT * FROM projects ORDER BY created_at').all()
+      const rows = db.prepare('SELECT * FROM projects ORDER BY created_at').all()
+      return success(rows)
     }
-    return db.prepare(`
+    const rows = db.prepare(`
       SELECT p.* FROM projects p
       JOIN project_members pm ON p.id = pm.project_id
       WHERE pm.user_id = ?
       ORDER BY p.created_at
     `).all(userId)
+    return success(rows)
   })
 
   // 获取单个项目
-  app.get('/api/projects/:id', { preHandler: authMiddleware }, async (req, reply) => {
+  app.get('/api/v1/projects/:id', { preHandler: authMiddleware }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const db = getDb()
     const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as ProjectRow | undefined
-    if (!project) return reply.status(404).send({ error: '项目不存在' })
-    return project
+    if (!project) return fail(reply, 404, '项目不存在')
+    return success(project)
   })
 
   // 创建项目（PM only，自动加入成员）
-  app.post('/api/projects', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  app.post('/api/v1/projects', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
     const body = req.body as CreateProjectBody
-    if (!body.name?.trim()) return reply.status(400).send({ error: '项目名称不能为空' })
+    if (!body.name?.trim()) return fail(reply, 400, '项目名称不能为空')
 
     const id = uuid().slice(0, 8)
     const db = getDb()
@@ -49,18 +52,19 @@ export async function projectRoutes(app: FastifyInstance) {
     db.prepare('INSERT OR IGNORE INTO project_members (project_id, user_id) VALUES (?, ?)').run(
       id, req.user!.userId,
     )
-    return db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as ProjectRow
+    const row = db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as ProjectRow
+    return success(row)
   })
 
   // 更新项目（PM only）
-  app.put('/api/projects/:id', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  app.put('/api/v1/projects/:id', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const body = req.body as UpdateProjectBody
-    if (!body.name?.trim()) return reply.status(400).send({ error: '项目名称不能为空' })
+    if (!body.name?.trim()) return fail(reply, 400, '项目名称不能为空')
 
     const db = getDb()
     const existing = db.prepare('SELECT id FROM projects WHERE id = ?').get(id)
-    if (!existing) return reply.status(404).send({ error: '项目不存在' })
+    if (!existing) return fail(reply, 404, '项目不存在')
 
     db.prepare("UPDATE projects SET name = ?, description = ?, updated_at = datetime('now') WHERE id = ?")
       .run(body.name.trim(), body.description || '', id)
@@ -71,36 +75,37 @@ export async function projectRoutes(app: FastifyInstance) {
         .run(JSON.stringify(body.reviewChain), id)
     }
 
-    return db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as ProjectRow
+    const row = db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as ProjectRow
+    return success(row)
   })
 
   // 删除项目（PM only，不允许删除 default）
-  app.delete('/api/projects/:id', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  app.delete('/api/v1/projects/:id', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
-    if (id === 'default') return reply.status(403).send({ error: '不能删除默认项目' })
+    if (id === 'default') return fail(reply, 403, '不能删除默认项目')
 
     const db = getDb()
     const existing = db.prepare('SELECT id FROM projects WHERE id = ?').get(id)
-    if (!existing) return reply.status(404).send({ error: '项目不存在' })
+    if (!existing) return fail(reply, 404, '项目不存在')
 
     // FK ON DELETE CASCADE 自动清理 features、catalogs、project_members
     db.prepare('DELETE FROM catalogs WHERE project_id = ?').run(id)
     db.prepare('DELETE FROM features WHERE project_id = ?').run(id)
     db.prepare('DELETE FROM projects WHERE id = ?').run(id)
 
-    return { ok: true }
+    return ok()
   })
 
   // ===== 成员管理 =====
 
   // 获取项目成员列表
-  app.get('/api/projects/:id/members', { preHandler: authMiddleware }, async (req, reply) => {
+  app.get('/api/v1/projects/:id/members', { preHandler: authMiddleware }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const userId = req.user!.userId
     const role = req.user!.role
 
     if (!isProjectMember(userId, role, id)) {
-      return reply.status(403).send({ error: '你不是该项目的成员' })
+      return fail(reply, 403, '你不是该项目的成员')
     }
 
     const db = getDb()
@@ -111,28 +116,28 @@ export async function projectRoutes(app: FastifyInstance) {
       WHERE pm.project_id = ?
       ORDER BY u.role, u.display_name
     `).all(id) as UserRow[]
-    return members
+    return success(members)
   })
 
   // 添加项目成员（仅 PM + 项目成员可操作）
-  app.post('/api/projects/:id/members', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  app.post('/api/v1/projects/:id/members', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const userId = req.user!.userId
 
     if (!isExplicitMember(userId, id)) {
-      return reply.status(403).send({ error: '你不是该项目的成员，无法管理成员' })
+      return fail(reply, 403, '你不是该项目的成员，无法管理成员')
     }
 
     const { userId: targetUserId } = req.body as { userId: string }
     if (!targetUserId) {
-      return reply.status(400).send({ error: '请指定用户' })
+      return fail(reply, 400, '请指定用户')
     }
 
     const db = getDb()
     // 验证目标用户存在
     const targetUser = db.prepare('SELECT id FROM users WHERE id = ?').get(targetUserId)
     if (!targetUser) {
-      return reply.status(404).send({ error: '用户不存在' })
+      return fail(reply, 404, '用户不存在')
     }
 
     db.prepare('INSERT OR IGNORE INTO project_members (project_id, user_id) VALUES (?, ?)').run(id, targetUserId)
@@ -143,20 +148,20 @@ export async function projectRoutes(app: FastifyInstance) {
     notifyJoinProject(project?.name || id, targetUserId, operator?.display_name || '管理员')
       .catch(e => console.error('飞书通知失败(加入项目):', e))
 
-    return { ok: true }
+    return ok()
   })
 
   // 移除项目成员（仅 PM + 项目成员可操作，不能移除自己）
-  app.delete('/api/projects/:id/members/:userId', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  app.delete('/api/v1/projects/:id/members/:userId', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
     const { id, userId: targetUserId } = req.params as { id: string; userId: string }
     const operatorId = req.user!.userId
 
     if (!isExplicitMember(operatorId, id)) {
-      return reply.status(403).send({ error: '你不是该项目的成员，无法管理成员' })
+      return fail(reply, 403, '你不是该项目的成员，无法管理成员')
     }
 
     if (targetUserId === operatorId) {
-      return reply.status(400).send({ error: '不能移除自己' })
+      return fail(reply, 400, '不能移除自己')
     }
 
     const db = getDb()
@@ -187,24 +192,24 @@ export async function projectRoutes(app: FastifyInstance) {
     notifyLeaveProject(project?.name || id, targetUserId, operator?.display_name || '管理员')
       .catch(e => console.error('飞书通知失败(移出项目):', e))
 
-    return { ok: true }
+    return ok()
   })
 
   // ===== 审核链管理 =====
 
   // 获取项目审核链（含可用 PM 列表供选择）
-  app.get('/api/projects/:id/review-chain', { preHandler: authMiddleware }, async (req, reply) => {
+  app.get('/api/v1/projects/:id/review-chain', { preHandler: authMiddleware }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const userId = req.user!.userId
     const role = req.user!.role
 
     if (!isProjectMember(userId, role, id)) {
-      return reply.status(403).send({ error: '你不是该项目的成员' })
+      return fail(reply, 403, '你不是该项目的成员')
     }
 
     const db = getDb()
     const project = db.prepare('SELECT review_chain FROM projects WHERE id = ?').get(id) as { review_chain: string } | undefined
-    if (!project) return reply.status(404).send({ error: '项目不存在' })
+    if (!project) return fail(reply, 404, '项目不存在')
 
     const chain = JSON.parse(project.review_chain || '[]') as string[]
 
@@ -223,21 +228,21 @@ export async function projectRoutes(app: FastifyInstance) {
       return u || { id: cid, username: '', display_name: cid, role: 'pm' }
     })
 
-    return { chain: chainUsers, availablePMs }
+    return success({ chain: chainUsers, availablePMs })
   })
 
   // 更新项目审核链
-  app.put('/api/projects/:id/review-chain', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  app.put('/api/v1/projects/:id/review-chain', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const userId = req.user!.userId
 
     if (!isExplicitMember(userId, id)) {
-      return reply.status(403).send({ error: '你不是该项目的成员，无法管理审核链' })
+      return fail(reply, 403, '你不是该项目的成员，无法管理审核链')
     }
 
     const { reviewChain } = req.body as { reviewChain: string[] }
     if (!Array.isArray(reviewChain)) {
-      return reply.status(400).send({ error: '审核链格式错误' })
+      return fail(reply, 400, '审核链格式错误')
     }
 
     const db = getDb()
@@ -251,13 +256,13 @@ export async function projectRoutes(app: FastifyInstance) {
 
     for (const cid of reviewChain) {
       if (!pmIds.has(cid)) {
-        return reply.status(400).send({ error: `用户 ${cid} 不是该项目的 PM 成员` })
+        return fail(reply, 400, `用户 ${cid} 不是该项目的 PM 成员`)
       }
     }
 
     db.prepare("UPDATE projects SET review_chain = ?, updated_at = datetime('now') WHERE id = ?")
       .run(JSON.stringify(reviewChain), id)
 
-    return { ok: true }
+    return ok()
   })
 }

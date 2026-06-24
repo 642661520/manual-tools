@@ -4,13 +4,14 @@ import { signToken } from '../auth/jwt.js'
 import { authMiddleware } from '../auth/middleware.js'
 import { getDb } from '../db/index.js'
 import { validatePassword } from '../lib/password.js'
+import { success, ok, fail } from '../lib/response.js'
 
 export async function profileRoutes(app: FastifyInstance) {
   // 获取当前用户信息（含 hasPassword + 通知偏好）
-  app.get('/api/auth/me', { preHandler: authMiddleware }, async (req) => {
+  app.get('/api/v1/auth/me', { preHandler: authMiddleware }, async (req) => {
     const db = getDb()
     const row = db.prepare('SELECT password_hash, notify_enabled, notify_prefs FROM users WHERE id = ?').get(req.user!.userId) as { password_hash: string | null; notify_enabled: number; notify_prefs: string } | undefined
-    return {
+    return success({
       user: {
         ...req.user,
         hasPassword: row ? row.password_hash !== null && row.password_hash !== '' : false,
@@ -20,19 +21,19 @@ export async function profileRoutes(app: FastifyInstance) {
           catch { return {} }
         })(),
       },
-    }
+    })
   })
 
   // 修改显示名称
-  app.put('/api/auth/me', { preHandler: authMiddleware }, async (req, reply) => {
+  app.put('/api/v1/auth/me', { preHandler: authMiddleware }, async (req, reply) => {
     const body = req.body as Record<string, unknown>
     const displayName = typeof body.displayName === 'string' ? body.displayName.trim() : undefined
 
     if (!displayName) {
-      return reply.status(400).send({ error: '显示名称不能为空' })
+      return fail(reply, 400, '显示名称不能为空')
     }
     if (displayName.length > 64) {
-      return reply.status(400).send({ error: '显示名称不能超过64个字符' })
+      return fail(reply, 400, '显示名称不能超过64个字符')
     }
 
     const db = getDb()
@@ -50,11 +51,11 @@ export async function profileRoutes(app: FastifyInstance) {
       feishuName: req.user!.feishuName,
     })
 
-    return { ok: true, token, displayName }
+    return success({ token, displayName })
   })
 
   // 更新通知偏好
-  app.put('/api/auth/me/notify', { preHandler: authMiddleware }, async (req) => {
+  app.put('/api/v1/auth/me/notify', { preHandler: authMiddleware }, async (req) => {
     const body = req.body as Record<string, unknown>
     const db = getDb()
     const userId = req.user!.userId
@@ -66,18 +67,18 @@ export async function profileRoutes(app: FastifyInstance) {
       db.prepare('UPDATE users SET notify_prefs = ? WHERE id = ?').run(JSON.stringify(body.notifyPrefs), userId)
     }
 
-    return { ok: true }
+    return ok()
   })
 
   // 修改密码
-  app.put('/api/auth/me/password', { preHandler: authMiddleware }, async (req, reply) => {
+  app.put('/api/v1/auth/me/password', { preHandler: authMiddleware }, async (req, reply) => {
     const body = req.body as Record<string, unknown>
     const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : undefined
     const newPassword = typeof body.newPassword === 'string' ? body.newPassword : undefined
 
     const passwordError = validatePassword(newPassword)
     if (passwordError) {
-      return reply.status(400).send({ error: passwordError })
+      return fail(reply, 400, passwordError)
     }
 
     const db = getDb()
@@ -85,16 +86,16 @@ export async function profileRoutes(app: FastifyInstance) {
 
     const user = db.prepare('SELECT password_hash, token_version FROM users WHERE id = ?').get(userId) as { password_hash: string | null; token_version: number } | undefined
     if (!user) {
-      return reply.status(404).send({ error: '用户不存在' })
+      return fail(reply, 404, '用户不存在')
     }
 
     const hasExistingPassword = user.password_hash !== null && user.password_hash !== ''
     if (hasExistingPassword) {
       if (!currentPassword || typeof currentPassword !== 'string') {
-        return reply.status(400).send({ error: '请输入当前密码' })
+        return fail(reply, 400, '请输入当前密码')
       }
       if (currentPassword !== user.password_hash) {
-        return reply.status(400).send({ error: '当前密码不正确' })
+        return fail(reply, 400, '当前密码不正确')
       }
     }
 
@@ -111,6 +112,6 @@ export async function profileRoutes(app: FastifyInstance) {
       feishuName: req.user!.feishuName,
     })
 
-    return { ok: true, token }
+    return success({ token })
   })
 }

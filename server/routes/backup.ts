@@ -6,7 +6,7 @@ import fs from 'fs'
 
 export async function backupRoutes(app: FastifyInstance) {
   // 网页手动导出备份（下载 SQLite + uploads 的 zip）
-  app.get('/api/backup/download', { preHandler: [authMiddleware, requireRole('pm')] }, async (_req, reply) => {
+  app.get('/api/v1/backup/download', { preHandler: [authMiddleware, requireRole('pm')] }, async (_req, reply) => {
     const db = getDb()
     const tmpDir = path.resolve(process.env.UPLOAD_DIR || './data/uploads', '../backups/tmp')
     fs.mkdirSync(tmpDir, { recursive: true })

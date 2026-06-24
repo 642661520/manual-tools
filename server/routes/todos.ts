@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { getDb } from '../db/index.js'
 import { authMiddleware } from '../auth/middleware.js'
 import type { DocumentRow } from '../types.js'
+import { success } from '../lib/response.js'
 
 interface TodoItem {
   docId: string
@@ -16,7 +17,7 @@ interface TodoItem {
 }
 
 export async function todoRoutes(app: FastifyInstance) {
-  app.get('/api/todos', { preHandler: authMiddleware }, async (req) => {
+  app.get('/api/v1/todos', { preHandler: authMiddleware }, async (req) => {
     const { projectId } = req.query as { projectId?: string }
     const db = getDb()
     const userId = req.user!.userId
@@ -116,6 +117,6 @@ export async function todoRoutes(app: FastifyInstance) {
       } catch { /* ignore malformed JSON */ }
     }
 
-    return todos
+    return success(todos)
   })
 }

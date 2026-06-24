@@ -53,14 +53,12 @@ export interface MeResponse {
 
 /** PUT /api/auth/me */
 export interface ProfileUpdateResponse {
-  ok: true
   token: string
   displayName: string
 }
 
 /** PUT /api/auth/me/password */
 export interface PasswordChangeResponse {
-  ok: true
   token: string
 }
 
@@ -107,7 +105,6 @@ export interface CreateResponse {
 
 /** PUT /api/features/:id/sections */
 export interface UpdateSectionsResponse {
-  ok: true
   sections: Array<{ key: string; title: string; description?: string }>
 }
 

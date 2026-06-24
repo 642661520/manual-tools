@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { getDb } from '../db/index.js'
 import { authMiddleware, requireRole } from '../auth/middleware.js'
 import { isProjectMember } from '../auth/membership.js'
+import { success, created, ok, fail } from '../lib/response.js'
 import { v4 as uuid } from 'uuid'
 import { notifyAssignees, notifyNextReviewer, notifyWriterReviewResult, notifyDirectApprove, notifyStatusReset, notifyRemoveAssignee } from '../services/notifications.js'
 import type {
@@ -47,7 +48,7 @@ function getEffectiveReviewChain(projectId: string): string[] {
 
 export async function featureRoutes(app: FastifyInstance) {
   // 获取所有主题（含状态摘要），支持按项目过滤
-  app.get('/api/features', { preHandler: authMiddleware }, async (req) => {
+  app.get('/api/v1/features', { preHandler: authMiddleware }, async (req) => {
     const { projectId } = req.query as { projectId?: string }
     const db = getDb()
 
@@ -86,15 +87,15 @@ export async function featureRoutes(app: FastifyInstance) {
     sql += ' ORDER BY f.title'
 
     const features = db.prepare(sql).all(...params) as FeatureWithStats[]
-    return features
+    return success(features)
   })
 
   // 获取单个主题
-  app.get('/api/features/:id', { preHandler: authMiddleware }, async (req) => {
+  app.get('/api/v1/features/:id', { preHandler: authMiddleware }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const db = getDb()
     const feature = db.prepare('SELECT * FROM features WHERE id = ?').get(id) as FeatureRow | undefined
-    if (!feature) return { error: 'Not found' }
+    if (!feature) return fail(reply, 404, 'Not found')
 
     let sections = JSON.parse(feature.sections || '[]') as Section[]
     // 旧数据兼容：无章节的自动生成默认章节
@@ -120,7 +121,7 @@ export async function featureRoutes(app: FastifyInstance) {
         updated_at: d.updated_at,
       }))
 
-    return {
+    return success({
       ...feature,
       sections: sections.map((s: Section) => {
         const doc = docs.find((d: DocumentRow) => d.section_key === s.key)
@@ -135,19 +136,19 @@ export async function featureRoutes(app: FastifyInstance) {
       }),
       orphaned,
       is_custom: !!feature.is_custom,
-    }
+    })
   })
 
   // 创建自定义主题
-  app.post('/api/features', { preHandler: [authMiddleware, requireRole('ops', 'pm')] }, async (req, reply) => {
+  app.post('/api/v1/features', { preHandler: [authMiddleware, requireRole('ops', 'pm')] }, async (req, reply) => {
     const body = req.body as CreateFeatureBody
     const sections = body.sections || []
-    if (!body.title?.trim()) return reply.status(400).send({ error: '主题名称不能为空' })
-    if (sections.length === 0) return reply.status(400).send({ error: '至少需要一个章节' })
+    if (!body.title?.trim()) return fail(reply, 400, '主题名称不能为空')
+    if (sections.length === 0) return fail(reply, 400, '至少需要一个章节')
 
     const projectId = body.projectId || 'default'
     if (!isProjectMember(req.user!.userId, req.user!.role, projectId)) {
-      return reply.status(403).send({ error: '你不是该项目的成员' })
+      return fail(reply, 403, '你不是该项目的成员')
     }
 
     const id = `custom:${uuid().slice(0, 8)}`
@@ -158,23 +159,23 @@ export async function featureRoutes(app: FastifyInstance) {
       VALUES (?, ?, ?, ?, 1, ?, ?)
     `).run(id, body.title.trim(), body.description || '', JSON.stringify(sections), body.categoryId || null, projectId)
 
-    return { id }
+    return created(id)
   })
 
   // 更新主题
-  app.put('/api/features/:id', { preHandler: [authMiddleware, requireRole('ops', 'pm')] }, async (req, reply) => {
+  app.put('/api/v1/features/:id', { preHandler: [authMiddleware, requireRole('ops', 'pm')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const body = req.body as UpdateFeatureBody
     const db = getDb()
     const sections = body.sections || []
 
     const feature = db.prepare('SELECT * FROM features WHERE id = ?').get(id) as FeatureRow | undefined
-    if (!feature) return reply.status(404).send({ error: 'Not found' })
-    if (!body.title?.trim()) return reply.status(400).send({ error: '主题名称不能为空' })
-    if (sections.length === 0) return reply.status(400).send({ error: '至少需要一个章节' })
+    if (!feature) return fail(reply, 404, 'Not found')
+    if (!body.title?.trim()) return fail(reply, 400, '主题名称不能为空')
+    if (sections.length === 0) return fail(reply, 400, '至少需要一个章节')
 
     if (!isProjectMember(req.user!.userId, req.user!.role, feature.project_id)) {
-      return reply.status(403).send({ error: '你不是该项目的成员' })
+      return fail(reply, 403, '你不是该项目的成员')
     }
 
     db.prepare(`
@@ -182,31 +183,31 @@ export async function featureRoutes(app: FastifyInstance) {
       WHERE id = ?
     `).run(body.title.trim(), body.description || '', JSON.stringify(sections), body.categoryId || null, id)
 
-    return { ok: true }
+    return ok()
   })
 
   // 删除主题
-  app.delete('/api/features/:id', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  app.delete('/api/v1/features/:id', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const db = getDb()
 
     const feature = db.prepare('SELECT * FROM features WHERE id = ?').get(id) as FeatureRow | undefined
-    if (!feature) return reply.status(404).send({ error: 'Not found' })
+    if (!feature) return fail(reply, 404, 'Not found')
 
     if (!isProjectMember(req.user!.userId, req.user!.role, feature.project_id)) {
-      return reply.status(403).send({ error: '你不是该项目的成员' })
+      return fail(reply, 403, '你不是该项目的成员')
     }
 
     db.prepare('DELETE FROM features WHERE id = ?').run(id)
-    return { ok: true }
+    return ok()
   })
 
   // 导入：差异检测
-  app.post('/api/features/import', { preHandler: [authMiddleware, requireRole('ops', 'pm')] }, async (req, reply) => {
+  app.post('/api/v1/features/import', { preHandler: [authMiddleware, requireRole('ops', 'pm')] }, async (req, reply) => {
     const { projectId } = req.query as { projectId?: string }
     const effectiveProjectId = projectId || 'default'
     if (!isProjectMember(req.user!.userId, req.user!.role, effectiveProjectId)) {
-      return reply.status(403).send({ error: '你不是该项目的成员' })
+      return fail(reply, 403, '你不是该项目的成员')
     }
     const body = req.body as { features: ImportFeatureItem[] }
     const imported = body.features || []
@@ -248,15 +249,15 @@ export async function featureRoutes(app: FastifyInstance) {
       }
     }
 
-    return { added, modified, removed, total: imported.length }
+    return success({ added, modified, removed, total: imported.length })
   })
 
   // 导入：确认执行
-  app.post('/api/features/import/apply', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  app.post('/api/v1/features/import/apply', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
     const { projectId } = req.query as { projectId?: string }
     const effectiveProjectId = projectId || 'default'
     if (!isProjectMember(req.user!.userId, req.user!.role, effectiveProjectId)) {
-      return reply.status(403).send({ error: '你不是该项目的成员' })
+      return fail(reply, 403, '你不是该项目的成员')
     }
     const body = req.body as ImportApplyBody
     const features = body.features || []
@@ -276,11 +277,11 @@ export async function featureRoutes(app: FastifyInstance) {
       db.prepare('DELETE FROM features WHERE id = ? AND is_custom = 0').run(id)
     }
 
-    return { ok: true }
+    return ok()
   })
 
   // 更新 section 状态（多人指派 + 串行审核链）
-  app.put('/api/features/:id/sections/:sectionKey/status', { preHandler: [authMiddleware, requireRole('ops', 'pm')] }, async (req, reply) => {
+  app.put('/api/v1/features/:id/sections/:sectionKey/status', { preHandler: [authMiddleware, requireRole('ops', 'pm')] }, async (req, reply) => {
     const { id: featureId, sectionKey } = req.params as { id: string; sectionKey: string }
     const { status, assignees, reviewNote, direct } = req.body as UpdateSectionStatusBody
     const db = getDb()
@@ -290,10 +291,10 @@ export async function featureRoutes(app: FastifyInstance) {
 
     const projectId = getFeatureProjectId(featureId)
     if (!projectId) {
-      return reply.status(404).send({ error: '主题不存在' })
+      return fail(reply, 404, '主题不存在')
     }
     if (!isProjectMember(userId, req.user!.role, projectId)) {
-      return reply.status(403).send({ error: '你不是该项目的成员' })
+      return fail(reply, 403, '你不是该项目的成员')
     }
 
     const docId = `${featureId}/${sectionKey}`
@@ -309,7 +310,7 @@ export async function featureRoutes(app: FastifyInstance) {
     // 获取有效审核链
     const reviewChain = getEffectiveReviewChain(projectId)
     const currentStep = existingDoc?.review_step ?? 0
-    const reviewLog = JSON.parse(existingDoc?.review_log || '[]') as { action: string; reviewerId: string; note: string; step: number; created_at: string }[]
+    const reviewLog = JSON.parse(existingDoc?.review_log || '[]') as { action: string; reviewerId: string; note: string; step: number; createdAt: string }[]
 
     // ====== 分支处理 ======
 
@@ -339,7 +340,7 @@ export async function featureRoutes(app: FastifyInstance) {
     // 提交审核
     if (status === 'pending_review') {
       if (reviewChain.length === 0) {
-        return reply.status(400).send({ error: '该项目没有可审核的 PM，请先添加 PM 成员' })
+        return fail(reply, 400, '该项目没有可审核的 PM，请先添加 PM 成员')
       }
       db.prepare("UPDATE documents SET status = 'pending_review', review_step = 0, updated_at = datetime('now') WHERE id = ?").run(docId)
       notifyNextReviewer(featureId, sectionKey, reviewChain[0], 1, reviewChain.length, reviewerName)
@@ -352,7 +353,7 @@ export async function featureRoutes(app: FastifyInstance) {
       if (!direct) {
         const currentReviewerId = reviewChain[currentStep]
         if (currentReviewerId && currentReviewerId !== userId) {
-          return reply.status(403).send({ error: '当前不是你审核' })
+          return fail(reply, 403, '当前不是你审核')
         }
       }
 
@@ -361,7 +362,7 @@ export async function featureRoutes(app: FastifyInstance) {
         reviewerId: userId,
         note: direct ? '直接通过（跳过审核流程）' : (reviewNote || ''),
         step: direct ? -1 : currentStep,
-        created_at: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       }
       reviewLog.push(logEntry)
 
@@ -399,10 +400,10 @@ export async function featureRoutes(app: FastifyInstance) {
     if (status === 'rejected') {
       const currentReviewerId = reviewChain[currentStep]
       if (currentReviewerId && currentReviewerId !== userId) {
-        return reply.status(403).send({ error: '当前不是你审核' })
+        return fail(reply, 403, '当前不是你审核')
       }
       if (!reviewNote?.trim()) {
-        return reply.status(400).send({ error: '退回必须填写理由' })
+        return fail(reply, 400, '退回必须填写理由')
       }
 
       const logEntry = {
@@ -410,7 +411,7 @@ export async function featureRoutes(app: FastifyInstance) {
         reviewerId: userId,
         note: reviewNote,
         step: currentStep,
-        created_at: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       }
       reviewLog.push(logEntry)
 
@@ -434,43 +435,43 @@ export async function featureRoutes(app: FastifyInstance) {
       }
     }
 
-    return { ok: true }
+    return ok()
   })
 
   // 删除游离文档
-  app.delete('/api/features/:id/orphaned/:sectionKey', { preHandler: [authMiddleware, requireRole('ops', 'pm')] }, async (req, reply) => {
+  app.delete('/api/v1/features/:id/orphaned/:sectionKey', { preHandler: [authMiddleware, requireRole('ops', 'pm')] }, async (req, reply) => {
     const { id: featureId, sectionKey } = req.params as { id: string; sectionKey: string }
     const db = getDb()
 
     const projectId = getFeatureProjectId(featureId)
     if (projectId && !isProjectMember(req.user!.userId, req.user!.role, projectId)) {
-      return reply.status(403).send({ error: '你不是该项目的成员' })
+      return fail(reply, 403, '你不是该项目的成员')
     }
 
     const docId = `${featureId}/${sectionKey}`
     db.prepare('DELETE FROM documents WHERE id = ?').run(docId)
     // 级联删除 document_updates 和 document_snapshots
-    return { ok: true }
+    return ok()
   })
 
   // 更新 sections（排序/增删），适用于所有主题
-  app.put('/api/features/:id/sections', { preHandler: [authMiddleware, requireRole('ops', 'pm')] }, async (req, reply) => {
+  app.put('/api/v1/features/:id/sections', { preHandler: [authMiddleware, requireRole('ops', 'pm')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const body = req.body as UpdateSectionsBody
     const sections = body.sections || []
-    if (sections.length === 0) return reply.status(400).send({ error: '至少需要一个章节' })
+    if (sections.length === 0) return fail(reply, 400, '至少需要一个章节')
 
     const db = getDb()
     const feature = db.prepare('SELECT id, project_id FROM features WHERE id = ?').get(id) as Pick<FeatureRow, 'id' | 'project_id'> | undefined
-    if (!feature) return reply.status(404).send({ error: 'Not found' })
+    if (!feature) return fail(reply, 404, 'Not found')
 
     if (!isProjectMember(req.user!.userId, req.user!.role, feature.project_id)) {
-      return reply.status(403).send({ error: '你不是该项目的成员' })
+      return fail(reply, 403, '你不是该项目的成员')
     }
 
     db.prepare("UPDATE features SET sections = ?, updated_at = datetime('now') WHERE id = ?")
       .run(JSON.stringify(sections), id)
 
-    return { ok: true, sections }
+    return success({ sections })
   })
 }

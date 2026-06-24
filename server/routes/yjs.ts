@@ -6,6 +6,7 @@ import { Awareness, removeAwarenessStates, encodeAwarenessUpdate, applyAwareness
 import { authMiddleware } from '../auth/middleware.js'
 import { verifyToken } from '../auth/jwt.js'
 import type { FastifyRequest } from 'fastify'
+import { ok } from '../lib/response.js'
 import {
   getOrCreateDoc,
   ensureDocument,
@@ -169,14 +170,14 @@ export async function yjsRoutes(app: FastifyInstance) {
     })
   })
 
-  app.post('/api/documents/ensure', { preHandler: [authMiddleware] }, async (req) => {
+  app.post('/api/v1/documents/ensure', { preHandler: [authMiddleware] }, async (req) => {
     const { docId, featureId, sectionKey } = req.body as {
       docId: string
       featureId: string
       sectionKey: string
     }
     ensureDocument(docId, featureId, sectionKey)
-    return { ok: true }
+    return ok()
   })
 }
 
