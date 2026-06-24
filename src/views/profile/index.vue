@@ -2,6 +2,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuth } from '@/composables/useAuth'
 import { useDialog } from '@/composables/useDialog'
+import {
+  updateNotifyPrefs,
+  getFeishuBindingStatus,
+  getFeishuBindUrl,
+  unbindFeishu as apiUnbindFeishu,
+} from '@/api/endpoints/auth'
+import { changePassword as apiChangePassword } from '@/api/endpoints/auth'
 import ModalDialog from '@/components/ModalDialog.vue'
 import FormField from '@/components/FormField.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
@@ -43,22 +50,13 @@ function loadNotifyPrefs() {
 async function saveNotifyPrefs() {
   notifySaving.value = true
   try {
-    const res = await fetch('/api/auth/me/notify', {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-      },
-      body: JSON.stringify({
-        notifyEnabled: notifyEnabled.value ? 1 : 0,
-        notifyPrefs: notifyPrefs.value,
-      }),
+    await updateNotifyPrefs({
+      notifyEnabled: notifyEnabled.value ? 1 : 0,
+      notifyPrefs: notifyPrefs.value,
     })
-    if (res.ok) {
-      if (user.value) {
-        user.value.notifyEnabled = notifyEnabled.value
-        user.value.notifyPrefs = { ...notifyPrefs.value }
-      }
+    if (user.value) {
+      user.value.notifyEnabled = notifyEnabled.value
+      user.value.notifyPrefs = { ...notifyPrefs.value }
     }
   } catch { /* ignore */ }
   finally { notifySaving.value = false }
@@ -73,26 +71,17 @@ const notifyLabels: { key: 'assign' | 'review' | 'project' | 'status'; label: st
 
 async function loadFeishuBinding() {
   try {
-    const res = await fetch('/api/auth/me/feishu-binding', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-    })
-    if (res.ok) {
-      const data = await res.json()
-      feishuBound.value = data.bound
-      feishuName.value = data.name || ''
-      feishuAvatar.value = data.avatarUrl || ''
-    }
+    const data = await getFeishuBindingStatus()
+    feishuBound.value = data.bound
+    feishuName.value = data.name || ''
+    feishuAvatar.value = data.avatarUrl || ''
   } catch { /* ignore */ }
 }
 
 async function bindFeishu() {
   feishuError.value = ''
   try {
-    const res = await fetch('/api/auth/feishu/bind-url', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-    })
-    if (!res.ok) { feishuError.value = '获取绑定链接失败'; return }
-    const { url } = await res.json()
+    const { url } = await getFeishuBindUrl()
 
     const width = 600; const height = 700
     const left = window.screenX + (window.innerWidth - width) / 2
@@ -124,10 +113,7 @@ async function bindFeishu() {
 async function unbindFeishu() {
   if (!await confirm('确定解除飞书绑定？')) return
   try {
-    await fetch('/api/auth/me/feishu-binding', {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-    })
+    await apiUnbindFeishu()
     feishuBound.value = false
     feishuName.value = ''
     feishuAvatar.value = ''
@@ -230,24 +216,10 @@ async function submitChangePassword() {
   }
 
   try {
-    const res = await fetch('/api/auth/me/password', {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-      },
-      body: JSON.stringify({
-        currentPassword: hasPassword.value ? currentPassword : undefined,
-        newPassword,
-      }),
+    const data = await apiChangePassword({
+      currentPassword: hasPassword.value ? currentPassword : undefined,
+      newPassword,
     })
-    if (!res.ok) {
-      const body = await res.json()
-      changePasswordError.value = body.error || '修改失败'
-      return
-    }
-    const data = await res.json()
-    // 更新令牌（密码修改后 token_version 已递增，旧令牌失效）
     token.value = data.token
     localStorage.setItem('auth_token', data.token)
     showChangePassword.value = false

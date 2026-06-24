@@ -1,22 +1,12 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import type { UserInfo } from '@shared/types'
+import { login as apiLogin, getCurrentUser, updateProfile as apiUpdateProfile } from '@/api/endpoints/auth'
 
-interface User {
-  id?: string
-  username: string
-  displayName: string
-  role: 'pm' | 'ops' | 'guest'
-  avatarUrl?: string
-  feishuName?: string
-  hasPassword?: boolean
-  notifyEnabled?: boolean
-  notifyPrefs?: Record<string, boolean>
-}
-
-const currentUser = ref<User | null>(loadUser())
+const currentUser = ref<UserInfo | null>(loadUser())
 const token = ref<string | null>(localStorage.getItem('auth_token'))
 
-function loadUser(): User | null {
+function loadUser(): UserInfo | null {
   try {
     const stored = localStorage.getItem('auth_user')
     return stored ? JSON.parse(stored) : null
@@ -33,16 +23,7 @@ export function useAuth() {
   const isGuest = computed(() => currentUser.value?.role === 'guest')
 
   async function login(username: string, password: string) {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.error || '登录失败')
-    }
-    const data = await res.json()
+    const data = await apiLogin(username, password)
     token.value = data.token
     currentUser.value = data.user
     localStorage.setItem('auth_token', data.token)
@@ -52,33 +33,14 @@ export function useAuth() {
   async function refreshUser() {
     if (!token.value) return
     try {
-      const res = await fetch('/api/auth/me', {
-        headers: { Authorization: `Bearer ${token.value}` },
-      })
-      if (res.ok) {
-        const data = await res.json()
-        currentUser.value = data.user
-        localStorage.setItem('auth_user', JSON.stringify(data.user))
-      }
+      const data = await getCurrentUser()
+      currentUser.value = data.user
+      localStorage.setItem('auth_user', JSON.stringify(data.user))
     } catch { /* ignore */ }
   }
 
   async function updateProfile(displayName: string) {
-    if (!token.value) throw new Error('未登录')
-    const res = await fetch('/api/auth/me', {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token.value}`,
-      },
-      body: JSON.stringify({ displayName }),
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.error || '更新失败')
-    }
-    const data = await res.json()
-    // 更新本地令牌和用户信息
+    const data = await apiUpdateProfile(displayName)
     token.value = data.token
     if (currentUser.value) {
       currentUser.value = { ...currentUser.value, displayName: data.displayName }

@@ -11,8 +11,9 @@
     "composite": false,
     "strict": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@shared/*": ["./shared/*"]
     },
   },
-  "include": ["vite.config.ts", "uno.config.ts", "server/**/*.ts"]
+  "include": ["vite.config.ts", "uno.config.ts", "server/**/*.ts", "shared/**/*.ts"]
 }

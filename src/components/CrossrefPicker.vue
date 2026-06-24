@@ -1,19 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useProject } from '@/composables/useProject'
+import { getFeatures } from '@/api/endpoints/features'
+import type { FeatureSummary } from '@shared/types'
 import ModalDialog from './ModalDialog.vue'
-
-interface FeatureSection {
-  key: string
-  title: string
-}
-
-interface FeatureItem {
-  id: string
-  title: string
-  module: string
-  sections: FeatureSection[]
-}
 
 const emit = defineEmits<{
   close: []
@@ -29,7 +19,7 @@ const props = defineProps<{
 
 const { currentProjectId } = useProject()
 
-const features = ref<FeatureItem[]>([])
+const features = ref<any[]>([])
 const searchQuery = ref('')
 const selectedFeatureId = ref<string | null>(null)
 const selectedSectionKey = ref<string | null>(null)
@@ -40,14 +30,14 @@ const error = ref('')
 
 const moduleGroups = computed(() => {
   const filtered = searchQuery.value
-    ? features.value.filter(f =>
+    ? features.value.filter((f: any) =>
         f.title.includes(searchQuery.value) ||
         f.module.includes(searchQuery.value) ||
-        f.sections.some(s => s.title.includes(searchQuery.value)),
+        f.sections.some((s: any) => s.title.includes(searchQuery.value)),
       )
     : features.value
 
-  const groups: Record<string, FeatureItem[]> = {}
+  const groups: Record<string, any[]> = {}
   for (const f of filtered) {
     const mod = f.module || '未分类'
     if (!groups[mod]) groups[mod] = []
@@ -58,10 +48,10 @@ const moduleGroups = computed(() => {
 
 const selectedLabel = computed(() => {
   if (!selectedFeatureId.value) return ''
-  const f = features.value.find(f => f.id === selectedFeatureId.value)
+  const f = features.value.find((f: any) => f.id === selectedFeatureId.value)
   if (!f) return ''
   if (selectedSectionKey.value) {
-    const sec = f.sections.find(s => s.key === selectedSectionKey.value)
+    const sec = f.sections.find((s: any) => s.key === selectedSectionKey.value)
     return sec ? `${f.title} › ${sec.title}` : f.title
   }
   return f.title
@@ -72,25 +62,12 @@ async function loadFeatures() {
   loading.value = true
   error.value = ''
   try {
-    const token = localStorage.getItem('auth_token')
-    const res = await fetch(`/api/features?projectId=${encodeURIComponent(currentProjectId.value)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (!res.ok) {
-      const body = await res.json()
-      throw new Error(body.error || '加载失败')
-    }
-    const list = await res.json() as Array<{
-      id: string
-      title: string
-      module: string
-      sections: string
-    }>
+    const list = await getFeatures(currentProjectId.value) as any[]
     features.value = list.map(f => ({
       id: f.id,
       title: f.title,
       module: f.module,
-      sections: JSON.parse(f.sections || '[]') as FeatureSection[],
+      sections: JSON.parse(f.sections || '[]') as { key: string; title: string }[],
     }))
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : '加载失败'
@@ -116,13 +93,13 @@ function selectSection(featureId: string, sectionKey: string) {
 
 function confirm() {
   if (!selectedFeatureId.value) return
-  const f = features.value.find(f => f.id === selectedFeatureId.value)
+  const f = features.value.find((f: any) => f.id === selectedFeatureId.value)
   if (!f) return
 
   const label = customLabel.value.trim() || selectedLabel.value
 
   if (selectedSectionKey.value) {
-    const sec = f.sections.find(s => s.key === selectedSectionKey.value)
+    const sec = f.sections.find((s: any) => s.key === selectedSectionKey.value)
     if (sec) {
       emit('select', f.id, label, sec.key, sec.title)
       return

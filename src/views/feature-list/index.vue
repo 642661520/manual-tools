@@ -13,27 +13,20 @@ import EmptyState from '@/components/EmptyState.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import SelectDropdown from '@/components/SelectDropdown.vue'
 import ColorPicker from '@/components/ColorPicker.vue'
+import { getFeatures, createFeature, updateFeature, deleteFeature, getFeature, importFeatures, applyImport } from '@/api/endpoints/features'
+import { getCategories, createCategory as apiCreateCategory, updateCategory, deleteCategory as apiDeleteCategory } from '@/api/endpoints/categories'
+import type { FeatureSummary, CategoryInfo, ImportDiffResponse, ImportFeatureItem, SectionDef } from '@shared/types'
 
-interface FeatureRow {
-  id: string
-  title: string
-  description: string
-  sections: string
-  total_sections: number
+// The API still returns snake_case; extend shared types with aliases for template compatibility
+type FeatureRow = FeatureSummary & {
+  orphaned_count: number
   approved_sections: number
+  total_sections: number
   completed_sections: number
   edited_sections: number
-  orphaned_count: number
-  is_custom: number
   category_id: string | null
 }
-
-interface CategoryItem {
-  id: string
-  name: string
-  color: string
-  sort_order: number
-}
+type CategoryItem = CategoryInfo & { sort_order: number }
 
 const router = useRouter()
 const { isPM } = useAuth()
@@ -43,8 +36,9 @@ const features = ref<FeatureRow[]>([])
 const loading = ref(true)
 const expandedFeatureId = ref<string | null>(null)
 
-function parseSections(sectionsJson: string): { key: string; title: string }[] {
-  try { return JSON.parse(sectionsJson || '[]') } catch { return [] }
+function parseSections(sections: string | SectionDef[]): SectionDef[] {
+  if (Array.isArray(sections)) return sections
+  try { return JSON.parse(sections || '[]') } catch { return [] }
 }
 
 function toggleExpand(featureId: string) {
@@ -57,7 +51,7 @@ const importError = ref('')
 const importing = ref(false)
 const showCreateDialog = ref(false)
 const createError = ref('')
-const newFeature = ref({ title: '', description: '', categoryId: null as string | null, sections: [] as { key: string; title: string }[] })
+const newFeature = ref({ title: '', description: '', categoryId: null as string | null, sections: [] as SectionDef[] })
 const newSectionTitle = ref('')
 const createSectionSortEl = ref<HTMLElement>()
 
@@ -82,13 +76,8 @@ const editingCategory = ref<CategoryItem | null>(null)
 const editCategoryForm = ref({ name: '', color: '#6366f1', sort_order: 0 })
 
 async function loadCategories() {
-  const pid = currentProjectId.value
-  const url = pid ? `/api/categories?projectId=${pid}` : '/api/categories'
   try {
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-    })
-    if (res.ok) categories.value = await res.json()
+    categories.value = await getCategories(currentProjectId.value ?? undefined) as unknown as CategoryItem[]
   } catch { /* ignore */ }
 }
 
@@ -96,12 +85,11 @@ async function createCategory() {
   categoryError.value = ''
   if (!newCategory.value.name.trim()) { categoryError.value = '请输入分类名称'; return }
   try {
-    const res = await fetch('/api/categories', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-      body: JSON.stringify({ ...newCategory.value, projectId: currentProjectId.value }),
+    await apiCreateCategory({
+      name: newCategory.value.name,
+      color: newCategory.value.color,
+      projectId: currentProjectId.value ?? undefined,
     })
-    if (!res.ok) { const body = await res.json(); categoryError.value = body.error || '创建失败'; return }
     newCategory.value = { name: '', color: '#6366f1' }
     await loadCategories()
   } catch (e: unknown) { categoryError.value = e instanceof Error ? e.message : '网络错误' }
@@ -117,12 +105,11 @@ async function saveEditCategory() {
   categoryError.value = ''
   if (!editCategoryForm.value.name.trim()) { categoryError.value = '请输入分类名称'; return }
   try {
-    const res = await fetch(`/api/categories/${editingCategory.value.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-      body: JSON.stringify(editCategoryForm.value),
+    await updateCategory(editingCategory.value.id, {
+      name: editCategoryForm.value.name,
+      color: editCategoryForm.value.color,
+      sortOrder: editCategoryForm.value.sort_order,
     })
-    if (!res.ok) { const body = await res.json(); categoryError.value = body.error || '保存失败'; return }
     editingCategory.value = null
     await loadCategories()
   } catch (e: unknown) { categoryError.value = e instanceof Error ? e.message : '网络错误' }
@@ -130,32 +117,25 @@ async function saveEditCategory() {
 
 async function deleteCategory(id: string) {
   if (!await dangerConfirm('确定删除此分类？已归类的主题将变为"未分类"。')) return
-  await fetch(`/api/categories/${id}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-  })
+  await apiDeleteCategory(id)
   await loadCategories()
 }
 
 // 编辑自定义主题
 const showEditDialog = ref(false)
 const editError = ref('')
-const editingFeature = ref<{ id: string; title: string; description: string; categoryId: string | null; sections: { key: string; title: string }[] } | null>(null)
+const editingFeature = ref<{ id: string; title: string; description: string; categoryId: string | null; sections: SectionDef[] } | null>(null)
 const editSectionTitle = ref('')
 const editSectionSortEl = ref<HTMLElement>()
 function generateEditKey(): string { return crypto.randomUUID().slice(0, 8) }
 
 async function openEditDialog(featureId: string) {
   try {
-    const res = await fetch(`/api/features/${featureId}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-    })
-    if (!res.ok) return
-    const data = await res.json()
+    const data = await getFeature(featureId)
     editingFeature.value = {
       id: data.id, title: data.title, description: data.description,
-      categoryId: data.category_id || null,
-      sections: data.sections.map((s: any) => ({ key: s.key, title: s.title })),
+      categoryId: data.categoryId || null,
+      sections: data.sections.map(s => ({ key: s.key, title: s.title })),
     }
     editSectionTitle.value = ''
     showEditDialog.value = true
@@ -182,12 +162,12 @@ async function saveEditFeature() {
   if (!editingFeature.value || !editingFeature.value.title.trim()) { editError.value = '请输入主题名称'; return }
   if (editingFeature.value.sections.length === 0) { editError.value = '至少需要一个章节'; return }
   try {
-    const res = await fetch(`/api/features/${editingFeature.value.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-      body: JSON.stringify(editingFeature.value),
+    await updateFeature(editingFeature.value.id, {
+      title: editingFeature.value.title,
+      description: editingFeature.value.description,
+      sections: editingFeature.value.sections,
+      categoryId: editingFeature.value.categoryId ?? undefined,
     })
-    if (!res.ok) { const body = await res.json(); editError.value = body.error || '保存失败'; return }
     showEditDialog.value = false
     editingFeature.value = null
     await loadFeatures()
@@ -220,14 +200,14 @@ const groupedFeatures = computed(() => {
   const groups: Record<string, FeatureRow[]> = {}
 
   for (const f of features.value) {
-    const catId = f.category_id || '__uncategorized__'
+    const catId = f.categoryId || '__uncategorized__'
     if (!groups[catId]) groups[catId] = []
     groups[catId].push(f)
   }
 
   // 保持分类顺序（按 sort_order），未分类放最后
   const sorted: Record<string, FeatureRow[]> = {}
-  const catOrder = [...categories.value].sort((a, b) => a.sort_order - b.sort_order)
+  const catOrder = [...categories.value].sort((a, b) => a.sortOrder - b.sortOrder)
   for (const c of catOrder) {
     if (groups[c.id]) sorted[c.id] = groups[c.id]
   }
@@ -236,24 +216,21 @@ const groupedFeatures = computed(() => {
 })
 
 function getOverallStatus(f: FeatureRow): string {
-  if (f.approved_sections === f.total_sections && f.total_sections > 0) return 'approved'
-  if (f.completed_sections > 0) return 'pending_review'
-  if (f.edited_sections > 0) return 'in_progress'
+  if (f.approvedSections === f.totalSections && f.totalSections > 0) return 'approved'
+  if (f.completedSections > 0) return 'pending_review'
+  if (f.editedSections > 0) return 'in_progress'
   return 'draft'
 }
 
 async function loadFeatures() {
   loading.value = true
   try {
-    const token = localStorage.getItem('auth_token')
-    const pid = currentProjectId.value
-    const baseUrl = pid ? `?projectId=${pid}` : ''
-    const [featuresRes, categoriesRes] = await Promise.all([
-      fetch(`/api/features${baseUrl}`, { headers: { Authorization: `Bearer ${token}` } }),
-      fetch(`/api/categories${baseUrl}`, { headers: { Authorization: `Bearer ${token}` } }),
+    const [fetchedFeatures, fetchedCategories] = await Promise.all([
+      getFeatures(currentProjectId.value ?? undefined),
+      getCategories(currentProjectId.value ?? undefined),
     ])
-    features.value = await featuresRes.json()
-    if (categoriesRes.ok) categories.value = await categoriesRes.json()
+    features.value = fetchedFeatures as unknown as FeatureRow[]
+    categories.value = fetchedCategories as unknown as CategoryItem[]
   } finally { loading.value = false }
 }
 
@@ -269,14 +246,7 @@ async function handleImport() {
     const text = await importFile.value.text()
     let data: unknown
     try { data = JSON.parse(text) } catch { importError.value = 'JSON 格式错误，请检查文件内容'; return }
-    const pid = currentProjectId.value
-    const res = await fetch('/api/features/import' + (pid ? `?projectId=${pid}` : ''), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-      body: JSON.stringify({ features: data }),
-    })
-    if (!res.ok) { importError.value = '分析失败，请重试'; return }
-    importDiff.value = await res.json()
+    importDiff.value = await importFeatures(currentProjectId.value ?? undefined, { features: data as ImportFeatureItem[] })
   } finally { importing.value = false }
 }
 
@@ -284,14 +254,12 @@ async function confirmImport() {
   if (!importDiff.value) return
   importing.value = true; importError.value = ''
   try {
-    const features = [...importDiff.value.added, ...importDiff.value.modified.map((m: any) => m.after)]
-    const pid = currentProjectId.value
-    const res = await fetch('/api/features/import/apply' + (pid ? `?projectId=${pid}` : ''), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-      body: JSON.stringify({ features, removeIds: importDiff.value.removed.map((r: any) => r.id) }),
+    const diff = importDiff.value as ImportDiffResponse
+    const featuresToApply = [...diff.added, ...diff.modified.map(m => m.after)]
+    await applyImport(currentProjectId.value ?? undefined, {
+      features: featuresToApply,
+      removeIds: diff.removed.map(r => r.id as string),
     })
-    if (!res.ok) { importError.value = '导入失败，请重试'; return }
     importDiff.value = null
     showImportDialog.value = false
     importFile.value = null
@@ -304,12 +272,13 @@ async function createCustomFeature() {
   if (!newFeature.value.title.trim()) { createError.value = '请输入主题名称'; return }
   if (newFeature.value.sections.length === 0) { createError.value = '至少需要一个章节'; return }
   try {
-    const res = await fetch('/api/features', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-      body: JSON.stringify({ ...newFeature.value, projectId: currentProjectId.value }),
+    await createFeature({
+      title: newFeature.value.title,
+      description: newFeature.value.description,
+      sections: newFeature.value.sections,
+      categoryId: newFeature.value.categoryId ?? undefined,
+      projectId: currentProjectId.value ?? undefined,
     })
-    if (!res.ok) { const body = await res.json(); createError.value = body.error || '创建失败'; return }
     showCreateDialog.value = false
     newFeature.value = { title: '', description: '', categoryId: null, sections: [] }
     await loadFeatures()
@@ -337,12 +306,10 @@ watch(showCreateDialog, async (val) => {
 async function deleteCustomFeature(id: string) {
   const f = features.value.find(f => f.id === id)
   const msg = f
-    ? `确定删除「${f.title}」？\n${f.total_sections} 个章节文档将被一并删除，不可恢复。`
+    ? `确定删除「${f.title}」？\n${f.totalSections} 个章节文档将被一并删除，不可恢复。`
     : '确定删除此主题？'
   if (!await dangerConfirm(msg)) return
-  await fetch(`/api/features/${id}`, {
-    method: 'DELETE', headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-  })
+  await deleteFeature(id)
   await loadFeatures()
 }
 

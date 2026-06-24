@@ -8,6 +8,9 @@ import multipart from '@fastify/multipart'
 import { initDatabase } from './db/index.js'
 import { yjsRoutes } from './routes/yjs.js'
 import { authRoutes } from './routes/auth.js'
+import { profileRoutes } from './routes/profile.js'
+import { userRoutes } from './routes/users.js'
+import { feishuRoutes as feishuBindRoutes } from './routes/feishu.js'
 import { featureRoutes } from './routes/features.js'
 import { catalogRoutes } from './routes/catalogs.js'
 import { projectRoutes } from './routes/projects.js'
@@ -37,6 +40,14 @@ async function main() {
       prefix: '/',
     })
     needDecorate = false
+
+    // SPA fallback：非 API / 非静态文件请求返回 index.html
+    app.setNotFoundHandler((request, reply) => {
+      if (request.url.startsWith('/api/') || request.url.startsWith('/ws/')) {
+        return reply.status(404).send({ ok: false, error: 'Not found' })
+      }
+      return reply.sendFile('index.html')
+    })
   }
 
   // 初始化数据库
@@ -62,6 +73,15 @@ async function main() {
   // 认证路由
   await app.register(authRoutes)
 
+  // 个人资料路由
+  await app.register(profileRoutes)
+
+  // 用户管理路由
+  await app.register(userRoutes)
+
+  // 飞书绑定路由
+  await app.register(feishuBindRoutes)
+
   // 主题骨架路由
   await app.register(featureRoutes)
 
@@ -79,6 +99,16 @@ async function main() {
 
   // 健康检查
   app.get('/api/health', async () => ({ status: 'ok' }))
+
+  // 全局错误处理
+  app.setErrorHandler((error, _request, reply) => {
+    app.log.error(error)
+    const statusCode = (error as { statusCode?: number }).statusCode || reply.statusCode || 500
+    if (statusCode >= 500) {
+      return reply.status(500).send({ ok: false, error: '服务器内部错误' })
+    }
+    return reply.status(statusCode).send({ ok: false, error: (error as Error).message || '未知错误' })
+  })
 
   try {
     await app.listen({ port: PORT, host: '0.0.0.0' })

@@ -3,6 +3,8 @@ import { ref, onMounted, nextTick } from 'vue'
 import { useAuth } from '@/composables/useAuth'
 import { useProject } from '@/composables/useProject'
 import { useDialog } from '@/composables/useDialog'
+import * as authApi from '@/api/endpoints/auth'
+import * as projectApi from '@/api/endpoints/projects'
 import ModalDialog from '@/components/ModalDialog.vue'
 import FormField from '@/components/FormField.vue'
 import SelectDropdown from '@/components/SelectDropdown.vue'
@@ -18,10 +20,9 @@ const newUser = ref({ username: '', displayName: '', password: '', role: 'ops' }
 const showNewUserPw = ref(false)
 
 async function loadUsers() {
-  const res = await fetch('/api/auth/users', {
-    headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-  })
-  if (res.ok) localUsers.value = await res.json()
+  try {
+    localUsers.value = await authApi.getUsers()
+  } catch { /* ignore */ }
 }
 
 async function addUser() {
@@ -56,19 +57,7 @@ async function addUser() {
     return
   }
   try {
-    const res = await fetch('/api/auth/users', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-      },
-      body: JSON.stringify(newUser.value),
-    })
-    if (!res.ok) {
-      const body = await res.json()
-      addUserError.value = body.error || '添加失败'
-      return
-    }
+    await authApi.createUser(newUser.value)
     showAddUser.value = false
     newUser.value = { username: '', displayName: '', password: '', role: 'ops' }
     showNewUserPw.value = false
@@ -80,23 +69,15 @@ async function addUser() {
 
 async function deleteUser(id: string) {
   if (!await dangerConfirm('确定删除此用户？')) return
-  await fetch(`/api/auth/users/${id}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-  })
-  await loadUsers()
+  try {
+    await authApi.deleteUser(id)
+    await loadUsers()
+  } catch { /* ignore */ }
 }
 
 async function changeUserRole(userId: string, newRole: string) {
   try {
-    await fetch(`/api/auth/users/${userId}/role`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-      },
-      body: JSON.stringify({ role: newRole }),
-    })
+    await authApi.changeUserRole(userId, newRole)
     await loadUsers()
   } catch { /* ignore */ }
 }
@@ -126,19 +107,7 @@ async function createProject() {
     return
   }
   try {
-    const res = await fetch('/api/projects', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-      },
-      body: JSON.stringify(newProject.value),
-    })
-    if (!res.ok) {
-      const body = await res.json()
-      projectError.value = body.error || '创建失败'
-      return
-    }
+    await projectApi.createProject(newProject.value)
     showAddProject.value = false
     newProject.value = { name: '', description: '' }
     await loadProjects()
@@ -159,19 +128,7 @@ async function saveEditProject() {
     return
   }
   try {
-    const res = await fetch(`/api/projects/${editingProject.value.id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-      },
-      body: JSON.stringify(editProjectForm.value),
-    })
-    if (!res.ok) {
-      const body = await res.json()
-      projectError.value = body.error || '保存失败'
-      return
-    }
+    await projectApi.updateProject(editingProject.value.id, editProjectForm.value)
     editingProject.value = null
     await loadProjects()
   } catch (e: unknown) {
@@ -181,14 +138,11 @@ async function saveEditProject() {
 
 async function deleteProject(id: string) {
   if (!await dangerConfirm('确定删除此项目？项目下所有主题和目录将被一并删除。')) return
-  const res = await fetch(`/api/projects/${id}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-  })
-  if (res.ok) {
+  try {
+    await projectApi.deleteProject(id)
     await loadProjects()
     await nextTick()
-  }
+  } catch { /* ignore */ }
 }
 
 // 成员管理
@@ -204,12 +158,7 @@ async function openMembersDialog(projectId: string, projectName: string) {
   membersProjectName.value = projectName
   memberError.value = ''
   try {
-    const res = await fetch(`/api/projects/${projectId}/members`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-    })
-    if (res.ok) {
-      members.value = await res.json()
-    }
+    members.value = await projectApi.getMembers(projectId)
   } catch { /* ignore */ }
   showMembersDialog.value = true
 }
@@ -217,23 +166,8 @@ async function openMembersDialog(projectId: string, projectName: string) {
 async function addMember(userId: string) {
   memberError.value = ''
   try {
-    const res = await fetch(`/api/projects/${membersProjectId.value}/members`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-      },
-      body: JSON.stringify({ userId }),
-    })
-    if (!res.ok) {
-      const body = await res.json()
-      memberError.value = body.error || '添加失败'
-      return
-    }
-    const reloadRes = await fetch(`/api/projects/${membersProjectId.value}/members`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-    })
-    if (reloadRes.ok) members.value = await reloadRes.json()
+    await projectApi.addMember(membersProjectId.value, userId)
+    members.value = await projectApi.getMembers(membersProjectId.value)
   } catch (e: unknown) {
     memberError.value = e instanceof Error ? e.message : '网络错误'
   }
@@ -242,19 +176,8 @@ async function addMember(userId: string) {
 async function removeMember(userId: string) {
   memberError.value = ''
   try {
-    const res = await fetch(`/api/projects/${membersProjectId.value}/members/${userId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-    })
-    if (!res.ok) {
-      const body = await res.json()
-      memberError.value = body.error || '移除失败'
-      return
-    }
-    const reloadRes = await fetch(`/api/projects/${membersProjectId.value}/members`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-    })
-    if (reloadRes.ok) members.value = await reloadRes.json()
+    await projectApi.removeMember(membersProjectId.value, userId)
+    members.value = await projectApi.getMembers(membersProjectId.value)
   } catch (e: unknown) {
     memberError.value = e instanceof Error ? e.message : '网络错误'
   }
@@ -281,14 +204,9 @@ async function openReviewChainDialog(projectId: string, projectName: string) {
   reviewChainError.value = ''
   newReviewerId.value = null
   try {
-    const res = await fetch(`/api/projects/${projectId}/review-chain`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-    })
-    if (res.ok) {
-      const data = await res.json()
-      reviewChainUsers.value = data.chain || []
-      availablePMs.value = data.availablePMs || []
-    }
+    const data = await projectApi.getReviewChain(projectId)
+    reviewChainUsers.value = data.chain || []
+    availablePMs.value = data.availablePMs || []
   } catch { /* ignore */ }
   showReviewChainDialog.value = true
 }
@@ -297,19 +215,7 @@ async function saveReviewChain() {
   reviewChainError.value = ''
   try {
     const chain = reviewChainUsers.value.map((u: any) => u.id)
-    const res = await fetch(`/api/projects/${reviewChainProjectId.value}/review-chain`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-      },
-      body: JSON.stringify({ reviewChain: chain }),
-    })
-    if (!res.ok) {
-      const body = await res.json()
-      reviewChainError.value = body.error || '保存失败'
-      return
-    }
+    await projectApi.updateReviewChain(reviewChainProjectId.value, chain)
     showReviewChainDialog.value = false
   } catch (e: unknown) {
     reviewChainError.value = e instanceof Error ? e.message : '网络错误'

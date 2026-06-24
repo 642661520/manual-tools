@@ -5,31 +5,14 @@ import Sortable from 'sortablejs'
 import { useProject } from '@/composables/useProject'
 import { useAuth } from '@/composables/useAuth'
 import { useDialog } from '@/composables/useDialog'
+import { getFeatures } from '@/api/endpoints/features'
+import { getCatalogs, getCatalog, createCatalog, updateCatalog, deleteCatalog as apiDeleteCatalog } from '@/api/endpoints/catalogs'
+import { getCategories } from '@/api/endpoints/categories'
+import type { FeatureSummary, CatalogInfo, CategoryInfo } from '@shared/types'
 import PageHeader from '@/components/PageHeader.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import EmptyState from '@/components/EmptyState.vue'
 
-interface FeatureItem {
-  id: string
-  title: string
-  description: string
-  sections: string
-  category_id?: string | null
-  total_sections?: number
-  approved_sections?: number
-  edited_sections?: number
-}
-
-interface FeatureEntry {
-  feature: FeatureItem
-  sectionOrder?: string[]
-}
-
-interface CatalogItem {
-  id: string
-  title: string
-  updated_at: string
-}
 const route = useRoute()
 const router = useRouter()
 const { currentProjectId } = useProject()
@@ -41,28 +24,28 @@ const isNew = computed(() => catalogId.value === 'new')
 const catalog = ref({
   title: '',
   targets: [] as string[],
-  features: [] as FeatureEntry[],
+  features: [] as any[],
 })
 
-const allFeatures = ref<FeatureItem[]>([])
-const catalogList = ref<CatalogItem[]>([])
-const categories = ref<{ id: string; name: string; color: string; sort_order: number }[]>([])
+const allFeatures = ref<any[]>([])
+const catalogList = ref<any[]>([])
+const categories = ref<any[]>([])
 const searchQuery = ref('')
 const saving = ref(false)
 const saveError = ref('')
 const expandedIndex = ref<number | null>(null)
 
 // 解析 sections JSON 用于展示
-function getSections(f: FeatureItem): { key: string; title: string }[] {
+function getSections(f: any): { key: string; title: string }[] {
   try { return JSON.parse(f.sections || '[]') }
   catch { return [] }
 }
 
 // 获取当前排序后的 sections（按 sectionOrder）
-function getOrderedSections(entry: FeatureEntry) {
+function getOrderedSections(entry: any) {
   const raw = getSections(entry.feature)
   if (entry.sectionOrder) {
-    return entry.sectionOrder.map(k => raw.find(s => s.key === k)).filter(Boolean) as typeof raw
+    return entry.sectionOrder.map((k: string) => raw.find(s => s.key === k)).filter(Boolean) as typeof raw
   }
   return raw
 }
@@ -82,8 +65,8 @@ const categoryMap = computed(() =>
 // 过滤可选主题
 const filteredFeatures = computed(() => {
   const q = searchQuery.value.toLowerCase()
-  const selectedIds = new Set(catalog.value.features.map(e => e.feature.id))
-  return allFeatures.value.filter(f => {
+  const selectedIds = new Set(catalog.value.features.map((e: any) => e.feature.id))
+  return allFeatures.value.filter((f: any) => {
     const catName = f.category_id ? categoryMap.value.get(f.category_id) || '' : ''
     return !selectedIds.has(f.id) &&
       (!q || f.title.toLowerCase().includes(q) || catName.toLowerCase().includes(q))
@@ -92,7 +75,7 @@ const filteredFeatures = computed(() => {
 
 // 按分类分组
 const grouped = computed(() => {
-  const groups: Record<string, FeatureItem[]> = {}
+  const groups: Record<string, any[]> = {}
 
   for (const f of filteredFeatures.value) {
     const catId = f.category_id || '__uncategorized__'
@@ -101,8 +84,8 @@ const grouped = computed(() => {
   }
 
   // 保持分类顺序，未分类放最后
-  const sorted: Record<string, FeatureItem[]> = {}
-  const catOrder = [...categories.value].sort((a, b) => a.sort_order - b.sort_order)
+  const sorted: Record<string, any[]> = {}
+  const catOrder = [...categories.value].sort((a: any, b: any) => a.sort_order - b.sort_order)
   for (const c of catOrder) {
     if (groups[c.id]) sorted[c.id] = groups[c.id]
   }
@@ -113,21 +96,19 @@ const grouped = computed(() => {
 async function loadData() {
   const catalogIdVal = catalogId.value
   const pid = currentProjectId.value
-  const baseUrl = pid ? `?projectId=${pid}` : ''
 
   const [featuresRes, listRes, categoriesRes] = await Promise.all([
-    fetch(`/api/features${baseUrl}`, { headers: authHeaders() }),
-    fetch(`/api/catalogs${baseUrl}`, { headers: authHeaders() }),
-    fetch(`/api/categories${baseUrl}`, { headers: authHeaders() }),
+    getFeatures(pid || undefined),
+    getCatalogs(pid || undefined),
+    getCategories(pid || undefined),
   ])
-  allFeatures.value = await featuresRes.json()
-  catalogList.value = await listRes.json()
-  if (categoriesRes.ok) categories.value = await categoriesRes.json()
+  allFeatures.value = featuresRes as any
+  catalogList.value = listRes as any
+  categories.value = categoriesRes as any
 
   if (!isNew.value) {
-    const res = await fetch(`/api/catalogs/${catalogIdVal}`, { headers: authHeaders() })
-    if (res.ok) {
-      const data = await res.json()
+    try {
+      const data = await getCatalog(catalogIdVal) as any
       catalog.value = {
         title: data.title,
         targets: data.targets || [],
@@ -142,7 +123,7 @@ async function loadData() {
           sectionOrder: f.sectionOrder,
         })),
       }
-    } else {
+    } catch {
       // 无权访问或不存在，清空内容
       catalog.value = { title: '', targets: [], features: [] }
     }
@@ -151,11 +132,7 @@ async function loadData() {
   }
 }
 
-function authHeaders() {
-  return { Authorization: `Bearer ${localStorage.getItem('auth_token')}` }
-}
-
-function addFeature(f: FeatureItem) {
+function addFeature(f: any) {
   catalog.value.features.push({ feature: f })
 }
 
@@ -166,11 +143,8 @@ function removeFeature(index: number) {
 
 async function deleteCatalog(id: string) {
   if (!await dangerConfirm('确定删除此目录？\n导出版本历史也将被删除，不可恢复。')) return
-  await fetch(`/api/catalogs/${id}`, {
-    method: 'DELETE',
-    headers: authHeaders(),
-  })
-  catalogList.value = catalogList.value.filter(c => c.id !== id)
+  await apiDeleteCatalog(id)
+  catalogList.value = catalogList.value.filter((c: any) => c.id !== id)
   // 如果删除的是当前目录，跳转到新建
   if (catalogId.value === id) {
     router.push('/catalogs/new')
@@ -203,38 +177,19 @@ async function save() {
     const payload = {
       title: catalog.value.title.trim(),
       targets: catalog.value.targets,
-      features: catalog.value.features.map(e => ({
+      features: catalog.value.features.map((e: any) => ({
         featureId: e.feature.id,
         sectionOrder: e.sectionOrder,
       })),
       cover: {},
-      projectId: currentProjectId.value,
+      projectId: currentProjectId.value || undefined,
     }
 
     if (isNew.value) {
-      const res = await fetch('/api/catalogs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) {
-        const body = await res.json()
-        saveError.value = body.error || '创建失败'
-        return
-      }
-      const data = await res.json()
-      router.replace(`/catalogs/${data.id}`)
+      const res = await createCatalog(payload)
+      router.replace(`/catalogs/${res.id}`)
     } else {
-      const res = await fetch(`/api/catalogs/${catalogId.value}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) {
-        const body = await res.json()
-        saveError.value = body.error || '保存失败'
-        return
-      }
+      await updateCatalog(catalogId.value, payload)
       // 刷新目录列表和当前数据
       await loadData()
       await nextTick()
@@ -259,7 +214,7 @@ watch(catalogId, () => {
 // 初始化拖拽（主题排序）
 const sortList = ref<HTMLElement>()
 
-function onDragStart(e: DragEvent, f: FeatureItem) {
+function onDragStart(e: DragEvent, f: any) {
   if (!e.dataTransfer) return
   e.dataTransfer.setData('text/plain', f.id)
   e.dataTransfer.effectAllowed = 'copy'
@@ -293,7 +248,7 @@ function onDragOver(e: DragEvent) {
 function onDrop(e: DragEvent) {
   const featureId = e.dataTransfer?.getData('text/plain')
   if (!featureId) return
-  const feature = allFeatures.value.find(f => f.id === featureId)
+  const feature = allFeatures.value.find((f: any) => f.id === featureId)
   if (feature) addFeature(feature)
 }
 
@@ -341,7 +296,7 @@ watch(() => catalog.value.features.length, async () => {
 watch(currentProjectId, () => {
   loadData().then(() => {
     // 切换项目后，如果当前目录不属于新项目，跳转到新建
-    if (!isNew.value && !catalogList.value.some(c => c.id === catalogId.value)) {
+    if (!isNew.value && !catalogList.value.some((c: any) => c.id === catalogId.value)) {
       router.replace('/catalogs/new')
     }
     nextTick(() => {

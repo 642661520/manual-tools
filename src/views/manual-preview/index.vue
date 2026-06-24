@@ -4,6 +4,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { useProject } from '@/composables/useProject'
 import { useAuth } from '@/composables/useAuth'
 import { useDialog } from '@/composables/useDialog'
+import { getCatalogs, getPreview, getVersions, getVersionPreview, publishCatalog, getExportUrl, getMarkdownExportUrl, getVersionExportUrl } from '@/api/endpoints/catalogs'
+import { api } from '@/api/client'
+import type { CatalogInfo, CatalogVersionInfo, ManualPreviewResponse, VersionPreviewResponse } from '@shared/types'
 import SelectDropdown from '@/components/SelectDropdown.vue'
 import LoadingState from '@/components/LoadingState.vue'
 
@@ -14,31 +17,26 @@ const { isPM } = useAuth()
 const { prompt, alert } = useDialog()
 
 // ====== 目录列表 ======
-interface CatalogItem { id: string; title: string; updated_at: string }
-const catalogs = ref<CatalogItem[]>([])
+const catalogs = ref<any[]>([])
 const selectedCatalogId = ref<string | null>(null)
 
 async function loadCatalogs() {
-  const token = localStorage.getItem('auth_token')
   const pid = currentProjectId.value
-  const url = pid ? `/api/catalogs?projectId=${pid}` : '/api/catalogs'
   try {
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-    if (res.ok) {
-      catalogs.value = await res.json()
-      // 默认选中：URL params（/preview/:id）> URL query（?catalog=）> 第一个
-      const fromParam = route.params.id as string | undefined
-      const fromQuery = route.query.catalog as string | undefined
-      const fromUrl = fromParam || fromQuery
-      if (fromUrl && catalogs.value.some(c => c.id === fromUrl)) {
-        selectedCatalogId.value = fromUrl
-      } else if (catalogs.value.length > 0) {
-        selectedCatalogId.value = catalogs.value[0].id
-        router.replace(`/preview/${catalogs.value[0].id}`)
-      } else {
-        selectedCatalogId.value = null
-        router.replace({ query: {} })
-      }
+    const data = await getCatalogs(pid || undefined)
+    catalogs.value = data as any
+    // 默认选中：URL params（/preview/:id）> URL query（?catalog=）> 第一个
+    const fromParam = route.params.id as string | undefined
+    const fromQuery = route.query.catalog as string | undefined
+    const fromUrl = fromParam || fromQuery
+    if (fromUrl && catalogs.value.some((c: any) => c.id === fromUrl)) {
+      selectedCatalogId.value = fromUrl
+    } else if (catalogs.value.length > 0) {
+      selectedCatalogId.value = catalogs.value[0].id
+      router.replace(`/preview/${catalogs.value[0].id}`)
+    } else {
+      selectedCatalogId.value = null
+      router.replace({ query: {} })
     }
   } catch { /* ignore */ }
 }
@@ -51,25 +49,16 @@ function selectCatalog(id: string | number | null) {
 }
 
 // ====== 版本列表 ======
-interface VersionItem {
-  id: string; version_major: number; version_minor: number
-  title: string; change_notes: string; created_at: string
-}
-const versions = ref<VersionItem[]>([])
+const versions = ref<any[]>([])
 const selectedVersionId = ref<string | null>(null)
 
 async function loadVersions() {
   if (!selectedCatalogId.value) { versions.value = []; selectedVersionId.value = null; return }
-  const token = localStorage.getItem('auth_token')
   try {
-    const res = await fetch(`/api/catalogs/${selectedCatalogId.value}/versions`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (res.ok) {
-      versions.value = await res.json()
-      const fromUrl = route.query.version as string | undefined
-      selectedVersionId.value = (fromUrl && versions.value.some(v => v.id === fromUrl)) ? fromUrl : null
-    }
+    const data = await getVersions(selectedCatalogId.value)
+    versions.value = data as any
+    const fromUrl = route.query.version as string | undefined
+    selectedVersionId.value = (fromUrl && versions.value.some((v: any) => v.id === fromUrl)) ? fromUrl : null
   } catch { /* ignore */ }
 }
 
@@ -91,27 +80,18 @@ async function loadPreview() {
   if (!selectedCatalogId.value) { bodyHtml.value = ''; loading.value = false; return }
   loading.value = true
   notFound.value = false
-  const token = localStorage.getItem('auth_token')
   try {
     if (selectedVersionId.value) {
-      const res = await fetch(
-        `/api/catalogs/${selectedCatalogId.value}/versions/${selectedVersionId.value}/preview?mode=${previewMode.value}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      )
-      if (!res.ok) { notFound.value = true; return }
-      const data = await res.json()
+      const data = await getVersionPreview(selectedCatalogId.value, selectedVersionId.value, previewMode.value)
       bodyHtml.value = renderMarkdown(data.markdown)
       catalogTitle.value = data.title
     } else {
-      const res = await fetch(
-        `/api/catalogs/${selectedCatalogId.value}/preview?mode=${previewMode.value}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      )
-      if (!res.ok) { notFound.value = true; return }
-      const manual = await res.json()
-      bodyHtml.value = renderMarkdown(manual.markdown)
-      catalogTitle.value = manual.catalog.title
+      const data = await getPreview(selectedCatalogId.value, previewMode.value)
+      bodyHtml.value = renderMarkdown(data.markdown)
+      catalogTitle.value = data.catalog.title
     }
+  } catch {
+    notFound.value = true
   } finally {
     loading.value = false
   }
@@ -126,15 +106,8 @@ async function publishVersion() {
   const changeNotes = await prompt('变更说明：')
   if (changeNotes === null) return
   publishing.value = true
-  const token = localStorage.getItem('auth_token')
   try {
-    const res = await fetch(`/api/catalogs/${selectedCatalogId.value}/publish`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ changeNotes }),
-    })
-    if (!res.ok) { const err = await res.json().catch(() => ({ error: '发布失败' })); await alert(err.error || '发布失败'); return }
-    const data = await res.json()
+    const data = await publishCatalog(selectedCatalogId.value!, changeNotes)
     await loadVersions()
     await alert(`版本 v${data.versionMajor}.${data.versionMinor} 已发布`)
   } catch (e: unknown) {
@@ -145,13 +118,9 @@ async function publishVersion() {
 async function exportDraft() {
   if (!selectedCatalogId.value) return
   exporting.value = true
-  const token = localStorage.getItem('auth_token')
   try {
-    const res = await fetch(`/api/catalogs/${selectedCatalogId.value}/export?mode=${previewMode.value}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (!res.ok) { const err = await res.json().catch(() => ({ error: '导出失败' })); await alert(err.error || '导出失败'); return }
-    downloadBlob(res)
+    const url = getExportUrl(selectedCatalogId.value, previewMode.value)
+    await api.download(url)
   } catch (e: unknown) { await alert('导出失败: ' + (e instanceof Error ? e.message : '网络错误')) }
   finally { exporting.value = false }
 }
@@ -159,39 +128,19 @@ async function exportDraft() {
 async function downloadVersion() {
   if (!selectedVersionId.value || !selectedCatalogId.value) return
   exporting.value = true
-  const token = localStorage.getItem('auth_token')
   try {
-    const res = await fetch(
-      `/api/catalogs/${selectedCatalogId.value}/versions/${selectedVersionId.value}/export?mode=${previewMode.value}`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    )
-    if (!res.ok) { const err = await res.json().catch(() => ({ error: '下载失败' })); await alert(err.error || '下载失败'); return }
-    downloadBlob(res)
+    const url = getVersionExportUrl(selectedCatalogId.value, selectedVersionId.value, previewMode.value)
+    await api.download(url)
   } catch (e: unknown) { await alert('下载失败: ' + (e instanceof Error ? e.message : '网络错误')) }
   finally { exporting.value = false }
-}
-
-function downloadBlob(res: Response) {
-  const d = res.headers.get('Content-Disposition') || ''
-  const m = d.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
-  const filename = m?.[1]?.replace(/['"]/g, '') || 'manual.pdf'
-  res.blob().then(blob => {
-    const u = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = u; a.download = decodeURIComponent(filename); a.click()
-    URL.revokeObjectURL(u)
-  })
 }
 
 async function exportMarkdown() {
   if (!selectedCatalogId.value) return
   exportingMd.value = true
-  const token = localStorage.getItem('auth_token')
   try {
-    const res = await fetch(`/api/catalogs/${selectedCatalogId.value}/export/markdown`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (!res.ok) { const err = await res.json().catch(() => ({ error: '导出失败' })); await alert(err.error || '导出失败'); return }
-    downloadBlob(res)
+    const url = getMarkdownExportUrl(selectedCatalogId.value)
+    await api.download(url)
   } catch (e: unknown) { await alert('导出失败: ' + (e instanceof Error ? e.message : '网络错误')) }
   finally { exportingMd.value = false }
 }
@@ -221,9 +170,9 @@ function renderMarkdown(md: string): string {
 // ====== 变更记录 ======
 const changelogVersions = computed(() => {
   if (!selectedVersionId.value) return versions.value
-  const t = versions.value.find(v => v.id === selectedVersionId.value)
+  const t = versions.value.find((v: any) => v.id === selectedVersionId.value)
   if (!t) return versions.value
-  return versions.value.filter(v => v.version_major < t.version_major || (v.version_major === t.version_major && v.version_minor <= t.version_minor))
+  return versions.value.filter((v: any) => v.version_major < t.version_major || (v.version_major === t.version_major && v.version_minor <= t.version_minor))
 })
 
 // ====== 生命周期 ======

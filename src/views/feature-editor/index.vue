@@ -3,32 +3,26 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useDialog } from '@/composables/useDialog'
+import { getFeature, updateSectionStatus, deleteOrphaned as apiDeleteOrphaned } from '@/api/endpoints/features'
+import { getUsers } from '@/api/endpoints/auth'
+import { getMembers } from '@/api/endpoints/projects'
+import type { FeatureDetail } from '@shared/types'
+
+// 后端 /api/auth/users 和 /api/projects/:id/members 返回 snake_case 字段
+interface ApiUser {
+  id: string
+  username: string
+  display_name: string
+  role: string
+  feishu_open_id: string | null
+  feishu_name: string | null
+  feishu_avatar_url: string | null
+  created_at: string
+}
 import TiptapEditor from '@/components/TiptapEditor.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import SelectDropdown from '@/components/SelectDropdown.vue'
-
-interface FeatureSection {
-  key: string
-  title: string
-  description?: string
-  status?: string
-  assignees?: string
-  reviewNote?: string
-  reviewStep?: number
-  reviewLog?: string
-}
-
-interface FeatureData {
-  id: string
-  title: string
-  description: string
-  sections: FeatureSection[]
-  orphaned?: FeatureSection[]
-  is_custom: number
-  review_chain?: string
-  project_id: string
-}
 
 const route = useRoute()
 const router = useRouter()
@@ -36,7 +30,7 @@ const { isPM, isGuest } = useAuth()
 const { confirm, dangerConfirm, prompt } = useDialog()
 const featureId = computed(() => route.params.id as string)
 
-const feature = ref<FeatureData | null>(null)
+const feature = ref<FeatureDetail | null>(null)
 const loading = ref(true)
 const loadError = ref('')
 
@@ -66,14 +60,14 @@ const isOrphaned = computed(() =>
 
 // 审核链信息（从项目 review_chain 中获取）
 const reviewChain = computed(() => {
-  try { return JSON.parse(feature.value?.review_chain || '[]') as string[] } catch { return [] as string[] }
+  try { return JSON.parse((feature.value as any)?.review_chain || '[]') as string[] } catch { return [] as string[] }
 })
 
 const currentReviewStep = computed(() => currentSectionData.value?.reviewStep || 0)
 
 // 当前章节的审核日志
 const sectionReviewLog = computed(() => {
-  try { return JSON.parse(currentSectionData.value?.reviewLog || '[]') as { action: string; reviewerId: string; note: string; step: number; created_at: string }[] }
+  try { return JSON.parse((currentSectionData.value as any)?.reviewLog || '[]') as { action: string; reviewerId: string; note: string; step: number; created_at: string }[] }
   catch { return [] }
 })
 
@@ -95,22 +89,14 @@ async function loadFeature() {
   loading.value = true
   loadError.value = ''
   try {
-    const token = localStorage.getItem('auth_token')
-    const res = await fetch(`/api/features/${featureId.value}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (!res.ok) {
-      loadError.value = '主题不存在'
-      return
-    }
-    const data = await res.json()
-    feature.value = data
+    const data = await getFeature(featureId.value)
+    feature.value = data as any
     const fromUrl = route.query.section as string | undefined
     currentSection.value = (fromUrl && data.sections.find((s: any) => s.key === fromUrl))
       ? fromUrl
       : data.sections[0]?.key || ''
-  } catch (e: any) {
-    loadError.value = '加载失败: ' + e.message
+  } catch (e: unknown) {
+    loadError.value = '加载失败: ' + (e instanceof Error ? e.message : String(e))
   } finally {
     loading.value = false
   }
@@ -121,48 +107,30 @@ onMounted(() => {
   loadUsers()
 })
 
-// 用户列表（PM 指派用）
-interface UserItem {
-  id: string
-  display_name: string
-  feishu_name?: string | null
-  feishu_avatar_url?: string | null
+function userDisplayName(u: ApiUser): string {
+  return u.feishu_name || u.display_name || u.username || '未知'
 }
 
-function userDisplayName(u: UserItem): string {
-  return u.feishu_name || u.display_name
-}
-
-const users = ref<UserItem[]>([])
+const users = ref<ApiUser[]>([])
 const projectMemberIds = ref<Set<string>>(new Set())
 const newAssigneeId = ref<string | null>(null)
 
 async function loadUsers() {
-  const token = localStorage.getItem('auth_token')
   try {
-    const res = await fetch('/api/auth/users', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (res.ok) users.value = await res.json()
+    users.value = await getUsers() as unknown as ApiUser[]
   } catch { /* ignore */ }
 }
 
 async function loadProjectMembers() {
-  if (!feature.value?.project_id) return
-  const token = localStorage.getItem('auth_token')
+  if (!(feature.value as any)?.project_id) return
   try {
-    const res = await fetch(`/api/projects/${feature.value.project_id}/members`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (res.ok) {
-      const members = await res.json() as { id: string }[]
-      projectMemberIds.value = new Set(members.map(m => m.id))
-    }
+    const members = await getMembers((feature.value as any).project_id)
+    projectMemberIds.value = new Set(members.map(m => m.id))
   } catch { /* ignore */ }
 }
 
 function getCurrentAssignees(): string[] {
-  const raw = currentSectionData.value?.assignees || '[]'
+  const raw = (currentSectionData.value as any)?.assignees || '[]'
   try { return JSON.parse(raw) as string[] } catch { return [] }
 }
 
@@ -172,12 +140,12 @@ function getUserName(uid: string): string {
 }
 
 function getUserAvatar(uid: string): string | null {
-  return users.value.find(u => u.id === uid)?.feishu_avatar_url || null
+  return (users.value.find(u => u.id === uid)?.feishu_avatar_url as string) || null
 }
 
 function getUserInitial(uid: string): string {
   const u = users.value.find(u => u.id === uid)
-  return (u ? (u.feishu_name || u.display_name || '?')[0] : '?')
+  return ((u?.feishu_name || u?.display_name || '?') as string)[0]
 }
 
 function availableUsers() {
@@ -199,15 +167,8 @@ async function removeAssignee(sectionKey: string, uid: string) {
 async function updateAssignees(sectionKey: string, assignees: string[]) {
   const sec = feature.value?.sections.find(s => s.key === sectionKey)
   try {
-    const res = await fetch(`/api/features/${featureId.value}/sections/${sectionKey}/status`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-      },
-      body: JSON.stringify({ assignees }),
-    })
-    if (res.ok && sec) { sec.assignees = JSON.stringify(assignees) }
+    await updateSectionStatus(featureId.value, sectionKey, { assignees })
+    if (sec) { (sec as any).assignees = JSON.stringify(assignees) }
   } catch { /* ignore */ }
 }
 
@@ -239,21 +200,12 @@ async function setStatus(sectionKey: string, newStatus: string, reviewNote?: str
   const body: Record<string, unknown> = { status: newStatus, reviewNote: note }
   if (direct) body.direct = true
   try {
-    const res = await fetch(`/api/features/${featureId.value}/sections/${sectionKey}/status`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-      },
-      body: JSON.stringify(body),
-    })
-    if (res.ok) {
-      // 重新加载 feature 以获取服务端更新的 review_step、review_log 等
-      if (['pending_review', 'approved', 'rejected'].includes(newStatus)) {
-        await loadFeature()
-      } else if (sec) {
-        sec.status = newStatus; sec.reviewNote = note
-      }
+    await updateSectionStatus(featureId.value, sectionKey, body as any)
+    // 重新加载 feature 以获取服务端更新的 review_step、review_log 等
+    if (['pending_review', 'approved', 'rejected'].includes(newStatus)) {
+      await loadFeature()
+    } else if (sec) {
+      sec.status = newStatus; sec.reviewNote = note
     }
   } catch { /* ignore */ }
 }
@@ -302,10 +254,7 @@ async function resetToDraft(sectionKey: string) {
 // 删除游离文档
 async function deleteOrphaned(sectionKey: string) {
   if (!await dangerConfirm(`确定删除游离文档「${sectionKey}」？\n内容不可恢复。`)) return
-  await fetch(`/api/features/${featureId.value}/orphaned/${sectionKey}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-  })
+  await apiDeleteOrphaned(featureId.value, sectionKey)
   if (feature.value?.orphaned) {
     feature.value.orphaned = feature.value.orphaned.filter(o => o.key !== sectionKey)
   }

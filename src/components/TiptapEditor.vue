@@ -10,6 +10,7 @@ import TableBubbleMenu from './TableBubbleMenu.vue'
 import CrossrefPicker from './CrossrefPicker.vue'
 import ModalDialog from './ModalDialog.vue'
 import SearchReplaceBar from './SearchReplaceBar.vue'
+import { uploadImage } from '@/api/endpoints/upload'
 import type { CrossrefAttrs } from '@/composables/crossref-node'
 
 const { alert, prompt } = useDialog()
@@ -290,22 +291,10 @@ async function handleImageUpload(e: Event) {
 
   uploading.value = true
   try {
-    const form = new FormData()
-    form.append('file', file)
-    const res = await fetch('/api/upload/image', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-      body: form,
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      await alert(err.error || '上传失败')
-      return
-    }
-    const { url } = await res.json()
+    const { url } = await uploadImage(file)
     editor.value?.chain().focus().setImage({ src: url }).run()
-  } catch (e: any) {
-    await alert('上传失败: ' + e.message)
+  } catch (e: unknown) {
+    await alert('上传失败: ' + (e instanceof Error ? e.message : '未知错误'))
   } finally {
     uploading.value = false
     target.value = ''

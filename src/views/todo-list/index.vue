@@ -2,19 +2,9 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProject } from '@/composables/useProject'
+import { getTodos } from '@/api/endpoints/todos'
+import type { TodoItem } from '@shared/types'
 import LoadingState from '@/components/LoadingState.vue'
-
-interface TodoItem {
-  docId: string
-  featureId: string
-  featureTitle: string
-  sectionKey: string
-  sectionTitle: string
-  status: string
-  reviewNote: string
-  reviewStep: number
-  todoType: 'write' | 'review'
-}
 
 const router = useRouter()
 const { currentProjectId } = useProject()
@@ -48,11 +38,7 @@ const activeCount = computed(() => todos.value.filter(t => t.status !== 'approve
 async function loadTodos() {
   loading.value = true
   try {
-    const token = localStorage.getItem('auth_token')
-    const pid = currentProjectId.value
-    const url = pid ? `/api/todos?projectId=${pid}` : '/api/todos'
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-    if (res.ok) todos.value = await res.json()
+    todos.value = await getTodos(currentProjectId.value ?? undefined)
   } finally { loading.value = false }
 }
 

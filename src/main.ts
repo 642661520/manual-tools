@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
 import { routes } from './router'
+import { getCurrentUser } from '@/api/endpoints/auth'
 import '@unocss/reset/tailwind.css'
 import 'virtual:uno.css'
 
@@ -25,26 +26,18 @@ async function validateToken(): Promise<boolean> {
   }
 
   try {
-    const res = await fetch('/api/auth/me', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (!res.ok) {
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('auth_user')
-      tokenValidated = true
-      tokenValid = false
-      return false
-    }
-    // 同步最新的用户信息（角色可能已被管理员修改）
-    const { user } = await res.json()
+    const { user } = await getCurrentUser()
     localStorage.setItem('auth_user', JSON.stringify(user))
     tokenValidated = true
     tokenValid = true
     return true
   } catch {
+    // API 返回 401 → token 无效
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('auth_user')
     tokenValidated = true
-    tokenValid = true // 网络不可达时放行，由后续 API 调用的 401 处理
-    return true
+    tokenValid = false
+    return false
   }
 }
 

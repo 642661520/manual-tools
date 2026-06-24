@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { feishuLogin, bindFeishu } from '@/api/endpoints/auth'
+import { ApiRequestError } from '@shared/types'
 
 const route = useRoute()
 const status = ref<'loading' | 'success' | 'error'>('loading')
@@ -18,7 +20,6 @@ onMounted(async () => {
     return
   }
 
-  // 根据 state 判断是登录还是绑定
   if (stateParam?.startsWith('login:')) {
     mode.value = 'login'
     await handleLogin(code)
@@ -30,20 +31,7 @@ onMounted(async () => {
 
 async function handleLogin(code: string) {
   try {
-    const res = await fetch('/api/auth/feishu/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code }),
-    })
-
-    if (!res.ok) {
-      const body = await res.json()
-      status.value = 'error'
-      errorMsg.value = body.error || '登录失败'
-      return
-    }
-
-    const data = await res.json()
+    const data = await feishuLogin(code)
     localStorage.setItem('auth_token', data.token)
     localStorage.setItem('auth_user', JSON.stringify(data.user))
     status.value = 'success'
@@ -56,40 +44,20 @@ async function handleLogin(code: string) {
     }, 1500)
   } catch (e: unknown) {
     status.value = 'error'
-    errorMsg.value = e instanceof Error ? e.message : '网络错误'
+    if (e instanceof ApiRequestError) {
+      errorMsg.value = e.message
+    } else {
+      errorMsg.value = e instanceof Error ? e.message : '网络错误'
+    }
   }
 }
 
 async function handleBind(code: string) {
-  const token = localStorage.getItem('auth_token')
-  if (!token) {
-    status.value = 'error'
-    errorMsg.value = '登录已过期，请重新登录后再试'
-    return
-  }
-
   try {
-    const res = await fetch('/api/auth/me/feishu-binding', {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ code }),
-    })
-
-    if (!res.ok) {
-      const body = await res.json()
-      status.value = 'error'
-      errorMsg.value = body.error || '绑定失败'
-      return
-    }
-
-    const data = await res.json()
+    const data = await bindFeishu(code)
     status.value = 'success'
     successMsg.value = '飞书账号绑定成功'
 
-    // 通知设置页刷新
     if (window.opener) {
       window.opener.postMessage({
         type: 'feishu-bound',
@@ -101,7 +69,11 @@ async function handleBind(code: string) {
     setTimeout(() => window.close(), 1500)
   } catch (e: unknown) {
     status.value = 'error'
-    errorMsg.value = e instanceof Error ? e.message : '网络错误'
+    if (e instanceof ApiRequestError) {
+      errorMsg.value = e.message
+    } else {
+      errorMsg.value = e instanceof Error ? e.message : '网络错误'
+    }
   }
 }
 </script>

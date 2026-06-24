@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import { getFeishuLoginUrl } from '@/api/endpoints/auth'
 import FormField from '@/components/FormField.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 
@@ -24,8 +25,8 @@ async function handleLogin() {
   try {
     await login(username.value.trim(), password.value)
     router.push('/features')
-  } catch (e: any) {
-    error.value = e.message || '登录失败'
+  } catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : '登录失败'
   } finally {
     loading.value = false
   }
@@ -35,16 +36,10 @@ const feishuLoading = ref(false)
 async function feishuLogin() {
   feishuLoading.value = true
   try {
-    const res = await fetch('/api/auth/feishu/login-url')
-    if (!res.ok) {
-      const body = await res.json()
-      error.value = body.error || '飞书登录未配置'
-      return
-    }
-    const { url } = await res.json()
+    const { url } = await getFeishuLoginUrl()
     window.location.href = url
-  } catch (e: any) {
-    error.value = e.message || '飞书登录失败'
+  } catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : '飞书登录失败'
   } finally {
     feishuLoading.value = false
   }
