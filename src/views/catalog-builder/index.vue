@@ -8,7 +8,42 @@ import { useDialog } from '@/composables/useDialog'
 import { getFeatures } from '@/api/endpoints/features'
 import { getCatalogs, getCatalog, createCatalog, updateCatalog, deleteCatalog as apiDeleteCatalog } from '@/api/endpoints/catalogs'
 import { getCategories } from '@/api/endpoints/categories'
-import type { FeatureSummary, CatalogInfo, CategoryInfo } from '@shared/types'
+import type { FeatureSummary, CategoryInfo, CatalogInfo } from '@shared/types'
+
+// 本地类型：目录中引用的功能
+interface CatFeature {
+  id: string
+  title: string
+  description: string
+  sections: string   // JSON string
+  categoryId: string | null
+  totalSections?: number
+  approvedSections?: number
+}
+
+interface CatEntry {
+  feature: CatFeature
+  sectionOrder?: string[]
+}
+
+interface CatalogResponseFeature {
+  id: string
+  title: string
+  description: string
+  sections: Array<{ key: string; title: string }>
+  categoryId: string | null
+  sectionOrder?: string[]
+}
+
+interface CatalogResponse {
+  title: string
+  targets: string[]
+  features: CatalogResponseFeature[]
+}
+
+interface SortableElement extends HTMLElement {
+  _sortable?: Sortable
+}
 import PageHeader from '@/components/PageHeader.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -21,28 +56,29 @@ const { confirm, dangerConfirm } = useDialog()
 const catalogId = computed(() => route.params.id as string)
 const isNew = computed(() => catalogId.value === 'new')
 
-const catalog = ref({
+const catalog = ref<{ title: string; targets: string[]; features: CatEntry[] }>({
   title: '',
   targets: [] as string[],
-  features: [] as any[],
+  features: [] as CatEntry[],
 })
 
-const allFeatures = ref<any[]>([])
-const catalogList = ref<any[]>([])
-const categories = ref<any[]>([])
+const allFeatures = ref<FeatureSummary[]>([])
+const catalogList = ref<CatalogInfo[]>([])
+const categories = ref<CategoryInfo[]>([])
 const searchQuery = ref('')
 const saving = ref(false)
 const saveError = ref('')
 const expandedIndex = ref<number | null>(null)
 
 // 解析 sections JSON 用于展示
-function getSections(f: any): { key: string; title: string }[] {
+function getSections(f: { sections?: string }): { key: string; title: string }[] {
+  if (Array.isArray(f.sections)) return f.sections as { key: string; title: string }[]
   try { return JSON.parse(f.sections || '[]') }
   catch { return [] }
 }
 
 // 获取当前排序后的 sections（按 sectionOrder）
-function getOrderedSections(entry: any) {
+function getOrderedSections(entry: CatEntry): { key: string; title: string }[] {
   const raw = getSections(entry.feature)
   if (entry.sectionOrder) {
     return entry.sectionOrder.map((k: string) => raw.find(s => s.key === k)).filter(Boolean) as typeof raw
@@ -65,9 +101,9 @@ const categoryMap = computed(() =>
 // 过滤可选主题
 const filteredFeatures = computed(() => {
   const q = searchQuery.value.toLowerCase()
-  const selectedIds = new Set(catalog.value.features.map((e: any) => e.feature.id))
-  return allFeatures.value.filter((f: any) => {
-    const catName = f.category_id ? categoryMap.value.get(f.category_id) || '' : ''
+  const selectedIds = new Set(catalog.value.features.map((e: CatEntry) => e.feature.id))
+  return allFeatures.value.filter((f: FeatureSummary) => {
+    const catName = f.categoryId ? categoryMap.value.get(f.categoryId) || '' : ''
     return !selectedIds.has(f.id) &&
       (!q || f.title.toLowerCase().includes(q) || catName.toLowerCase().includes(q))
   })
@@ -75,17 +111,17 @@ const filteredFeatures = computed(() => {
 
 // 按分类分组
 const grouped = computed(() => {
-  const groups: Record<string, any[]> = {}
+  const groups: Record<string, FeatureSummary[]> = {}
 
   for (const f of filteredFeatures.value) {
-    const catId = f.category_id || '__uncategorized__'
+    const catId = f.categoryId || '__uncategorized__'
     if (!groups[catId]) groups[catId] = []
     groups[catId].push(f)
   }
 
   // 保持分类顺序，未分类放最后
-  const sorted: Record<string, any[]> = {}
-  const catOrder = [...categories.value].sort((a: any, b: any) => a.sort_order - b.sort_order)
+  const sorted: Record<string, FeatureSummary[]> = {}
+  const catOrder = [...categories.value].sort((a: CategoryInfo, b: CategoryInfo) => a.sortOrder - b.sortOrder)
   for (const c of catOrder) {
     if (groups[c.id]) sorted[c.id] = groups[c.id]
   }
@@ -102,23 +138,23 @@ async function loadData() {
     getCatalogs(pid || undefined),
     getCategories(pid || undefined),
   ])
-  allFeatures.value = featuresRes as any
-  catalogList.value = listRes as any
-  categories.value = categoriesRes as any
+  allFeatures.value = featuresRes
+  catalogList.value = listRes
+  categories.value = categoriesRes
 
   if (!isNew.value) {
     try {
-      const data = await getCatalog(catalogIdVal) as any
+      const data = await getCatalog(catalogIdVal) as unknown as CatalogResponse
       catalog.value = {
         title: data.title,
         targets: data.targets || [],
-        features: (data.features || []).map((f: any) => ({
+        features: (data.features || []).map((f: CatalogResponseFeature) => ({
           feature: {
             id: f.id,
             title: f.title,
             description: f.description,
             sections: JSON.stringify(f.sections || []),
-            category_id: f.category_id,
+            categoryId: f.categoryId,
           },
           sectionOrder: f.sectionOrder,
         })),
@@ -132,8 +168,21 @@ async function loadData() {
   }
 }
 
-function addFeature(f: any) {
-  catalog.value.features.push({ feature: f })
+function addFeature(f: FeatureSummary) {
+  // f.sections 从 API 返回时已经是 JSON 字符串（数据库原始格式），
+  // 不要再 JSON.stringify，否则会双重编码导致解析失败
+  const sectionsStr = typeof f.sections === 'string' ? f.sections : JSON.stringify(f.sections || [])
+  catalog.value.features.push({
+    feature: {
+      id: f.id,
+      title: f.title,
+      description: f.description,
+      sections: sectionsStr,
+      categoryId: f.categoryId,
+      totalSections: f.totalSections,
+      approvedSections: f.approvedSections,
+    },
+  })
 }
 
 function removeFeature(index: number) {
@@ -144,7 +193,7 @@ function removeFeature(index: number) {
 async function deleteCatalog(id: string) {
   if (!await dangerConfirm('确定删除此目录？\n导出版本历史也将被删除，不可恢复。')) return
   await apiDeleteCatalog(id)
-  catalogList.value = catalogList.value.filter((c: any) => c.id !== id)
+  catalogList.value = catalogList.value.filter((c: CatalogInfo) => c.id !== id)
   // 如果删除的是当前目录，跳转到新建
   if (catalogId.value === id) {
     router.push('/catalogs/new')
@@ -177,7 +226,7 @@ async function save() {
     const payload = {
       title: catalog.value.title.trim(),
       targets: catalog.value.targets,
-      features: catalog.value.features.map((e: any) => ({
+      features: catalog.value.features.map((e: CatEntry) => ({
         featureId: e.feature.id,
         sectionOrder: e.sectionOrder,
       })),
@@ -214,7 +263,7 @@ watch(catalogId, () => {
 // 初始化拖拽（主题排序）
 const sortList = ref<HTMLElement>()
 
-function onDragStart(e: DragEvent, f: any) {
+function onDragStart(e: DragEvent, f: FeatureSummary) {
   if (!e.dataTransfer) return
   e.dataTransfer.setData('text/plain', f.id)
   e.dataTransfer.effectAllowed = 'copy'
@@ -222,7 +271,7 @@ function onDragStart(e: DragEvent, f: any) {
 
 function initSort() {
   if (!sortList.value) return
-  const el = sortList.value as any
+  const el = sortList.value as SortableElement
   if (el._sortable) el._sortable.destroy()
   Sortable.create(sortList.value, {
     animation: 200,
@@ -248,7 +297,7 @@ function onDragOver(e: DragEvent) {
 function onDrop(e: DragEvent) {
   const featureId = e.dataTransfer?.getData('text/plain')
   if (!featureId) return
-  const feature = allFeatures.value.find((f: any) => f.id === featureId)
+  const feature = allFeatures.value.find((f: FeatureSummary) => f.id === featureId)
   if (feature) addFeature(feature)
 }
 
@@ -256,7 +305,7 @@ function onDrop(e: DragEvent) {
 function initSectionSort(index: number) {
   const container = sortList.value?.querySelectorAll('.section-sort-area')[index] as HTMLElement | undefined
   if (!container) return
-  const el = container as any
+  const el = container as SortableElement
   if (el._sortable) el._sortable.destroy()
   Sortable.create(container, {
     animation: 200,
@@ -296,7 +345,7 @@ watch(() => catalog.value.features.length, async () => {
 watch(currentProjectId, () => {
   loadData().then(() => {
     // 切换项目后，如果当前目录不属于新项目，跳转到新建
-    if (!isNew.value && !catalogList.value.some((c: any) => c.id === catalogId.value)) {
+    if (!isNew.value && !catalogList.value.some((c: CatalogInfo) => c.id === catalogId.value)) {
       router.replace('/catalogs/new')
     }
     nextTick(() => {
@@ -379,8 +428,8 @@ watch(currentProjectId, () => {
               @dragstart="onDragStart($event, f)"
             >
               <span class="flex-1 text-gray-700">{{ f.title }}</span>
-              <span v-if="f.total_sections" class="text-xs text-gray-400 flex-shrink-0">
-                {{ f.approved_sections ?? 0 }}/{{ f.total_sections }}
+              <span v-if="f.totalSections" class="text-xs text-gray-400 flex-shrink-0">
+                {{ f.approvedSections ?? 0 }}/{{ f.totalSections }}
               </span>
               <span class="text-gray-300 opacity-0 group-hover:opacity-100"><span class="i-lucide-plus w-4 h-4 inline-block align-middle" /></span>
             </button>
@@ -426,14 +475,14 @@ watch(currentProjectId, () => {
               <div class="flex-1 min-w-0">
                 <div class="font-medium text-gray-900 text-sm flex items-center gap-2">
                   {{ entry.feature.title }}
-                  <span v-if="entry.feature.total_sections" class="text-xs font-normal" :class="(entry.feature.approved_sections ?? 0) === (entry.feature.total_sections ?? 0) ? 'text-green-500' : 'text-gray-400'">
-                    ✓{{ entry.feature.approved_sections ?? 0 }}/{{ entry.feature.total_sections }}
+                  <span v-if="entry.feature.totalSections" class="text-xs font-normal" :class="(entry.feature.approvedSections ?? 0) === (entry.feature.totalSections ?? 0) ? 'text-green-500' : 'text-gray-400'">
+                    ✓{{ entry.feature.approvedSections ?? 0 }}/{{ entry.feature.totalSections }}
                   </span>
                 </div>
                 <div class="text-xs text-gray-400 flex items-center gap-1.5">
-                  <template v-if="entry.feature.category_id && categoryInfo.has(entry.feature.category_id)">
-                    <span class="w-2 h-2 rounded-full flex-shrink-0" :style="{ backgroundColor: categoryInfo.get(entry.feature.category_id)!.color }" />
-                    {{ categoryInfo.get(entry.feature.category_id)!.name }} ·
+                  <template v-if="entry.feature.categoryId && categoryInfo.has(entry.feature.categoryId)">
+                    <span class="w-2 h-2 rounded-full flex-shrink-0" :style="{ backgroundColor: categoryInfo.get(entry.feature.categoryId)!.color }" />
+                    {{ categoryInfo.get(entry.feature.categoryId)!.name }} ·
                   </template>
                   {{ entry.feature.id }}
                 </div>
