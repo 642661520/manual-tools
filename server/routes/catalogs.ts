@@ -5,7 +5,7 @@ import { isProjectMember } from '../auth/membership.js'
 import { v4 as uuid } from 'uuid'
 import { assembleManual, generateHtml, addPdfOutline } from '../services/pdf-generator.js'
 import { buildMarkdownZip } from '../services/markdown-export.js'
-import type { CatalogRow, FeatureRow, CatalogFeatureEntry, CatalogVersionRow, CreateCatalogBody, UpdateCatalogBody } from '../types.js'
+import type { CatalogRow, FeatureRow, CatalogFeatureEntry, CatalogVersionRow, CreateCatalogBody, UpdateCatalogBody, HeadingEntry } from '../types.js'
 
 interface LaunchOptions {
   headless: boolean
@@ -135,6 +135,9 @@ export async function catalogRoutes(app: FastifyInstance) {
       : null
     const markdown = manual?.markdown || ver.markdown
 
+    // 从 manual 或 markdown 中提取 headings（用于 PDF 书签）
+    const headings = manual?.headings || extractHeadings(markdown)
+
     const project = db.prepare('SELECT name FROM projects WHERE id = (SELECT project_id FROM catalogs WHERE id = ?)').get(id) as { name: string } | undefined
     const headerText = project?.name || ver.title
     const versionLabel = `v${ver.version_major}.${ver.version_minor}`
@@ -160,7 +163,7 @@ export async function catalogRoutes(app: FastifyInstance) {
       catalog: { title: ver.title, project_id: '', id, created_at: '', updated_at: '', targets: [], coverInfo: {} },
       features: [],
       markdown: md,
-      headings: [],
+      headings,
     })
     if (!html) return reply.status(404).send({ error: 'Generate failed' })
 
@@ -188,9 +191,20 @@ export async function catalogRoutes(app: FastifyInstance) {
         footerTemplate: `<div style="font-size:10px;text-align:center;width:100%;color:#9ca3af;">${versionLabel} · 第 <span class="pageNumber"></span> 页 / <span class="totalPages"></span> 页</div>`,
       })
       await browser.close()
+
+      // 添加 PDF 书签
+      let pdfBuffer: Buffer = Buffer.from(pdf)
+      try {
+        if (headings.length > 0) {
+          pdfBuffer = await addPdfOutline(pdfBuffer, headings)
+        }
+      } catch (outlineErr: unknown) {
+        console.error('PDF outline failed:', outlineErr instanceof Error ? outlineErr.message : outlineErr)
+      }
+
       reply.header('Content-Type', 'application/pdf')
       reply.header('Content-Disposition', `attachment; filename="${encodeURIComponent(ver.title)}-${versionLabel}.pdf"`)
-      return pdf
+      return pdfBuffer
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       reply.header('Content-Type', 'text/html; charset=utf-8')
@@ -445,4 +459,22 @@ export async function catalogRoutes(app: FastifyInstance) {
     db.prepare('DELETE FROM catalogs WHERE id = ?').run(id)
     return { ok: true }
   })
+}
+
+/** 从 Markdown 中提取标题作为 PDF 书签（用于历史版本等没有 headings 数据的场景） */
+function extractHeadings(md: string): HeadingEntry[] {
+  const headings: HeadingEntry[] = []
+  const lines = md.split('\n')
+  for (const line of lines) {
+    const h2Match = line.match(/^## <a id="([^"]+)"><\/a>(\d+)\. (.+)$/)
+    if (h2Match) {
+      headings.push({ level: 2, text: `${h2Match[2]}. ${h2Match[3]}`, id: h2Match[1] })
+      continue
+    }
+    const h3Match = line.match(/^### <a id="([^"]+)"><\/a>(\d+\.\d+) (.+)$/)
+    if (h3Match) {
+      headings.push({ level: 3, text: `${h3Match[2]} ${h3Match[3]}`, id: h3Match[1] })
+    }
+  }
+  return headings
 }
