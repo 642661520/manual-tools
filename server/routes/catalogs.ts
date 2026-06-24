@@ -2,8 +2,9 @@ import { FastifyInstance } from 'fastify'
 import { getDb } from '../db/index.js'
 import { authMiddleware, requireRole } from '../auth/middleware.js'
 import { isProjectMember } from '../auth/membership.js'
+import { success, created, ok, fail } from '../lib/response.js'
 import { v4 as uuid } from 'uuid'
-import { assembleManual, generateHtml, addPdfOutline } from '../services/pdf-generator.js'
+import { assembleManual, generateHtml, addPdfOutline, computeHeadingPageMap, PDF_CONTENT } from '../services/pdf-generator.js'
 import { buildMarkdownZip } from '../services/markdown-export.js'
 import type { CatalogRow, FeatureRow, CatalogFeatureEntry, CatalogVersionRow, CreateCatalogBody, UpdateCatalogBody, HeadingEntry } from '../types.js'
 
@@ -15,90 +16,93 @@ interface LaunchOptions {
 
 export async function catalogRoutes(app: FastifyInstance) {
   // 获取所有 catalog，支持按项目过滤
-  app.get('/api/catalogs', { preHandler: authMiddleware }, async (req) => {
+  app.get('/api/v1/catalogs', { preHandler: authMiddleware }, async (req) => {
     const { projectId } = req.query as { projectId?: string }
     const db = getDb()
     if (projectId) {
-      return db.prepare('SELECT * FROM catalogs WHERE project_id = ? ORDER BY updated_at DESC').all(projectId)
+      const rows = db.prepare('SELECT * FROM catalogs WHERE project_id = ? ORDER BY updated_at DESC').all(projectId)
+      return success(rows)
     }
-    return db.prepare('SELECT * FROM catalogs ORDER BY updated_at DESC').all()
+    const rows = db.prepare('SELECT * FROM catalogs ORDER BY updated_at DESC').all()
+    return success(rows)
   })
 
   // 预览手册
-  app.get('/api/catalogs/:id/preview', { preHandler: authMiddleware }, async (req, reply) => {
+  app.get('/api/v1/catalogs/:id/preview', { preHandler: authMiddleware }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const { mode } = req.query as { mode?: string }
     const db = getDb()
     const catalogMeta = db.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(id) as { project_id: string } | undefined
-    if (!catalogMeta) return reply.status(404).send({ error: 'Catalog not found' })
+    if (!catalogMeta) return fail(reply, 404, 'Catalog not found')
     if (!isProjectMember(req.user!.userId, req.user!.role, catalogMeta.project_id)) {
-      return reply.status(403).send({ error: '你不是该项目的成员' })
+      return fail(reply, 403, '你不是该项目的成员')
     }
     const manual = assembleManual(id, { approvedOnly: mode === 'approved' })
-    if (!manual) return reply.status(404).send({ error: 'Catalog not found' })
-    return manual
+    if (!manual) return fail(reply, 404, 'Catalog not found')
+    return success(manual)
   })
 
   // 版本列表
-  app.get('/api/catalogs/:id/versions', { preHandler: authMiddleware }, async (req, reply) => {
+  app.get('/api/v1/catalogs/:id/versions', { preHandler: authMiddleware }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const db = getDb()
     const catalogMeta = db.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(id) as { project_id: string } | undefined
-    if (!catalogMeta) return reply.status(404).send({ error: 'Catalog not found' })
+    if (!catalogMeta) return fail(reply, 404, 'Catalog not found')
     if (!isProjectMember(req.user!.userId, req.user!.role, catalogMeta.project_id)) {
-      return reply.status(403).send({ error: '你不是该项目的成员' })
+      return fail(reply, 403, '你不是该项目的成员')
     }
-    return db.prepare(
+    const rows = db.prepare(
       'SELECT id, version_major, version_minor, title, change_notes, created_at FROM catalog_versions WHERE catalog_id = ? ORDER BY version_major DESC, version_minor DESC',
     ).all(id) as (Pick<CatalogVersionRow, 'id' | 'version_major' | 'version_minor' | 'title' | 'change_notes' | 'created_at'>)[]
+    return success(rows)
   })
 
   // 历史版本预览
-  app.get('/api/catalogs/:id/versions/:versionId/preview', { preHandler: authMiddleware }, async (req, reply) => {
+  app.get('/api/v1/catalogs/:id/versions/:versionId/preview', { preHandler: authMiddleware }, async (req, reply) => {
     const { versionId } = req.params as { versionId: string }
     const { mode } = req.query as { mode?: string }
     const db = getDb()
     const ver = db.prepare('SELECT * FROM catalog_versions WHERE id = ?').get(versionId) as CatalogVersionRow | undefined
-    if (!ver) return reply.status(404).send({ error: 'Version not found' })
+    if (!ver) return fail(reply, 404, 'Version not found')
 
     // 校验项目成员
     const catalogMeta = db.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(ver.catalog_id) as { project_id: string } | undefined
-    if (!catalogMeta) return reply.status(404).send({ error: 'Catalog not found' })
+    if (!catalogMeta) return fail(reply, 404, 'Catalog not found')
     if (!isProjectMember(req.user!.userId, req.user!.role, catalogMeta.project_id)) {
-      return reply.status(403).send({ error: '你不是该项目的成员' })
+      return fail(reply, 403, '你不是该项目的成员')
     }
 
     // 模式筛选时重新组装，使用快照的审核状态
     if (mode === 'approved') {
       const statusOv = JSON.parse(ver.status_snapshot || '{}') as Record<string, string>
       const manual = assembleManual(ver.catalog_id, { approvedOnly: true, featureOverride: ver.features_snapshot, statusOverride: statusOv })
-      if (!manual) return reply.status(404).send({ error: 'Catalog not found' })
-      return {
+      if (!manual) return fail(reply, 404, 'Catalog not found')
+      return success({
         versionMajor: ver.version_major,
         versionMinor: ver.version_minor,
         title: ver.title,
         markdown: manual.markdown,
         changeNotes: ver.change_notes,
         created_at: ver.created_at,
-      }
+      })
     }
 
-    return {
+    return success({
       versionMajor: ver.version_major,
       versionMinor: ver.version_minor,
       title: ver.title,
       markdown: ver.markdown,
       changeNotes: ver.change_notes,
       created_at: ver.created_at,
-    }
+    })
   })
 
   // 导出 Markdown 压缩包（md + 图片）
-  app.get('/api/catalogs/:id/export/markdown', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  app.get('/api/v1/catalogs/:id/export/markdown', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const manual = assembleManual(id)
     if (!manual) {
-      return reply.status(404).send({ error: '目录不存在' })
+      return fail(reply, 404, '目录不存在')
     }
 
     try {
@@ -109,24 +113,24 @@ export async function catalogRoutes(app: FastifyInstance) {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('Markdown export failed:', msg)
-      return reply.status(500).send({ error: '导出失败' })
+      return fail(reply, 500, '导出失败')
     }
   })
 
   // 历史版本导出 PDF
-  app.get('/api/catalogs/:id/versions/:versionId/export', { preHandler: [authMiddleware, requireRole('ops', 'pm')] }, async (req, reply) => {
+  app.get('/api/v1/catalogs/:id/versions/:versionId/export', { preHandler: [authMiddleware, requireRole('ops', 'pm')] }, async (req, reply) => {
     const { id, versionId } = req.params as { id: string; versionId: string }
     const { mode } = req.query as { mode?: string }
     const db = getDb()
     const ver = db.prepare('SELECT * FROM catalog_versions WHERE id = ?').get(versionId) as CatalogVersionRow | undefined
-    if (!ver) return reply.status(404).send({ error: 'Version not found' })
-    if (ver.catalog_id !== id) return reply.status(400).send({ error: 'Version does not belong to this catalog' })
+    if (!ver) return fail(reply, 404, 'Version not found')
+    if (ver.catalog_id !== id) return fail(reply, 400, 'Version does not belong to this catalog')
 
     // 校验项目成员
     const catalogMeta = db.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(id) as { project_id: string } | undefined
-    if (!catalogMeta) return reply.status(404).send({ error: 'Catalog not found' })
+    if (!catalogMeta) return fail(reply, 404, 'Catalog not found')
     if (!isProjectMember(req.user!.userId, req.user!.role, catalogMeta.project_id)) {
-      return reply.status(403).send({ error: '你不是该项目的成员' })
+      return fail(reply, 403, '你不是该项目的成员')
     }
 
     // 模式筛选时重新组装，使用快照的审核状态
@@ -165,7 +169,7 @@ export async function catalogRoutes(app: FastifyInstance) {
       markdown: md,
       headings,
     })
-    if (!html) return reply.status(404).send({ error: 'Generate failed' })
+    if (!html) return fail(reply, 404, 'Generate failed')
 
     try {
       const puppeteer = await import('puppeteer')
@@ -178,10 +182,20 @@ export async function catalogRoutes(app: FastifyInstance) {
       }
       const browser = await puppeteer.launch(launchOpts)
       const page = await browser.newPage()
+      // 设 viewport 匹配 PDF 内容区宽度，高设足够大让所有内容不滚动
+      await page.setViewport({ width: PDF_CONTENT.width, height: 50000, deviceScaleFactor: 1 })
       await page.setContent(html, { waitUntil: 'load' })
       await page.waitForNetworkIdle({ idleTime: 500, timeout: 30000 }).catch(() => {})
-      // 等待所有图片加载完成（包括外链），超时不阻塞导出
-      await page.evaluate(`Array.from(document.images).filter(i=>!i.complete).forEach(i=>{i.onload=i.onerror=()=>{};setTimeout(()=>{},1e4)})`).catch(() => {})
+      // 等待所有图片（包括内嵌 base64）加载完成
+      await page.evaluate(`new Promise(resolve => {
+        const imgs = Array.from(document.images).filter(i => !i.complete)
+        if (imgs.length === 0) return resolve()
+        let pending = imgs.length
+        imgs.forEach(i => { i.onload = i.onerror = () => { pending--; if (pending === 0) resolve() } })
+        setTimeout(resolve, 10000)
+      })`).catch(() => {})
+      // 获取标题实际页码（用于 PDF 书签跳转）
+      const headingPageMap = await computeHeadingPageMap(page, headings)
       const pdf = await page.pdf({
         format: 'A4',
         margin: { top: '2cm', bottom: '2cm', left: '2.5cm', right: '2.5cm' },
@@ -196,7 +210,7 @@ export async function catalogRoutes(app: FastifyInstance) {
       let pdfBuffer: Buffer = Buffer.from(pdf)
       try {
         if (headings.length > 0) {
-          pdfBuffer = await addPdfOutline(pdfBuffer, headings)
+          pdfBuffer = await addPdfOutline(pdfBuffer, headings, headingPageMap)
         }
       } catch (outlineErr: unknown) {
         console.error('PDF outline failed:', outlineErr instanceof Error ? outlineErr.message : outlineErr)
@@ -213,19 +227,19 @@ export async function catalogRoutes(app: FastifyInstance) {
   })
 
   // 发布版本（PM only，不绑定 PDF 导出）
-  app.post('/api/catalogs/:id/publish', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  app.post('/api/v1/catalogs/:id/publish', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const body = req.body as { changeNotes?: string }
     const db = getDb()
 
     const catalogMeta = db.prepare('SELECT project_id, title, features FROM catalogs WHERE id = ?').get(id) as { project_id: string; title: string; features: string } | undefined
-    if (!catalogMeta) return reply.status(404).send({ error: 'Catalog not found' })
+    if (!catalogMeta) return fail(reply, 404, 'Catalog not found')
     if (!isProjectMember(req.user!.userId, req.user!.role, catalogMeta.project_id)) {
-      return reply.status(403).send({ error: '你不是该项目的成员' })
+      return fail(reply, 403, '你不是该项目的成员')
     }
 
     const fullManual = assembleManual(id)
-    if (!fullManual) return reply.status(404).send({ error: 'Catalog not found' })
+    if (!fullManual) return fail(reply, 404, 'Catalog not found')
 
     const currentFeatures = catalogMeta.features
 
@@ -272,24 +286,24 @@ export async function catalogRoutes(app: FastifyInstance) {
       JSON.stringify(statusSnapshot),
     )
 
-    return { id: versionId, versionMajor: major, versionMinor: minor }
+    return success({ id: versionId, versionMajor: major, versionMinor: minor })
   })
 
   // 导出草稿 PDF（PM only，不创建版本）
-  app.get('/api/catalogs/:id/export', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  app.get('/api/v1/catalogs/:id/export', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const { mode } = req.query as { mode?: string }
     const db = getDb()
 
     const catalogMeta = db.prepare('SELECT project_id, title FROM catalogs WHERE id = ?').get(id) as { project_id: string; title: string } | undefined
-    if (!catalogMeta) return reply.status(404).send({ error: 'Catalog not found' })
+    if (!catalogMeta) return fail(reply, 404, 'Catalog not found')
     if (!isProjectMember(req.user!.userId, req.user!.role, catalogMeta.project_id)) {
-      return reply.status(403).send({ error: '你不是该项目的成员' })
+      return fail(reply, 403, '你不是该项目的成员')
     }
 
     // 导出内容按 mode 过滤
     const manual = assembleManual(id, { approvedOnly: mode === 'approved' })
-    if (!manual) return reply.status(404).send({ error: 'Catalog not found' })
+    if (!manual) return fail(reply, 404, 'Catalog not found')
 
     // 获取项目名称用于页眉
     const project = db.prepare('SELECT name FROM projects WHERE id = ?').get(catalogMeta.project_id) as { name: string } | undefined
@@ -298,7 +312,7 @@ export async function catalogRoutes(app: FastifyInstance) {
     const draftLabel = '草稿'
     const dateStr = new Date().toISOString().slice(0, 10)
     const html = generateHtml(manual)
-    if (!html) return reply.status(404).send({ error: 'Generate failed' })
+    if (!html) return fail(reply, 404, 'Generate failed')
 
     try {
       const puppeteer = await import('puppeteer')
@@ -315,10 +329,21 @@ export async function catalogRoutes(app: FastifyInstance) {
       const browser = await puppeteer.launch(launchOpts)
 
       const page = await browser.newPage()
+      // 设 viewport 匹配 PDF 内容区宽度，高设足够大让所有内容不滚动
+      await page.setViewport({ width: PDF_CONTENT.width, height: 50000, deviceScaleFactor: 1 })
       await page.setContent(html, { waitUntil: 'load' })
       await page.waitForNetworkIdle({ idleTime: 500, timeout: 30000 }).catch(() => {})
-      // 等待所有图片加载完成（包括外链），超时不阻塞导出
-      await page.evaluate(`Array.from(document.images).filter(i=>!i.complete).forEach(i=>{i.onload=i.onerror=()=>{};setTimeout(()=>{},1e4)})`).catch(() => {})
+      // 等待所有图片（包括内嵌 base64）加载完成
+      await page.evaluate(`new Promise(resolve => {
+        const imgs = Array.from(document.images).filter(i => !i.complete)
+        if (imgs.length === 0) return resolve()
+        let pending = imgs.length
+        imgs.forEach(i => { i.onload = i.onerror = () => { pending--; if (pending === 0) resolve() } })
+        // 兜底：10 秒超时
+        setTimeout(resolve, 10000)
+      })`).catch(() => {})
+      // 获取标题实际页码（用于 PDF 书签跳转）
+      const headingPageMap = await computeHeadingPageMap(page, manual.headings)
       let pdf = await page.pdf({
         format: 'A4',
         margin: { top: '2cm', bottom: '2cm', left: '2.5cm', right: '2.5cm' },
@@ -333,7 +358,7 @@ export async function catalogRoutes(app: FastifyInstance) {
       // 添加 PDF 书签
       try {
         if (manual.headings.length > 0) {
-          pdf = await addPdfOutline(Buffer.from(pdf), manual.headings)
+          pdf = await addPdfOutline(Buffer.from(pdf), manual.headings, headingPageMap)
         }
       } catch (outlineErr: unknown) {
         console.error('PDF outline failed:', outlineErr instanceof Error ? outlineErr.message : outlineErr)
@@ -352,13 +377,13 @@ export async function catalogRoutes(app: FastifyInstance) {
   })
 
   // 获取单个 catalog
-  app.get('/api/catalogs/:id', { preHandler: authMiddleware }, async (req, reply) => {
+  app.get('/api/v1/catalogs/:id', { preHandler: authMiddleware }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const db = getDb()
     const catalog = db.prepare('SELECT * FROM catalogs WHERE id = ?').get(id) as CatalogRow | undefined
-    if (!catalog) return reply.status(404).send({ error: 'Not found' })
+    if (!catalog) return fail(reply, 404, 'Not found')
     if (!isProjectMember(req.user!.userId, req.user!.role, catalog.project_id)) {
-      return reply.status(403).send({ error: '你不是该项目的成员' })
+      return fail(reply, 403, '你不是该项目的成员')
     }
 
     // 加载 features 详情用于展示
@@ -380,21 +405,21 @@ export async function catalogRoutes(app: FastifyInstance) {
       return { ...f, sections: ordered, sectionOrder: e.sectionOrder }
     }).filter(Boolean)
 
-    return {
+    return success({
       ...catalog,
       targets: JSON.parse(catalog.targets),
       coverInfo: JSON.parse(catalog.cover_info),
       features: orderedFeatures,
-    }
+    })
   })
 
   // 创建 catalog
-  app.post('/api/catalogs', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  app.post('/api/v1/catalogs', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
     const body = req.body as CreateCatalogBody
     const projectId = body.projectId || 'default'
 
     if (!isProjectMember(req.user!.userId, req.user!.role, projectId)) {
-      return reply.status(403).send({ error: '你不是该项目的成员' })
+      return fail(reply, 403, '你不是该项目的成员')
     }
 
     const id = uuid().slice(0, 8)
@@ -412,20 +437,20 @@ export async function catalogRoutes(app: FastifyInstance) {
       projectId,
     )
 
-    return { id }
+    return created(id)
   })
 
   // 更新 catalog
-  app.put('/api/catalogs/:id', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  app.put('/api/v1/catalogs/:id', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const body = req.body as UpdateCatalogBody
     const db = getDb()
 
     const existing = db.prepare('SELECT id, project_id FROM catalogs WHERE id = ?').get(id) as { id: string; project_id: string } | undefined
-    if (!existing) return reply.status(404).send({ error: 'Not found' })
+    if (!existing) return fail(reply, 404, 'Not found')
 
     if (!isProjectMember(req.user!.userId, req.user!.role, existing.project_id)) {
-      return reply.status(403).send({ error: '你不是该项目的成员' })
+      return fail(reply, 403, '你不是该项目的成员')
     }
 
     db.prepare(`
@@ -441,23 +466,23 @@ export async function catalogRoutes(app: FastifyInstance) {
       id,
     )
 
-    return { ok: true }
+    return ok()
   })
 
   // 删除 catalog
-  app.delete('/api/catalogs/:id', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  app.delete('/api/v1/catalogs/:id', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const db = getDb()
 
     const catalog = db.prepare('SELECT id, project_id FROM catalogs WHERE id = ?').get(id) as { id: string; project_id: string } | undefined
-    if (!catalog) return reply.status(404).send({ error: 'Not found' })
+    if (!catalog) return fail(reply, 404, 'Not found')
 
     if (!isProjectMember(req.user!.userId, req.user!.role, catalog.project_id)) {
-      return reply.status(403).send({ error: '你不是该项目的成员' })
+      return fail(reply, 403, '你不是该项目的成员')
     }
 
     db.prepare('DELETE FROM catalogs WHERE id = ?').run(id)
-    return { ok: true }
+    return ok()
   })
 }
 
