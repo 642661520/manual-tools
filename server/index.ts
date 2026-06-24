@@ -22,11 +22,14 @@ import { todoRoutes } from './routes/todos.js'
 const PORT = parseInt(process.env.PORT || '3000')
 
 async function main() {
-  const app = Fastify({ logger: true, bodyLimit: 50 * 1024 * 1024 })
+  const app = Fastify({ logger: true, bodyLimit: 100 * 1024 * 1024 })
 
   await app.register(cors)
   await app.register(websocket)
-  const uploadLimit = parseInt(process.env.UPLOAD_MAX_SIZE || '10') * 1024 * 1024
+  const uploadLimit = Math.max(
+    parseInt(process.env.UPLOAD_MAX_SIZE || '10'),
+    parseInt(process.env.VIDEO_MAX_SIZE || '100'),
+  ) * 1024 * 1024
   await app.register(multipart, { limits: { fileSize: uploadLimit } })
 
   const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -43,7 +46,7 @@ async function main() {
 
     // SPA fallback：非 API / 非静态文件请求返回 index.html
     app.setNotFoundHandler((request, reply) => {
-      if (request.url.startsWith('/api/') || request.url.startsWith('/ws/')) {
+      if (request.url.startsWith('/api/v1/') || request.url.startsWith('/ws/')) {
         return reply.status(404).send({ ok: false, error: 'Not found' })
       }
       return reply.sendFile('index.html')

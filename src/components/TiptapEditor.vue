@@ -10,7 +10,7 @@ import TableBubbleMenu from './TableBubbleMenu.vue'
 import CrossrefPicker from './CrossrefPicker.vue'
 import ModalDialog from './ModalDialog.vue'
 import SearchReplaceBar from './SearchReplaceBar.vue'
-import { uploadImage } from '@/api/endpoints/upload'
+import { uploadImage, uploadVideo } from '@/api/endpoints/upload'
 import type { CrossrefAttrs } from '@/composables/crossref-node'
 
 const { alert, prompt } = useDialog()
@@ -132,27 +132,48 @@ function applyHighlight(color: string) {
   showColorPicker.value = null
 }
 
-// 图片尺寸
+// 图片/视频尺寸
 const imageResizeVisible = ref(false)
 const currentImageWidth = ref<number | null>(null)
-const imageResizePresets = [25, 50, 75, 100]
+const videoResizeVisible = ref(false)
+const currentVideoWidth = ref<number | null>(null)
+const mediaResizePresets = [25, 50, 75, 100]
 
-function updateImageResizeState() {
+function updateMediaState() {
   const ed = editor.value
-  if (!ed || !ed.isActive('image')) {
+  if (!props.editable || !ed) {
     imageResizeVisible.value = false
     currentImageWidth.value = null
+    videoResizeVisible.value = false
+    currentVideoWidth.value = null
     return
   }
-  const attrs = ed.getAttributes('image')
-  const style = (attrs.imgStyle || attrs.style) as string | undefined
-  if (style) {
-    const m = style.match(/width:\s*(\d+)%/)
-    currentImageWidth.value = m ? parseInt(m[1]) : null
+
+  // 图片
+  if (ed.isActive('image')) {
+    const attrs = ed.getAttributes('image')
+    const style = (attrs.imgStyle || attrs.style) as string | undefined
+    if (style) {
+      const m = style.match(/width:\s*(\d+)%/)
+      currentImageWidth.value = m ? parseInt(m[1]) : null
+    } else {
+      currentImageWidth.value = null
+    }
+    imageResizeVisible.value = true
   } else {
+    imageResizeVisible.value = false
     currentImageWidth.value = null
   }
-  imageResizeVisible.value = true
+
+  // 视频
+  if (ed.isActive('video')) {
+    const attrs = ed.getAttributes('video')
+    currentVideoWidth.value = (attrs.width as number) || null
+    videoResizeVisible.value = true
+  } else {
+    videoResizeVisible.value = false
+    currentVideoWidth.value = null
+  }
 }
 
 function setImageWidth(pct: number) {
@@ -160,10 +181,25 @@ function setImageWidth(pct: number) {
   currentImageWidth.value = pct
 }
 
-// 检测图片选中
+function resetImageWidth() {
+  editor.value?.chain().focus().updateAttributes('image', { imgStyle: null }).run()
+  currentImageWidth.value = null
+}
+
+function setVideoWidth(pct: number) {
+  editor.value?.chain().focus().updateAttributes('video', { width: pct }).run()
+  currentVideoWidth.value = pct
+}
+
+function resetVideoWidth() {
+  editor.value?.chain().focus().updateAttributes('video', { width: null }).run()
+  currentVideoWidth.value = null
+}
+
+// 检测图片/视频选中
 watch(editor, (ed) => {
   if (!ed) return
-  ed.on('selectionUpdate', updateImageResizeState)
+  ed.on('selectionUpdate', updateMediaState)
 })
 
 // 底部状态栏
@@ -244,6 +280,7 @@ function tryRestoreWithRetry() {
 
 // 图片上传
 const uploading = ref(false)
+const imageUploadingFile = ref<{ name: string; size: string } | null>(null)
 const fileInput = ref<HTMLInputElement>()
 const imageDialogVisible = ref(false)
 const imageUrl = ref('')
@@ -252,6 +289,7 @@ const imageUrlError = ref('')
 function openImageDialog() {
   imageUrl.value = ''
   imageUrlError.value = ''
+  imageUploadingFile.value = null
   imageDialogVisible.value = true
 }
 
@@ -274,14 +312,13 @@ function insertImageUrl() {
 }
 
 function onImageDialogCancel() {
+  if (uploading.value) return
   imageDialogVisible.value = false
   imageUrlError.value = ''
 }
 
 function triggerUpload() {
-  imageDialogVisible.value = false
-  // delay to let dialog close, then trigger file picker
-  setTimeout(() => fileInput.value?.click(), 100)
+  fileInput.value?.click()
 }
 
 async function handleImageUpload(e: Event) {
@@ -290,13 +327,91 @@ async function handleImageUpload(e: Event) {
   if (!file) return
 
   uploading.value = true
+  imageUploadingFile.value = { name: file.name, size: formatSize(file.size) }
+
   try {
     const { url } = await uploadImage(file)
+    imageDialogVisible.value = false
     editor.value?.chain().focus().setImage({ src: url }).run()
   } catch (e: unknown) {
     await alert('上传失败: ' + (e instanceof Error ? e.message : '未知错误'))
   } finally {
     uploading.value = false
+    imageUploadingFile.value = null
+    target.value = ''
+  }
+}
+
+// 视频上传
+const videoUploading = ref(false)
+const videoUploadingFile = ref<{ name: string; size: string } | null>(null)
+const videoFileInput = ref<HTMLInputElement>()
+const videoDialogVisible = ref(false)
+const videoUrl = ref('')
+const videoUrlError = ref('')
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+}
+
+function openVideoDialog() {
+  videoUrl.value = ''
+  videoUrlError.value = ''
+  videoUploadingFile.value = null
+  videoDialogVisible.value = true
+}
+
+function insertVideoUrl() {
+  let url = videoUrl.value.trim()
+  if (!url) {
+    videoUrlError.value = '请输入视频链接'
+    return
+  }
+  if (url.startsWith('//')) url = `https:${url}`
+  try {
+    new URL(url)
+  } catch {
+    videoUrlError.value = '请输入有效的链接地址'
+    return
+  }
+  editor.value?.chain().focus().insertContent({
+    type: 'video',
+    attrs: { src: url },
+  }).run()
+  videoDialogVisible.value = false
+}
+
+function onVideoDialogCancel() {
+  if (videoUploading.value) return
+  videoDialogVisible.value = false
+  videoUrlError.value = ''
+}
+
+function triggerVideoUpload() {
+  videoFileInput.value?.click()
+}
+
+async function handleVideoUpload(e: Event) {
+  const target = e.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  videoUploading.value = true
+  videoUploadingFile.value = { name: file.name, size: formatSize(file.size) }
+
+  try {
+    const { url } = await uploadVideo(file)
+    videoDialogVisible.value = false
+    editor.value?.chain().focus().insertContent({
+      type: 'video',
+      attrs: { src: url },
+    }).run()
+  } catch (e: unknown) {
+    await alert('上传失败: ' + (e instanceof Error ? e.message : '未知错误'))
+  } finally {
+    videoUploading.value = false
+    videoUploadingFile.value = null
     target.value = ''
   }
 }
@@ -557,6 +672,20 @@ defineExpose({ connected, synced, initialSyncDone })
         class="hidden"
         @change="handleImageUpload"
       />
+      <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        :class="{ 'opacity-50': videoUploading }"
+        :disabled="videoUploading"
+        title="插入视频" @click="openVideoDialog">
+        <span v-if="videoUploading" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin" />
+        <span v-else class="i-lucide-video w-4 h-4 inline-block align-middle" />
+      </button>
+      <input
+        ref="videoFileInput"
+        type="file"
+        accept="video/mp4,video/webm"
+        class="hidden"
+        @change="handleVideoUpload"
+      />
       <div class="w-px h-5 bg-gray-300 mx-1" />
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': isFullscreen }"
@@ -608,15 +737,38 @@ defineExpose({ connected, synced, initialSyncDone })
     </div>
 
     <!-- 图片尺寸 -->
-    <div v-if="imageResizeVisible" class="flex items-center gap-2 px-4 py-1.5 border-b border-gray-200 bg-white text-sm">
-      <span class="text-xs text-gray-400">宽度：</span>
-      <button v-for="p in imageResizePresets" :key="p"
+    <div v-if="imageResizeVisible && editable" class="flex items-center gap-2 px-4 py-1.5 border-b border-gray-200 bg-white text-sm">
+      <span class="text-xs text-gray-400">图片宽度：</span>
+      <button
+        class="px-2 py-0.5 rounded border text-xs transition-colors"
+        :class="currentImageWidth === null ? 'bg-blue-100 border-blue-300 text-blue-700' : 'border-gray-300 hover:bg-gray-100'"
+        @click="resetImageWidth"
+      >默认</button>
+      <button v-for="p in mediaResizePresets" :key="p"
         class="px-2 py-0.5 rounded border text-xs transition-colors"
         :class="currentImageWidth === p ? 'bg-blue-100 border-blue-300 text-blue-700' : 'border-gray-300 hover:bg-gray-100'"
         @click="setImageWidth(p)"
       >{{ p }}%</button>
-      <span v-if="currentImageWidth && !imageResizePresets.includes(currentImageWidth)" class="text-xs text-gray-400 ml-1">
+      <span v-if="currentImageWidth && !mediaResizePresets.includes(currentImageWidth)" class="text-xs text-gray-400 ml-1">
         当前 {{ currentImageWidth }}%
+      </span>
+    </div>
+
+    <!-- 视频尺寸 -->
+    <div v-if="videoResizeVisible && editable" class="flex items-center gap-2 px-4 py-1.5 border-b border-gray-200 bg-white text-sm">
+      <span class="text-xs text-gray-400">视频宽度：</span>
+      <button
+        class="px-2 py-0.5 rounded border text-xs transition-colors"
+        :class="currentVideoWidth === null ? 'bg-blue-100 border-blue-300 text-blue-700' : 'border-gray-300 hover:bg-gray-100'"
+        @click="resetVideoWidth"
+      >默认</button>
+      <button v-for="p in mediaResizePresets" :key="p"
+        class="px-2 py-0.5 rounded border text-xs transition-colors"
+        :class="currentVideoWidth === p ? 'bg-blue-100 border-blue-300 text-blue-700' : 'border-gray-300 hover:bg-gray-100'"
+        @click="setVideoWidth(p)"
+      >{{ p }}%</button>
+      <span v-if="currentVideoWidth && !mediaResizePresets.includes(currentVideoWidth)" class="text-xs text-gray-400 ml-1">
+        当前 {{ currentVideoWidth }}%
       </span>
     </div>
 
@@ -637,10 +789,19 @@ defineExpose({ connected, synced, initialSyncDone })
       confirm-text="插入"
       cancel-text="取消"
       :error="imageUrlError"
+      :hide-footer="!!imageUploadingFile"
+      :loading="uploading"
       @close="onImageDialogCancel"
       @confirm="insertImageUrl"
     >
-      <div class="space-y-4">
+      <!-- 上传中 -->
+      <div v-if="imageUploadingFile" class="flex flex-col items-center py-6 gap-3">
+        <span class="i-lucide-loader-2 w-8 h-8 animate-spin text-blue-500" />
+        <div class="text-sm text-gray-600">正在上传 {{ imageUploadingFile.name }}</div>
+        <div class="text-xs text-gray-400">{{ imageUploadingFile.size }}，请稍候...</div>
+      </div>
+      <!-- 上传表单 -->
+      <div v-else class="space-y-4">
         <div>
           <label class="text-xs text-gray-500 mb-1 block">图片链接</label>
           <input
@@ -653,6 +814,42 @@ defineExpose({ connected, synced, initialSyncDone })
         <div class="border-t border-gray-200 pt-3 text-center">
           <button class="btn-secondary text-sm" @click="triggerUpload">
             <span class="i-lucide-upload w-4 h-4 inline-block align-middle mr-1" />从本地上传
+          </button>
+        </div>
+      </div>
+    </ModalDialog>
+
+    <ModalDialog
+      :visible="videoDialogVisible"
+      title="插入视频"
+      confirm-text="插入"
+      cancel-text="取消"
+      :error="videoUrlError"
+      :hide-footer="!!videoUploadingFile"
+      :loading="videoUploading"
+      @close="onVideoDialogCancel"
+      @confirm="insertVideoUrl"
+    >
+      <!-- 上传中 -->
+      <div v-if="videoUploadingFile" class="flex flex-col items-center py-6 gap-3">
+        <span class="i-lucide-loader-2 w-8 h-8 animate-spin text-blue-500" />
+        <div class="text-sm text-gray-600">正在上传 {{ videoUploadingFile.name }}</div>
+        <div class="text-xs text-gray-400">{{ videoUploadingFile.size }}，请稍候...</div>
+      </div>
+      <!-- 上传表单 -->
+      <div v-else class="space-y-4">
+        <div>
+          <label class="text-xs text-gray-500 mb-1 block">视频链接</label>
+          <input
+            v-model="videoUrl"
+            class="input text-sm"
+            placeholder="https://example.com/video.mp4"
+            @keyup.enter="insertVideoUrl"
+          />
+        </div>
+        <div class="border-t border-gray-200 pt-3 text-center">
+          <button class="btn-secondary text-sm" @click="triggerVideoUpload">
+            <span class="i-lucide-upload w-4 h-4 inline-block align-middle mr-1" />从本地上传（最大 100MB）
           </button>
         </div>
       </div>

@@ -204,6 +204,7 @@ export function generateHtml(manual: ManualResult | null): string | null {
 
   let bodyHtml = markdownToHtml(manual.markdown)
   bodyHtml = embedImages(bodyHtml)
+  bodyHtml = replaceVideosForPdf(bodyHtml)
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -269,6 +270,14 @@ function getMime(filename: string): string {
   return map[ext || ''] || 'image/png'
 }
 
+/** PDF 中无法嵌入视频，替换为占位提示 */
+function replaceVideosForPdf(html: string): string {
+  return html.replace(
+    /<video[^>]*>/g,
+    '<div style="border:2px dashed #d1d5db;border-radius:8px;padding:48px 16px;text-align:center;color:#9ca3af;margin:16px 0;">📹 视频内容，请查看在线版本</div>',
+  )
+}
+
 function markdownToHtml(md: string): string {
   let html = md
     // 修复协议相对 URL
@@ -303,7 +312,43 @@ function markdownToHtml(md: string): string {
   return html
 }
 
-export async function addPdfOutline(pdfBuffer: Buffer, headings: HeadingEntry[]): Promise<Buffer> {
+/** A4 PDF 内容区尺寸（96 DPI px） */
+export const PDF_CONTENT = {
+  width: Math.round((210 - 25 - 25) * 96 / 25.4),   // 160mm ≈ 605px
+  heightPerPage: Math.round((297 - 20 - 20) * 96 / 25.4), // 257mm ≈ 971px
+}
+
+/** 用 Puppeteer 获取标题在 PDF 中的实际页码映射。
+ *  调用前需先设好 viewport 为 { width: PDF_CONTENT.width, height: 50000 } */
+export async function computeHeadingPageMap(
+  page: import('puppeteer').Page,
+  headings: HeadingEntry[],
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>()
+  if (headings.length === 0) return map
+
+  const headingIdsJson = JSON.stringify(headings.map(h => h.id))
+  const positions = await page.evaluate(
+    `(function() {
+      const ids = ${headingIdsJson};
+      return ids.map(function(id) {
+        const el = document.getElementById(id);
+        if (!el) return { id: id, y: -1 };
+        return { id: id, y: el.getBoundingClientRect().top };
+      });
+    })()`,
+  ) as Array<{ id: string; y: number }>
+
+  for (const { id, y } of positions) {
+    if (y < 0) continue
+    const pageIndex = Math.floor(y / PDF_CONTENT.heightPerPage)
+    map.set(id, pageIndex)
+  }
+
+  return map
+}
+
+export async function addPdfOutline(pdfBuffer: Buffer, headings: HeadingEntry[], headingPageMap?: Map<string, number>): Promise<Buffer> {
   if (headings.length === 0) return pdfBuffer
 
   const pdfDoc = await PDFDocument.load(pdfBuffer)
@@ -313,10 +358,21 @@ export async function addPdfOutline(pdfBuffer: Buffer, headings: HeadingEntry[])
   const outlinesDict = ctx.obj({ Type: 'Outlines' })
   const outlinesRef = ctx.register(outlinesDict)
 
-  let currentPage = 2 // 封面 p1，目录 p2
+  let currentPage = 2 // 封面 p1，目录 p2（fallback 估算）
   const items: Array<{ ref: PDFRef; level: number }> = []
   let lastH2Ref: PDFRef | null = null
   const h2Children: PDFRef[] = []
+
+  /** 获取某个 heading 的实际页码（0-based page index） */
+  function getPageIndex(h: HeadingEntry, i: number): number {
+    // 有实测数据时优先使用
+    if (headingPageMap && headingPageMap.has(h.id)) {
+      return headingPageMap.get(h.id)!
+    }
+    // fallback：旧估算逻辑
+    if (i > 0 && h.level === 2) currentPage++
+    return Math.max(0, Math.min(currentPage - 1, pages.length - 1))
+  }
 
   function finishH2() {
     if (!lastH2Ref || h2Children.length === 0) return
@@ -336,11 +392,10 @@ export async function addPdfOutline(pdfBuffer: Buffer, headings: HeadingEntry[])
   for (let i = 0; i < headings.length; i++) {
     const h = headings[i]
     if (h.level === 2 && i > 0) {
-      currentPage++
       finishH2()
       h2Children.length = 0
     }
-    const pageIndex = Math.max(0, Math.min(currentPage - 1, pages.length - 1))
+    const pageIndex = getPageIndex(h, i)
 
     let hex = 'FEFF'
     for (let ci = 0; ci < h.text.length; ci++) {

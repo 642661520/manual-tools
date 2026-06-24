@@ -37,6 +37,7 @@ import { CursorAwareness } from './cursor-awareness'
 import { Crossref } from './crossref-node'
 import { SearchHighlight } from './search-highlight'
 import { MarkdownPaste } from './markdown-paste'
+import { Video } from './video-node'
 import { DOMParser } from '@tiptap/pm/model'
 import type { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
@@ -74,6 +75,7 @@ export function useTiptapYjs(
     extensions: [
       StarterKit,
       ResizableImage,
+      Video,
       Link.configure({ openOnClick: false, autolink: true }),
       Table.configure({ resizable: true }),
       TableRow,
@@ -95,6 +97,68 @@ export function useTiptapYjs(
       MarkdownPaste,
       CursorAwareness(awareness),
     ],
+    editorProps: {
+      handlePaste(view, event) {
+        const items = event.clipboardData?.items
+        if (!items) return false
+
+        // 查找剪贴板中的图片
+        const imageItems: DataTransferItem[] = []
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i]
+          if (item.type.startsWith('image/')) {
+            imageItems.push(item)
+          }
+        }
+
+        if (imageItems.length === 0) return false
+
+        // 阻止默认粘贴，改为上传后插入
+        event.preventDefault()
+
+        const { tr } = view.state
+        const pos = view.state.selection.anchor
+        const placeholder = '[图片上传中...] '
+
+        // 先插入一个加载占位文本
+        view.dispatch(tr.insertText(placeholder, pos))
+
+        ;(async () => {
+          const endPos = pos + placeholder.length
+          try {
+            // 优先从 items 取，fallback 到 files
+            let blob: Blob | null = imageItems[0].getAsFile()
+            if (!blob) {
+              blob = event.clipboardData?.files[0] || null
+            }
+            if (!blob) {
+              throw new Error('无法读取剪贴板图片')
+            }
+
+            const { uploadImage } = await import('@/api/endpoints/upload')
+            const { url } = await uploadImage(blob)
+
+            const ed = editor.value
+            if (!ed) return
+            ed.chain()
+              .setTextSelection({ from: pos, to: endPos })
+              .deleteSelection()
+              .setImage({ src: url })
+              .run()
+          } catch {
+            const ed = editor.value
+            if (!ed) return
+            ed.chain()
+              .setTextSelection({ from: pos, to: endPos })
+              .deleteSelection()
+              .insertContent('[图片上传失败] ')
+              .run()
+          }
+        })()
+
+        return true
+      },
+    },
     onSelectionUpdate() {
       if (applyingRemote) return
       scheduleCursorSync()
