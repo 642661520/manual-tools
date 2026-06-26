@@ -275,7 +275,7 @@ function addPart() {
   catalog.value.entries.push({
     type: 'part',
     id: `part-${Date.now()}`,
-    title: `部分 ${partCount}`,
+    title: `篇 ${partCount}`,
     features: [],
   })
   dirty.value = true
@@ -769,10 +769,10 @@ watch(currentProjectId, () => {
               <div v-if="catalog.entries.some(e => isPart(e))" class="relative flex-shrink-0">
                 <button
                   class="text-gray-300 hover:text-indigo-500 px-1 py-2 transition-colors"
-                  title="添加到部分"
+                  title="添加到篇"
                   @click.stop="openPoolMoveMenu($event, f)"
                 >
-                  <span class="i-lucide-folder-plus w-3.5 h-3.5 inline-block align-middle" />
+                  <span class="i-lucide-book-plus w-3.5 h-3.5 inline-block align-middle" />
                 </button>
               </div>
             </div>
@@ -791,7 +791,7 @@ watch(currentProjectId, () => {
         <!-- 添加部分按钮 -->
         <div v-if="canManageProject" class="mb-3 max-w-3xl">
           <button class="btn-secondary text-sm" @click="addPart">
-            <span class="i-lucide-folder-plus w-4 h-4 inline-block align-middle" /> 添加部分
+            <span class="i-lucide-book-plus w-4 h-4 inline-block align-middle" /> 添加篇
           </button>
         </div>
 
@@ -819,18 +819,18 @@ watch(currentProjectId, () => {
             >
               <div class="flex items-center gap-3 px-4 py-3 bg-indigo-50/50">
                 <div v-if="canManageProject" class="drag-handle cursor-grab text-gray-300 hover:text-gray-500"><span class="i-lucide-grip-vertical w-4 h-4 inline-block align-middle" /></div>
-                <span class="i-lucide-folder text-indigo-400 w-4 h-4 inline-block align-middle flex-shrink-0" />
+                <span class="i-lucide-book-open text-indigo-400 w-4 h-4 inline-block align-middle flex-shrink-0" />
                 <input
                   v-model="node.title"
                   class="flex-1 text-sm font-semibold bg-transparent border-none outline-none text-gray-800"
-                  placeholder="部分名称"
+                  placeholder="篇名称"
                   @input="dirty = true"
                 />
                 <span class="text-xs text-gray-400 flex-shrink-0">{{ node.features.length }} 个主题</span>
                 <button
                   v-if="canManageProject"
                   class="text-gray-300 hover:text-red-500 text-sm flex-shrink-0"
-                  title="删除此部分（主题将提升到顶层）"
+                  title="删除此篇（主题将提升到顶层）"
                   @click="removePart(ni)"
                 >
                   <span class="i-lucide-trash-2 w-4 h-4 inline-block align-middle" />
@@ -839,7 +839,7 @@ watch(currentProjectId, () => {
 
               <!-- Part 内的 features（始终渲染以支持 SortableJS group 空容器拖入） -->
               <div class="part-features-sort border-t border-gray-100" :class="{ 'min-h-[40px]': node.features.length === 0 }">
-                <div v-if="node.features.length === 0" class="px-4 py-3 text-xs text-gray-400 text-center">拖入左侧主题，或点击左侧主题的 <span class="i-lucide-folder-plus w-3 h-3 inline-block align-middle text-indigo-400" /> 按钮添加到此处</div>
+                <div v-if="node.features.length === 0" class="px-4 py-3 text-xs text-gray-400 text-center">拖入左侧主题，或点击左侧主题的 <span class="i-lucide-book-plus w-3 h-3 inline-block align-middle text-indigo-400" /> 按钮添加到此处</div>
                 <div
                   v-for="(fe, fi) in node.features"
                   :key="fe.feature.id"
@@ -860,7 +860,7 @@ watch(currentProjectId, () => {
                     <button
                       v-if="canManageProject"
                       class="text-gray-300 hover:text-red-500 text-xs"
-                      title="移出此部分"
+                      title="移出此篇"
                       @click.stop="removeFeatureFromPart(ni, fi)"
                     >
                       <span class="i-lucide-log-out w-3.5 h-3.5 inline-block align-middle" />
@@ -920,10 +920,10 @@ watch(currentProjectId, () => {
                 <div class="relative" v-if="canManageProject && catalog.entries.some(e => isPart(e))">
                   <button
                     class="text-gray-300 hover:text-indigo-500 text-xs px-1.5 py-1 rounded"
-                    title="移至部分"
+                    title="移至篇"
                     @click.stop="openMoveMenu($event, node.feature.id)"
                   >
-                    <span class="i-lucide-folder-input w-3.5 h-3.5 inline-block align-middle" />
+                    <span class="i-lucide-log-in w-3.5 h-3.5 inline-block align-middle" />
                   </button>
                   <Teleport to="body">
                     <div v-if="movingFeatureId === node.feature.id" class="fixed inset-0 z-40" @click="movingFeatureId = null">
@@ -932,7 +932,7 @@ watch(currentProjectId, () => {
                         :style="{ top: `${moveMenuY}px`, left: `${moveMenuX}px` }"
                         @click.stop
                       >
-                        <div class="text-xs text-gray-400 px-3 py-1">移至部分：</div>
+                        <div class="text-xs text-gray-400 px-3 py-1">移至篇：</div>
                         <button
                           v-for="(en, eni) in catalog.entries"
                           :key="isPart(en) ? en.id : ''"
@@ -940,8 +940,8 @@ watch(currentProjectId, () => {
                           class="w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 flex items-center gap-2"
                           @click.stop="moveFeatureToPart(node.feature.id, (en as CatPart).id); movingFeatureId = null"
                         >
-                          <span class="i-lucide-folder w-3.5 h-3.5 inline-block align-middle text-indigo-400" />
-                          {{ (en as CatPart).title || '未命名部分' }}
+                          <span class="i-lucide-book-open w-3.5 h-3.5 inline-block align-middle text-indigo-400" />
+                          {{ (en as CatPart).title || '未命名篇' }}
                         </button>
                       </div>
                     </div>
@@ -993,7 +993,7 @@ watch(currentProjectId, () => {
         :style="{ top: `${poolMenuY}px`, left: `${poolMenuX}px` }"
         @click.stop
       >
-        <div class="text-xs text-gray-400 px-3 py-1">添加到：</div>
+        <div class="text-xs text-gray-400 px-3 py-1">添加到篇：</div>
         <button
           v-for="(en, eni) in catalog.entries"
           :key="isPart(en) ? en.id : ''"
@@ -1002,7 +1002,7 @@ watch(currentProjectId, () => {
           @click.stop="addFeatureToPart((en as CatPart).id, movingPoolFeature!); movingPoolFeature = null"
         >
           <span class="i-lucide-folder w-3.5 h-3.5 inline-block align-middle text-indigo-400" />
-          {{ (en as CatPart).title || '未命名部分' }}
+          {{ (en as CatPart).title || '未命名篇' }}
         </button>
       </div>
     </div>
