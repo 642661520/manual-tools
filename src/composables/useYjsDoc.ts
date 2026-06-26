@@ -21,7 +21,7 @@ export function useYjsDoc(docId: string) {
     })
   } catch { /* ignore */ }
   const token = localStorage.getItem('auth_token')
-  const wsUrl = `ws://${location.host}/ws/doc/${encodeURIComponent(docId)}${token ? `?token=${encodeURIComponent(token)}` : ''}`
+  const wsUrl = `ws://${location.host}/ws/doc/${encodeURIComponent(docId)}`
   let ws: WebSocket | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
   let closed = false
@@ -54,6 +54,10 @@ export function useYjsDoc(docId: string) {
 
     ws.onopen = () => {
       connected.value = true
+      // 首条消息发送认证帧（替代 URL query 参数传 token）
+      if (token) {
+        ws!.send(JSON.stringify({ type: 'auth', token }))
+      }
       // sync step 1: send local state vector
       const encoder = encoding.createEncoder()
       encoding.writeVarUint(encoder, messageSync)

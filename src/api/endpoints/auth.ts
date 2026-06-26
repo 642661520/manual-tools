@@ -3,6 +3,7 @@ import type {
   LoginResponse,
   MeResponse,
   ProfileUpdateResponse,
+  UsernameChangeResponse,
   PasswordChangeResponse,
   FeishuBindingResponse,
   FeishuBindingStatus,
@@ -23,6 +24,10 @@ export function login(username: string, password: string): Promise<LoginResponse
   return api.post<LoginResponse>('/api/v1/auth/login', { username, password })
 }
 
+export function logout(): Promise<{ ok: true }> {
+  return api.post<{ ok: true }>('/api/v1/auth/logout')
+}
+
 export function feishuLogin(code: string): Promise<LoginResponse> {
   return api.post<LoginResponse>('/api/v1/auth/feishu/login', { code })
 }
@@ -39,6 +44,10 @@ export function getCurrentUser(): Promise<MeResponse> {
 
 export function updateProfile(displayName: string): Promise<ProfileUpdateResponse> {
   return api.put<ProfileUpdateResponse>('/api/v1/auth/me', { displayName })
+}
+
+export function changeUsername(username: string): Promise<UsernameChangeResponse> {
+  return api.put<UsernameChangeResponse>('/api/v1/auth/me/username', { username })
 }
 
 export function updateNotifyPrefs(data: NotifyPrefsBody): Promise<OkResponse> {

@@ -26,7 +26,7 @@ export const routes: RouteRecordRaw[] = [
     path: '/catalogs/:id',
     name: 'catalog-builder',
     component: () => import('@/views/catalog-builder/index.vue'),
-    meta: { requiresAuth: true, requiresPM: true },
+    meta: { requiresAuth: true },
   },
   {
     path: '/preview',
@@ -48,6 +48,12 @@ export const routes: RouteRecordRaw[] = [
     path: '/settings',
     name: 'settings',
     component: () => import('@/views/settings/index.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true },
+  },
+  {
+    path: '/settings/project',
+    name: 'project-settings',
+    component: () => import('@/views/settings/ProjectSettings.vue'),
     meta: { requiresAuth: true },
   },
   {

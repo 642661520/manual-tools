@@ -4,6 +4,7 @@ import type {
   CatalogVersionInfo,
   ManualPreviewResponse,
   VersionPreviewResponse,
+  ChapterResponse,
   PublishResponse,
   OkResponse,
   CreateResponse,
@@ -56,23 +57,29 @@ export function getVersionPreview(id: string, versionId: string, mode?: string):
   return api.get<VersionPreviewResponse>(`${BASE}/${id}/versions/${versionId}/preview${m}`)
 }
 
-export function getVersionExportUrl(id: string, versionId: string, mode?: string): string {
+export function getChapter(id: string, chNum: number, mode?: string): Promise<ChapterResponse> {
   const m = mode ? `?mode=${mode}` : ''
-  return `${BASE}/${id}/versions/${versionId}/export${m}`
+  return api.get<ChapterResponse>(`${BASE}/${id}/chapters/${chNum}${m}`)
+}
+
+export function getVersionChapter(id: string, versionId: string, chNum: number, mode?: string): Promise<ChapterResponse> {
+  const m = mode ? `?mode=${mode}` : ''
+  return api.get<ChapterResponse>(`${BASE}/${id}/versions/${versionId}/chapters/${chNum}${m}`)
 }
 
 // ---- 发布 ----
 
-export function publishCatalog(id: string, changeNotes: string): Promise<PublishResponse> {
-  return api.post<PublishResponse>(`${BASE}/${id}/publish`, { changeNotes })
+export function publishCatalog(id: string, changeNotes: string, visibility?: string): Promise<PublishResponse> {
+  return api.post<PublishResponse>(`${BASE}/${id}/publish`, { changeNotes, visibility })
+}
+
+// ---- 可见性 ----
+
+export function updateVersionVisibility(catalogId: string, versionId: string, visibility: string): Promise<{ ok: true }> {
+  return api.put<{ ok: true }>(`${BASE}/${catalogId}/versions/${versionId}/visibility`, { visibility })
 }
 
 // ---- 导出 ----
-
-export function getExportUrl(id: string, mode?: string): string {
-  const m = mode ? `?mode=${mode}` : ''
-  return `${BASE}/${id}/export${m}`
-}
 
 export function getMarkdownExportUrl(id: string): string {
   return `${BASE}/${id}/export/markdown`

@@ -11,16 +11,24 @@ const router = createRouter({
   routes,
 })
 
-// Token 验证状态：app 生命周期内只验证一次
+// Token 验证状态：app 生命周期内只验证一次（仅缓存成功结果）
 let tokenValidated = false
 let tokenValid = false
 
+/** 重置 token 验证缓存，登录成功后调用 */
+export function resetTokenValidation() {
+  tokenValidated = false
+  tokenValid = false
+}
+
 async function validateToken(): Promise<boolean> {
-  if (tokenValidated) return tokenValid
+  // 仅缓存成功结果；失败不缓存，允许在同一会话中重新登录后重试
+  if (tokenValidated && tokenValid) return true
 
   const token = localStorage.getItem('auth_token')
   if (!token) {
-    tokenValidated = true
+    // 无 token 不视为"已验证"，允许后续登录后重试
+    tokenValidated = false
     tokenValid = false
     return false
   }
@@ -32,10 +40,10 @@ async function validateToken(): Promise<boolean> {
     tokenValid = true
     return true
   } catch {
-    // API 返回 401 → token 无效
+    // API 返回 401 → token 无效，清除旧数据但不缓存失败结果
+    // 不设 tokenValidated=true，允许用户重新登录后再次验证
     localStorage.removeItem('auth_token')
     localStorage.removeItem('auth_user')
-    tokenValidated = true
     tokenValid = false
     return false
   }
@@ -57,7 +65,8 @@ router.beforeEach(async (to, _from, next) => {
     if (user.role === 'guest' && to.name !== 'profile') {
       return next('/profile')
     }
-    if (to.meta.requiresPM && user.role !== 'pm') {
+    // 系统设置仅 admin 可访问
+    if (to.meta.requiresAdmin && user.role !== 'admin') {
       return next('/features')
     }
   }

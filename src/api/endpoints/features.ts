@@ -2,7 +2,6 @@ import { api } from '../client'
 import type {
   FeatureSummary,
   FeatureDetail,
-  ImportDiffResponse,
   UpdateSectionsResponse,
   OkResponse,
   CreateResponse,
@@ -12,8 +11,6 @@ import type {
   UpdateFeatureBody,
   UpdateSectionStatusBody,
   UpdateSectionsBody,
-  ImportDiffBody,
-  ImportApplyBody,
 } from '@shared/types'
 
 const BASE = '/api/v1/features'
@@ -42,16 +39,6 @@ export function updateFeature(id: string, data: UpdateFeatureBody): Promise<OkRe
 
 export function deleteFeature(id: string): Promise<OkResponse> {
   return api.delete<OkResponse>(`${BASE}/${id}`)
-}
-
-// ---- 导入 ----
-
-export function importFeatures(projectId: string | undefined, data: ImportDiffBody): Promise<ImportDiffResponse> {
-  return api.post<ImportDiffResponse>(`${BASE}/import${q(projectId)}`, data)
-}
-
-export function applyImport(projectId: string | undefined, data: ImportApplyBody): Promise<OkResponse> {
-  return api.post<OkResponse>(`${BASE}/import/apply${q(projectId)}`, data)
 }
 
 // ---- Section 操作 ----

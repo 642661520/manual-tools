@@ -16,6 +16,11 @@ import { TaskItem } from '@tiptap/extension-task-item'
 import { TextStyle } from '@tiptap/extension-text-style'
 import { Color } from '@tiptap/extension-color'
 import { Highlight } from '@tiptap/extension-highlight'
+import { Subscript } from '@tiptap/extension-subscript'
+import { Superscript } from '@tiptap/extension-superscript'
+
+const ExitableSubscript = Subscript.extend({ exitable: true })
+const ExitableSuperscript = Superscript.extend({ exitable: true })
 
 // 扩展 Image，支持 imgStyle 属性用于尺寸调整
 const ResizableImage = Image.extend({
@@ -89,6 +94,8 @@ export function useTiptapYjs(
       TextStyle,
       Color,
       Highlight.configure({ multicolor: true }),
+      ExitableSubscript,
+      ExitableSuperscript,
       Placeholder.configure({
         placeholder: options?.placeholder || '开始编写操作手册内容...',
       }),
