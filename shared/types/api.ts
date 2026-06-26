@@ -37,7 +37,8 @@ export class ApiRequestError extends Error {
 
 import type {
   UserInfo, UserDetail,
-  ImportFeatureItem, CatalogFeatureEntry,
+  CatalogEntry,
+  ExportEstimate, ImportDiffReport, ImportApplyResult, OrphanFile, DataTaskInfo,
 } from './models'
 
 /** POST /api/auth/login */
@@ -55,6 +56,12 @@ export interface MeResponse {
 export interface ProfileUpdateResponse {
   token: string
   displayName: string
+}
+
+/** PUT /api/auth/me/username */
+export interface UsernameChangeResponse {
+  token: string
+  username: string
 }
 
 /** PUT /api/auth/me/password */
@@ -75,14 +82,6 @@ export interface FeishuBindingStatus {
   openId?: string
   name?: string
   avatarUrl?: string
-}
-
-/** POST /api/features/import */
-export interface ImportDiffResponse {
-  added: ImportFeatureItem[]
-  modified: Array<{ before: Record<string, unknown>; after: ImportFeatureItem; changes: string[] }>
-  removed: Array<Record<string, unknown> & { hasContent: boolean }>
-  total: number
 }
 
 /** POST /api/catalogs/:id/publish */
@@ -108,14 +107,14 @@ export interface UpdateSectionsResponse {
   sections: Array<{ key: string; title: string; description?: string }>
 }
 
-/** GET /api/catalogs/:id/preview + /versions/:versionId/preview */
+/** GET /api/catalogs/:id/preview（仅返回结构化数据，不含 markdown） */
 export interface ManualPreviewResponse {
   catalog: {
     id: string
     title: string
     targets: string[]
     coverInfo: Record<string, unknown>
-    features: CatalogFeatureEntry[]
+    entries: CatalogEntry[]
     projectId: string
     createdAt: string
     updatedAt: string
@@ -126,18 +125,37 @@ export interface ManualPreviewResponse {
     description: string
     sections: Array<{ key: string; title: string; description?: string }>
   }>
-  markdown: string
   headings: Array<{ level: number; text: string; id: string }>
 }
 
-/** GET /api/catalogs/:id/versions/:versionId/preview (version preview) */
+/** GET /api/catalogs/:id/chapters/:chNum */
+export interface ChapterResponse {
+  chNum: number
+  featureId: string
+  featureTitle: string
+  markdown: string
+  headings: Array<{ level: number; text: string; id: string }>
+  totalChapters: number
+  hasParts: boolean
+  partTitle?: string
+  partIdx?: number
+}
+
+/** GET /api/catalogs/:id/versions/:versionId/preview（仅返回结构化数据） */
 export interface VersionPreviewResponse {
   versionMajor: number
   versionMinor: number
   title: string
-  markdown: string
   changeNotes: string
   createdAt: string
+  features: Array<{
+    id: string
+    title: string
+    description: string
+    sections: Array<{ key: string; title: string; description?: string }>
+  }>
+  headings: Array<{ level: number; text: string; id: string }>
+  entries: CatalogEntry[]
 }
 
 /** GET /api/auth/feishu/bind-url, GET /api/auth/feishu/login-url */
@@ -147,3 +165,27 @@ export interface OAuthUrlResponse {
 
 /** Generic ok */
 export type OkResponse = { ok: true }
+
+/** GET /api/v1/projects/:id/export/estimate */
+export type ExportEstimateResponse = ExportEstimate
+
+/** GET /api/v1/data-tasks/:id/analyze */
+export type ImportAnalyzeResponse = ImportDiffReport
+
+/** POST /api/v1/data-tasks/:id/apply */
+export type ImportApplyResponse = ImportApplyResult
+
+/** GET /api/v1/data-tasks/:id */
+export type DataTaskResponse = DataTaskInfo
+
+/** GET /api/v1/uploads/orphans */
+export interface OrphansResponse {
+  orphans: OrphanFile[]
+  totalSize: number
+}
+
+/** DELETE /api/v1/uploads/orphans */
+export interface OrphansDeleteResponse {
+  deleted: number
+  freedBytes: number
+}

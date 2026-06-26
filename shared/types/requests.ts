@@ -2,7 +2,7 @@
 // API 请求体类型（前后端共享）
 // ============================================================
 
-import type { SectionDef, CatalogFeatureEntry, ImportFeatureItem } from './models'
+import type { SectionDef, CatalogEntry, ImportApplyOptions } from './models'
 
 // ---- Auth ----
 
@@ -13,6 +13,10 @@ export interface LoginBody {
 
 export interface UpdateProfileBody {
   displayName: string
+}
+
+export interface ChangeUsernameBody {
+  username: string
 }
 
 export interface ChangePasswordBody {
@@ -81,21 +85,12 @@ export interface UpdateSectionsBody {
   sections: SectionDef[]
 }
 
-export interface ImportApplyBody {
-  features: ImportFeatureItem[]
-  removeIds?: string[]
-}
-
-export interface ImportDiffBody {
-  features: ImportFeatureItem[]
-}
-
 // ---- Catalogs ----
 
 export interface CreateCatalogBody {
   title?: string
   targets?: string[]
-  features?: CatalogFeatureEntry[]
+  features?: CatalogEntry[]
   cover?: Record<string, string>
   projectId?: string
 }
@@ -123,4 +118,10 @@ export interface EnsureDocumentBody {
   docId: string
   featureId: string
   sectionKey: string
+}
+
+// ---- 数据导入 ----
+
+export interface ImportApplyReqBody {
+  options: ImportApplyOptions
 }

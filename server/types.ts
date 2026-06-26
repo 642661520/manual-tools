@@ -61,12 +61,14 @@ export interface UserRow {
   feishu_open_id: string | null
   feishu_name: string | null
   feishu_avatar_url: string | null
+  username_changed: number
   created_at: string
 }
 
 export interface ProjectMemberRow {
   project_id: string
   user_id: string
+  role: string
 }
 
 export interface UpdateRow {
@@ -97,6 +99,21 @@ export interface CatalogFeatureEntry {
   sectionOrder?: string[]
 }
 
+export interface CatalogPart {
+  type: 'part'
+  id: string
+  title: string
+  features: CatalogFeatureEntry[]
+}
+
+export type CatalogEntry = CatalogFeatureEntry | CatalogPart
+
+export function isCatalogPart(entry: CatalogEntry): entry is CatalogPart {
+  return (entry as CatalogPart).type === 'part'
+}
+
+export type DocVisibility = 'public' | 'login_required' | 'project_members'
+
 export interface CatalogVersionRow {
   id: string
   catalog_id: string
@@ -107,13 +124,16 @@ export interface CatalogVersionRow {
   change_notes: string
   markdown: string
   status_snapshot: string
+  visibility: DocVisibility
+  features_json: string
+  headings_json: string
   created_at: string
 }
 
 export interface CreateCatalogBody {
   title?: string
   targets?: string[]
-  features?: CatalogFeatureEntry[]
+  features?: CatalogEntry[]
   cover?: Record<string, string>
   projectId?: string
 }
@@ -147,18 +167,6 @@ export type UpdateProjectBody = CreateProjectBody
 
 export interface UpdateSectionsBody {
   sections: { key: string; title: string; description?: string }[]
-}
-
-export interface ImportFeatureItem {
-  id: string
-  title: string
-  description: string
-  sections?: { key: string; title: string; description?: string }[]
-}
-
-export interface ImportApplyBody {
-  features: ImportFeatureItem[]
-  removeIds?: string[]
 }
 
 export interface EnsureDocumentBody {
@@ -212,6 +220,7 @@ export interface ManualResult {
   catalog: Omit<CatalogRow, 'targets' | 'cover_info' | 'features'> & {
     targets: string[]
     coverInfo: Record<string, unknown>
+    entries: CatalogEntry[]
   }
   features: FeatureData[]
   markdown: string
