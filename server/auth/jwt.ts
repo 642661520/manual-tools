@@ -1,13 +1,14 @@
 import jwt from 'jsonwebtoken'
+import { config } from '../config.js'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me'
+const JWT_SECRET = config.jwtSecret
 const JWT_EXPIRES = '7d'
 
 export interface JwtPayload {
   userId: string
   username: string
   displayName: string
-  role: 'pm' | 'ops' | 'guest'
+  role: 'admin' | 'member' | 'guest'
   tokenVersion: number
   avatarUrl?: string
   feishuName?: string

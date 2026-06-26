@@ -36,7 +36,7 @@ export async function authMiddleware(req: FastifyRequest, reply: FastifyReply) {
   // 刷新角色（以数据库为准）
   req.user = {
     ...payload,
-    role: user.role as 'pm' | 'ops' | 'guest',
+    role: user.role as 'admin' | 'member' | 'guest',
   }
 }
 

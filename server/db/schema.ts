@@ -88,7 +88,29 @@ export const catalogVersions = sqliteTable('catalog_versions', {
   changeNotes: text('change_notes').notNull().default(''),
   markdown: text('markdown').notNull(),
   statusSnapshot: text('status_snapshot').default('{}'),
+  visibility: text('visibility').notNull().default('project_members'),
+  featuresJson: text('features_json').default('[]'),
+  headingsJson: text('headings_json').default('[]'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+// 导入导出离线任务
+export const dataTasks = sqliteTable('data_tasks', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(),
+  scope: text('scope').notNull(),
+  status: text('status').notNull().default('pending'),
+  progress: integer('progress').default(0),
+  progressLabel: text('progress_label'),
+  filePath: text('file_path'),
+  fileSize: integer('file_size'),
+  summary: text('summary'),
+  diffReport: text('diff_report'),
+  errorMessage: text('error_message'),
+  createdBy: integer('created_by'),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  completedAt: text('completed_at'),
+  expiresAt: text('expires_at').notNull().default(sql`(datetime('now', '+24 hours'))`),
 })
 
 // 用户
@@ -97,15 +119,17 @@ export const users = sqliteTable('users', {
   username: text('username').notNull().unique(),
   displayName: text('display_name').notNull(),
   passwordHash: text('password_hash'),
-  role: text('role').notNull().default('ops'),
+  role: text('role').notNull().default('member'),
   feishuOpenId: text('feishu_open_id'),
   feishuName: text('feishu_name'),
   feishuAvatarUrl: text('feishu_avatar_url'),
+  usernameChanged: integer('username_changed').notNull().default(0),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 
-// 项目成员（纯关联，无角色）
+// 项目成员（含项目级角色）
 export const projectMembers = sqliteTable('project_members', {
   projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  role: text('role').notNull().default('viewer'),
 })

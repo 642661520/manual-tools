@@ -1,10 +1,12 @@
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
+import bcrypt from 'bcryptjs'
 import * as schema from './schema.js'
+import { config } from '../config.js'
 import path from 'path'
 import fs from 'fs'
 
-const DB_PATH = process.env.DATABASE_PATH || './data/manual.db'
+const DB_PATH = config.databasePath
 
 let db: Database.Database
 let orm: ReturnType<typeof drizzle>
@@ -111,7 +113,7 @@ export function initDatabase() {
       username TEXT NOT NULL UNIQUE,
       display_name TEXT NOT NULL,
       password_hash TEXT DEFAULT NULL,
-      role TEXT NOT NULL DEFAULT 'ops',
+      role TEXT NOT NULL DEFAULT 'member',
       feishu_open_id TEXT DEFAULT NULL,
       feishu_name TEXT DEFAULT NULL,
       feishu_avatar_url TEXT DEFAULT NULL,
@@ -145,12 +147,37 @@ export function initDatabase() {
       markdown TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS data_tasks (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      scope TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      progress INTEGER DEFAULT 0,
+      progress_label TEXT,
+      file_path TEXT,
+      file_size INTEGER,
+      summary TEXT,
+      diff_report TEXT,
+      error_message TEXT,
+      created_by INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      completed_at TEXT,
+      expires_at TEXT NOT NULL DEFAULT (datetime('now', '+24 hours'))
+    );
   `)
 
   // 种子默认项目
   conn.prepare(
     "INSERT OR IGNORE INTO projects (id, name, description) VALUES (?, ?, ?)"
   ).run('default', '默认项目', '系统初始化创建')
+
+  // 常用查询索引
+  conn.exec(`
+    CREATE INDEX IF NOT EXISTS idx_features_project_id ON features(project_id);
+    CREATE INDEX IF NOT EXISTS idx_documents_feature_id ON documents(feature_id);
+    CREATE INDEX IF NOT EXISTS idx_catalogs_project_id ON catalogs(project_id);
+  `)
 
   // 迁移：为已有表添加 project_id 列（对旧数据库兼容）
   if (!columnExists(conn, 'features', 'project_id')) {
@@ -260,30 +287,90 @@ export function initDatabase() {
     conn.exec("ALTER TABLE users ADD COLUMN notify_prefs TEXT DEFAULT '{\"assign\":true,\"review\":true,\"project\":true,\"status\":true}'")
   }
 
+  // 迁移：catalog_versions 加 visibility 列（文档站点可见性）
+  if (!columnExists(conn, 'catalog_versions', 'visibility')) {
+    conn.exec("ALTER TABLE catalog_versions ADD COLUMN visibility TEXT NOT NULL DEFAULT 'project_members'")
+  }
+
+  // 迁移：catalog_versions 加 features_json / headings_json 列（预览侧边栏结构化数据）
+  if (!columnExists(conn, 'catalog_versions', 'features_json')) {
+    conn.exec("ALTER TABLE catalog_versions ADD COLUMN features_json TEXT DEFAULT '[]'")
+  }
+  if (!columnExists(conn, 'catalog_versions', 'headings_json')) {
+    conn.exec("ALTER TABLE catalog_versions ADD COLUMN headings_json TEXT DEFAULT '[]'")
+  }
+
+  // 迁移：users 加 username_changed 列（飞书注册用户仅允许修改一次用户名）
+  if (!columnExists(conn, 'users', 'username_changed')) {
+    conn.exec("ALTER TABLE users ADD COLUMN username_changed INTEGER NOT NULL DEFAULT 0")
+  }
+
+  // 迁移：两级权限体系 — project_members 新增角色列
+  if (!columnExists(conn, 'project_members', 'role')) {
+    conn.exec("ALTER TABLE project_members ADD COLUMN role TEXT NOT NULL DEFAULT 'viewer'")
+    // 存量成员视为项目管理员
+    conn.exec("UPDATE project_members SET role = 'pm'")
+  }
+
+  // 迁移：两级权限体系 — users.role 值迁移 (pm→admin, ops→member)
+  if (!columnExists(conn, 'users', 'role_migrated_v2')) {
+    // 新增临时列
+    conn.exec("ALTER TABLE users ADD COLUMN role_new TEXT NOT NULL DEFAULT 'member'")
+    // 迁移数据
+    conn.exec(`
+      UPDATE users SET role_new = CASE TRIM(LOWER(role))
+        WHEN 'pm' THEN 'admin'
+        WHEN 'ops' THEN 'member'
+        WHEN 'admin' THEN 'admin'
+        WHEN 'member' THEN 'member'
+        WHEN 'guest' THEN 'guest'
+        ELSE 'member'
+      END
+    `)
+    // 替换列
+    conn.exec("ALTER TABLE users DROP COLUMN role")
+    conn.exec("ALTER TABLE users RENAME COLUMN role_new TO role")
+    // 标记迁移完成
+    conn.exec("ALTER TABLE users ADD COLUMN role_migrated_v2 INTEGER NOT NULL DEFAULT 1")
+  }
+
   // 迁移：将现有用户加入所有现有项目（确保新增成员表不破坏现状）
   const memberCount = conn.prepare('SELECT COUNT(*) as cnt FROM project_members').get() as { cnt: number }
   if (memberCount.cnt === 0) {
     conn.exec(`
-      INSERT OR IGNORE INTO project_members (project_id, user_id)
-      SELECT p.id, u.id FROM projects p CROSS JOIN users u
+      INSERT OR IGNORE INTO project_members (project_id, user_id, role)
+      SELECT p.id, u.id, CASE WHEN u.role = 'admin' THEN 'pm' ELSE 'writer' END FROM projects p CROSS JOIN users u
     `)
   }
 
-  // 种子管理员账号
+  // 种子系统管理员账号
   const admin = conn.prepare('SELECT id FROM users WHERE username = ?').get(
-    process.env.ADMIN_USERNAME || 'admin',
+    config.adminUsername,
   )
   if (!admin) {
+    const hashed = bcrypt.hashSync(config.adminPassword, 10)
     conn.prepare(
       'INSERT INTO users (id, username, display_name, password_hash, role) VALUES (?, ?, ?, ?, ?)',
     ).run(
       'seed-admin-001',
-      process.env.ADMIN_USERNAME || 'admin',
-      '管理员',
-      process.env.ADMIN_PASSWORD || 'admin123',
-      'pm',
+      config.adminUsername,
+      '系统管理员',
+      hashed,
+      'admin',
     )
     console.log('Admin user seeded.')
+  }
+
+  // 清理过期的导出/导入任务文件
+  const expiredTasks = conn.prepare(
+    "SELECT id, file_path FROM data_tasks WHERE expires_at < datetime('now') AND file_path IS NOT NULL",
+  ).all() as { id: string; file_path: string }[]
+  for (const task of expiredTasks) {
+    try { fs.unlinkSync(task.file_path) } catch { /* 文件可能已被手动删除 */ }
+    conn.prepare('DELETE FROM data_tasks WHERE id = ?').run(task.id)
+  }
+  if (expiredTasks.length > 0) {
+    console.log(`Cleaned up ${expiredTasks.length} expired data task(s).`)
   }
 
   console.log('Database initialized.')
