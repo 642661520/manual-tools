@@ -1,33 +1,46 @@
 import { FastifyInstance } from 'fastify'
+import { rm } from 'fs/promises'
+import { join } from 'path'
 import { getDb } from '../db/index.js'
 import { authMiddleware, requireRole } from '../auth/middleware.js'
-import { isProjectMember } from '../auth/membership.js'
+import { isProjectMember, hasProjectRole } from '../auth/membership.js'
 import { success, created, ok, fail } from '../lib/response.js'
 import { v4 as uuid } from 'uuid'
-import { assembleManual, generateHtml, addPdfOutline, computeHeadingPageMap, PDF_CONTENT } from '../services/pdf-generator.js'
+import { assembleManual, assembleChapter } from '../services/manual-assembler.js'
 import { buildMarkdownZip } from '../services/markdown-export.js'
-import type { CatalogRow, FeatureRow, CatalogFeatureEntry, CatalogVersionRow, CreateCatalogBody, UpdateCatalogBody, HeadingEntry } from '../types.js'
-
-interface LaunchOptions {
-  headless: boolean
-  args: string[]
-  executablePath?: string
-}
+import { buildStaticSite } from '../services/site-builder/index.js'
+import type { CatalogRow, FeatureRow, CatalogFeatureEntry, CatalogEntry, CatalogVersionRow, CreateCatalogBody, UpdateCatalogBody } from '../types.js'
+import { isCatalogPart } from '../types.js'
 
 export async function catalogRoutes(app: FastifyInstance) {
   // 获取所有 catalog，支持按项目过滤
-  app.get('/api/v1/catalogs', { preHandler: authMiddleware }, async (req) => {
+  app.get('/api/v1/catalogs', { preHandler: authMiddleware }, async (req, reply) => {
     const { projectId } = req.query as { projectId?: string }
     const db = getDb()
+    const userId = req.user!.userId
+    const role = req.user!.role
+
     if (projectId) {
+      if (!isProjectMember(userId, role, projectId)) {
+        return fail(reply, 403, '你不是该项目的成员')
+      }
       const rows = db.prepare('SELECT * FROM catalogs WHERE project_id = ? ORDER BY updated_at DESC').all(projectId)
       return success(rows)
     }
-    const rows = db.prepare('SELECT * FROM catalogs ORDER BY updated_at DESC').all()
+    // 无项目过滤时，仅返回用户有成员身份的项目中的 catalog
+    if (role === 'admin') {
+      const rows = db.prepare('SELECT * FROM catalogs ORDER BY updated_at DESC').all()
+      return success(rows)
+    }
+    const rows = db.prepare(`
+      SELECT c.* FROM catalogs c
+      JOIN project_members pm ON c.project_id = pm.project_id AND pm.user_id = ?
+      ORDER BY c.updated_at DESC
+    `).all(userId)
     return success(rows)
   })
 
-  // 预览手册
+  // 预览手册（仅返回结构化数据，不含 markdown）
   app.get('/api/v1/catalogs/:id/preview', { preHandler: authMiddleware }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const { mode } = req.query as { mode?: string }
@@ -39,7 +52,29 @@ export async function catalogRoutes(app: FastifyInstance) {
     }
     const manual = assembleManual(id, { approvedOnly: mode === 'approved' })
     if (!manual) return fail(reply, 404, 'Catalog not found')
-    return success(manual)
+    // 不返回 markdown，前端按需从 chapters 端点获取
+    return success({
+      catalog: manual.catalog,
+      features: manual.features,
+      headings: manual.headings,
+    })
+  })
+
+  // 预览单章
+  app.get('/api/v1/catalogs/:id/chapters/:chNum', { preHandler: authMiddleware }, async (req, reply) => {
+    const { id, chNum: chNumStr } = req.params as { id: string; chNum: string }
+    const { mode } = req.query as { mode?: string }
+    const chNum = parseInt(chNumStr)
+    if (isNaN(chNum) || chNum < 1) return fail(reply, 400, '无效的章节编号')
+    const db = getDb()
+    const catalogMeta = db.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(id) as { project_id: string } | undefined
+    if (!catalogMeta) return fail(reply, 404, 'Catalog not found')
+    if (!isProjectMember(req.user!.userId, req.user!.role, catalogMeta.project_id)) {
+      return fail(reply, 403, '你不是该项目的成员')
+    }
+    const chapter = assembleChapter(id, chNum, { approvedOnly: mode === 'approved' })
+    if (!chapter) return fail(reply, 404, '章节不存在')
+    return success(chapter)
   })
 
   // 版本列表
@@ -52,12 +87,12 @@ export async function catalogRoutes(app: FastifyInstance) {
       return fail(reply, 403, '你不是该项目的成员')
     }
     const rows = db.prepare(
-      'SELECT id, version_major, version_minor, title, change_notes, created_at FROM catalog_versions WHERE catalog_id = ? ORDER BY version_major DESC, version_minor DESC',
-    ).all(id) as (Pick<CatalogVersionRow, 'id' | 'version_major' | 'version_minor' | 'title' | 'change_notes' | 'created_at'>)[]
+      'SELECT id, version_major, version_minor, title, change_notes, visibility, created_at FROM catalog_versions WHERE catalog_id = ? ORDER BY version_major DESC, version_minor DESC',
+    ).all(id) as (Pick<CatalogVersionRow, 'id' | 'version_major' | 'version_minor' | 'title' | 'change_notes' | 'visibility' | 'created_at'>)[]
     return success(rows)
   })
 
-  // 历史版本预览
+  // 历史版本预览（仅返回结构化数据，不含 markdown）
   app.get('/api/v1/catalogs/:id/versions/:versionId/preview', { preHandler: authMiddleware }, async (req, reply) => {
     const { versionId } = req.params as { versionId: string }
     const { mode } = req.query as { mode?: string }
@@ -81,9 +116,11 @@ export async function catalogRoutes(app: FastifyInstance) {
         versionMajor: ver.version_major,
         versionMinor: ver.version_minor,
         title: ver.title,
-        markdown: manual.markdown,
+        features: manual.features,
+        headings: manual.headings,
+        entries: manual.catalog.entries,
         changeNotes: ver.change_notes,
-        created_at: ver.created_at,
+        createdAt: ver.created_at,
       })
     }
 
@@ -91,15 +128,50 @@ export async function catalogRoutes(app: FastifyInstance) {
       versionMajor: ver.version_major,
       versionMinor: ver.version_minor,
       title: ver.title,
-      markdown: ver.markdown,
+      features: JSON.parse(ver.features_json || '[]'),
+      headings: JSON.parse(ver.headings_json || '[]'),
+      entries: JSON.parse(ver.features_snapshot || '[]'),
       changeNotes: ver.change_notes,
-      created_at: ver.created_at,
+      createdAt: ver.created_at,
     })
   })
 
+  // 历史版本单章预览
+  app.get('/api/v1/catalogs/:id/versions/:versionId/chapters/:chNum', { preHandler: authMiddleware }, async (req, reply) => {
+    const { id, versionId, chNum: chNumStr } = req.params as { id: string; versionId: string; chNum: string }
+    const { mode } = req.query as { mode?: string }
+    const chNum = parseInt(chNumStr)
+    if (isNaN(chNum) || chNum < 1) return fail(reply, 400, '无效的章节编号')
+    const db = getDb()
+    const ver = db.prepare('SELECT * FROM catalog_versions WHERE id = ?').get(versionId) as CatalogVersionRow | undefined
+    if (!ver) return fail(reply, 404, 'Version not found')
+
+    const catalogMeta = db.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(id) as { project_id: string } | undefined
+    if (!catalogMeta) return fail(reply, 404, 'Catalog not found')
+    if (!isProjectMember(req.user!.userId, req.user!.role, catalogMeta.project_id)) {
+      return fail(reply, 403, '你不是该项目的成员')
+    }
+
+    const approvedOnly = mode === 'approved'
+    const statusOv = approvedOnly ? JSON.parse(ver.status_snapshot || '{}') as Record<string, string> : undefined
+    const chapter = assembleChapter(ver.catalog_id, chNum, {
+      approvedOnly,
+      featureOverride: ver.features_snapshot,
+      statusOverride: statusOv,
+    })
+    if (!chapter) return fail(reply, 404, '章节不存在')
+    return success(chapter)
+  })
+
   // 导出 Markdown 压缩包（md + 图片）
-  app.get('/api/v1/catalogs/:id/export/markdown', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  app.get('/api/v1/catalogs/:id/export/markdown', { preHandler: [authMiddleware, requireRole('admin', 'member')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
+    const db = getDb()
+    const catalogMeta = db.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(id) as { project_id: string } | undefined
+    if (!catalogMeta) return fail(reply, 404, '目录不存在')
+    if (!hasProjectRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
+      return fail(reply, 403, '项目内权限不足')
+    }
     const manual = assembleManual(id)
     if (!manual) {
       return fail(reply, 404, '目录不存在')
@@ -112,130 +184,22 @@ export async function catalogRoutes(app: FastifyInstance) {
       return reply.send(stream)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
-      console.error('Markdown export failed:', msg)
+      app.log.error(`Markdown export failed: ${msg}`)
       return fail(reply, 500, '导出失败')
     }
   })
 
-  // 历史版本导出 PDF
-  app.get('/api/v1/catalogs/:id/versions/:versionId/export', { preHandler: [authMiddleware, requireRole('ops', 'pm')] }, async (req, reply) => {
-    const { id, versionId } = req.params as { id: string; versionId: string }
-    const { mode } = req.query as { mode?: string }
-    const db = getDb()
-    const ver = db.prepare('SELECT * FROM catalog_versions WHERE id = ?').get(versionId) as CatalogVersionRow | undefined
-    if (!ver) return fail(reply, 404, 'Version not found')
-    if (ver.catalog_id !== id) return fail(reply, 400, 'Version does not belong to this catalog')
-
-    // 校验项目成员
-    const catalogMeta = db.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(id) as { project_id: string } | undefined
-    if (!catalogMeta) return fail(reply, 404, 'Catalog not found')
-    if (!isProjectMember(req.user!.userId, req.user!.role, catalogMeta.project_id)) {
-      return fail(reply, 403, '你不是该项目的成员')
-    }
-
-    // 模式筛选时重新组装，使用快照的审核状态
-    const manual = mode === 'approved'
-      ? assembleManual(id, { approvedOnly: true, featureOverride: ver.features_snapshot, statusOverride: JSON.parse(ver.status_snapshot || '{}') as Record<string, string> })
-      : null
-    const markdown = manual?.markdown || ver.markdown
-
-    // 从 manual 或 markdown 中提取 headings（用于 PDF 书签）
-    const headings = manual?.headings || extractHeadings(markdown)
-
-    const project = db.prepare('SELECT name FROM projects WHERE id = (SELECT project_id FROM catalogs WHERE id = ?)').get(id) as { name: string } | undefined
-    const headerText = project?.name || ver.title
-    const versionLabel = `v${ver.version_major}.${ver.version_minor}`
-
-    // 追加变更记录（仅显示截至当前版本及之前的记录）
-    const allHistory = db.prepare(
-      'SELECT version_major, version_minor, change_notes, created_at FROM catalog_versions WHERE catalog_id = ? ORDER BY version_major, version_minor',
-    ).all(id) as { version_major: number; version_minor: number; change_notes: string; created_at: string }[]
-    const versionHistory = allHistory.filter(v =>
-      v.version_major < ver.version_major ||
-      (v.version_major === ver.version_major && v.version_minor <= ver.version_minor)
-    )
-    let md = markdown
-    if (versionHistory.length > 0) {
-      md += '\n\n---\n\n## 变更记录\n\n'
-      for (const v of versionHistory) {
-        const date = v.created_at.slice(0, 10)
-        md += `- **v${v.version_major}.${v.version_minor}** (${date}) ${v.change_notes || ''}\n`
-      }
-    }
-
-    const html = generateHtml({
-      catalog: { title: ver.title, project_id: '', id, created_at: '', updated_at: '', targets: [], coverInfo: {} },
-      features: [],
-      markdown: md,
-      headings,
-    })
-    if (!html) return fail(reply, 404, 'Generate failed')
-
-    try {
-      const puppeteer = await import('puppeteer')
-      const launchOpts: LaunchOptions = {
-        headless: true,
-        args: process.platform === 'linux' ? ['--no-sandbox', '--disable-setuid-sandbox'] : [],
-      }
-      if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-        launchOpts.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH
-      }
-      const browser = await puppeteer.launch(launchOpts)
-      const page = await browser.newPage()
-      // 设 viewport 匹配 PDF 内容区宽度，高设足够大让所有内容不滚动
-      await page.setViewport({ width: PDF_CONTENT.width, height: 50000, deviceScaleFactor: 1 })
-      await page.setContent(html, { waitUntil: 'load' })
-      await page.waitForNetworkIdle({ idleTime: 500, timeout: 30000 }).catch(() => {})
-      // 等待所有图片（包括内嵌 base64）加载完成
-      await page.evaluate(`new Promise(resolve => {
-        const imgs = Array.from(document.images).filter(i => !i.complete)
-        if (imgs.length === 0) return resolve()
-        let pending = imgs.length
-        imgs.forEach(i => { i.onload = i.onerror = () => { pending--; if (pending === 0) resolve() } })
-        setTimeout(resolve, 10000)
-      })`).catch(() => {})
-      // 获取标题实际页码（用于 PDF 书签跳转）
-      const headingPageMap = await computeHeadingPageMap(page, headings)
-      const pdf = await page.pdf({
-        format: 'A4',
-        margin: { top: '2cm', bottom: '2cm', left: '2.5cm', right: '2.5cm' },
-        printBackground: true,
-        displayHeaderFooter: true,
-        headerTemplate: `<div style="font-size:10px;text-align:center;width:100%;color:#9ca3af;">${headerText}</div>`,
-        footerTemplate: `<div style="font-size:10px;text-align:center;width:100%;color:#9ca3af;">${versionLabel} · 第 <span class="pageNumber"></span> 页 / <span class="totalPages"></span> 页</div>`,
-      })
-      await browser.close()
-
-      // 添加 PDF 书签
-      let pdfBuffer: Buffer = Buffer.from(pdf)
-      try {
-        if (headings.length > 0) {
-          pdfBuffer = await addPdfOutline(pdfBuffer, headings, headingPageMap)
-        }
-      } catch (outlineErr: unknown) {
-        console.error('PDF outline failed:', outlineErr instanceof Error ? outlineErr.message : outlineErr)
-      }
-
-      reply.header('Content-Type', 'application/pdf')
-      reply.header('Content-Disposition', `attachment; filename="${encodeURIComponent(ver.title)}-${versionLabel}.pdf"`)
-      return pdfBuffer
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      reply.header('Content-Type', 'text/html; charset=utf-8')
-      return html.replace('</body>', `<p style="color:red;">PDF 生成失败：${msg}</p></body>`)
-    }
-  })
-
-  // 发布版本（PM only，不绑定 PDF 导出）
-  app.post('/api/v1/catalogs/:id/publish', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  // 发布版本（项目 pm+ 可操作）
+  app.post('/api/v1/catalogs/:id/publish', { preHandler: [authMiddleware, requireRole('admin', 'member')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
-    const body = req.body as { changeNotes?: string }
+    const body = req.body as { changeNotes?: string; visibility?: string }
+    const visibility = (['public', 'login_required', 'project_members'].includes(body.visibility || '') ? body.visibility : 'project_members') as string
     const db = getDb()
 
     const catalogMeta = db.prepare('SELECT project_id, title, features FROM catalogs WHERE id = ?').get(id) as { project_id: string; title: string; features: string } | undefined
     if (!catalogMeta) return fail(reply, 404, 'Catalog not found')
-    if (!isProjectMember(req.user!.userId, req.user!.role, catalogMeta.project_id)) {
-      return fail(reply, 403, '你不是该项目的成员')
+    if (!hasProjectRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
+      return fail(reply, 403, '项目内权限不足')
     }
 
     const fullManual = assembleManual(id)
@@ -262,8 +226,16 @@ export async function catalogRoutes(app: FastifyInstance) {
       minor = 0
     }
 
-    // 收集审核状态快照
-    const featuresList: { featureId: string; sectionOrder?: string[] }[] = JSON.parse(currentFeatures)
+    // 收集审核状态快照（展平 Part 结构）
+    const featuresListRaw: CatalogEntry[] = JSON.parse(currentFeatures)
+    const featuresList: CatalogFeatureEntry[] = []
+    for (const entry of featuresListRaw) {
+      if (isCatalogPart(entry)) {
+        featuresList.push(...entry.features)
+      } else {
+        featuresList.push(entry)
+      }
+    }
     const statusSnapshot: Record<string, string> = {}
     for (const fe of featuresList) {
       const f = db.prepare('SELECT sections FROM features WHERE id = ?').get(fe.featureId) as { sections: string } | undefined
@@ -278,102 +250,44 @@ export async function catalogRoutes(app: FastifyInstance) {
 
     const versionId = uuid().slice(0, 8)
     db.prepare(`
-      INSERT INTO catalog_versions (id, catalog_id, version_major, version_minor, title, features_snapshot, change_notes, markdown, status_snapshot)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO catalog_versions (id, catalog_id, version_major, version_minor, title, features_snapshot, change_notes, markdown, status_snapshot, visibility, features_json, headings_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       versionId, id, major, minor, fullManual.catalog.title,
       currentFeatures, body.changeNotes || '', fullManual.markdown,
-      JSON.stringify(statusSnapshot),
+      JSON.stringify(statusSnapshot), visibility,
+      JSON.stringify(fullManual.features), JSON.stringify(fullManual.headings),
     )
+
+    // 构建静态文档站点
+    const versionLabel = `v${major}.${minor}`
+    buildStaticSite(id, versionLabel).catch(err => {
+      app.log.error(`静态站点构建失败: ${err instanceof Error ? err.message : err}`)
+    })
 
     return success({ id: versionId, versionMajor: major, versionMinor: minor })
   })
 
-  // 导出草稿 PDF（PM only，不创建版本）
-  app.get('/api/v1/catalogs/:id/export', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
-    const { id } = req.params as { id: string }
-    const { mode } = req.query as { mode?: string }
+  // 更新版本可见性
+  app.put('/api/v1/catalogs/:id/versions/:versionId/visibility', { preHandler: [authMiddleware, requireRole('admin', 'member')] }, async (req, reply) => {
+    const { id, versionId } = req.params as { id: string; versionId: string }
+    const body = req.body as { visibility: string }
+    if (!['public', 'login_required', 'project_members'].includes(body.visibility)) {
+      return fail(reply, 400, '无效的可见性设置')
+    }
+
     const db = getDb()
+    const ver = db.prepare('SELECT catalog_id FROM catalog_versions WHERE id = ?').get(versionId) as { catalog_id: string } | undefined
+    if (!ver || ver.catalog_id !== id) return fail(reply, 404, '版本不存在')
 
-    const catalogMeta = db.prepare('SELECT project_id, title FROM catalogs WHERE id = ?').get(id) as { project_id: string; title: string } | undefined
-    if (!catalogMeta) return fail(reply, 404, 'Catalog not found')
-    if (!isProjectMember(req.user!.userId, req.user!.role, catalogMeta.project_id)) {
-      return fail(reply, 403, '你不是该项目的成员')
+    const catalogMeta = db.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(id) as { project_id: string } | undefined
+    if (!catalogMeta) return fail(reply, 404, '目录不存在')
+    if (!hasProjectRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
+      return fail(reply, 403, '项目内权限不足')
     }
 
-    // 导出内容按 mode 过滤
-    const manual = assembleManual(id, { approvedOnly: mode === 'approved' })
-    if (!manual) return fail(reply, 404, 'Catalog not found')
-
-    // 获取项目名称用于页眉
-    const project = db.prepare('SELECT name FROM projects WHERE id = ?').get(catalogMeta.project_id) as { name: string } | undefined
-    const headerText = project?.name || catalogMeta.title
-
-    const draftLabel = '草稿'
-    const dateStr = new Date().toISOString().slice(0, 10)
-    const html = generateHtml(manual)
-    if (!html) return fail(reply, 404, 'Generate failed')
-
-    try {
-      const puppeteer = await import('puppeteer')
-
-      const launchOpts: LaunchOptions = {
-        headless: true,
-        args: process.platform === 'linux' ? ['--no-sandbox', '--disable-setuid-sandbox'] : [],
-      }
-      if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-        launchOpts.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH
-      }
-
-      console.log('Launching browser...')
-      const browser = await puppeteer.launch(launchOpts)
-
-      const page = await browser.newPage()
-      // 设 viewport 匹配 PDF 内容区宽度，高设足够大让所有内容不滚动
-      await page.setViewport({ width: PDF_CONTENT.width, height: 50000, deviceScaleFactor: 1 })
-      await page.setContent(html, { waitUntil: 'load' })
-      await page.waitForNetworkIdle({ idleTime: 500, timeout: 30000 }).catch(() => {})
-      // 等待所有图片（包括内嵌 base64）加载完成
-      await page.evaluate(`new Promise(resolve => {
-        const imgs = Array.from(document.images).filter(i => !i.complete)
-        if (imgs.length === 0) return resolve()
-        let pending = imgs.length
-        imgs.forEach(i => { i.onload = i.onerror = () => { pending--; if (pending === 0) resolve() } })
-        // 兜底：10 秒超时
-        setTimeout(resolve, 10000)
-      })`).catch(() => {})
-      // 获取标题实际页码（用于 PDF 书签跳转）
-      const headingPageMap = await computeHeadingPageMap(page, manual.headings)
-      let pdf = await page.pdf({
-        format: 'A4',
-        margin: { top: '2cm', bottom: '2cm', left: '2.5cm', right: '2.5cm' },
-        printBackground: true,
-        displayHeaderFooter: true,
-        headerTemplate: `<div style="font-size:10px;text-align:center;width:100%;color:#9ca3af;">${headerText}</div>`,
-        footerTemplate: `<div style="font-size:10px;text-align:center;width:100%;color:#9ca3af;">${draftLabel} · ${dateStr} · 第 <span class="pageNumber"></span> 页 / <span class="totalPages"></span> 页</div>`,
-      })
-
-      await browser.close()
-
-      // 添加 PDF 书签
-      try {
-        if (manual.headings.length > 0) {
-          pdf = await addPdfOutline(Buffer.from(pdf), manual.headings, headingPageMap)
-        }
-      } catch (outlineErr: unknown) {
-        console.error('PDF outline failed:', outlineErr instanceof Error ? outlineErr.message : outlineErr)
-      }
-
-      reply.header('Content-Type', 'application/pdf')
-      reply.header('Content-Disposition', `attachment; filename="${encodeURIComponent(manual.catalog.title)}-${encodeURIComponent(draftLabel)}-${dateStr}.pdf"`)
-      return pdf
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('PDF generation failed:', msg)
-      reply.header('Content-Type', 'text/html; charset=utf-8')
-      reply.header('Content-Disposition', `inline; filename="${encodeURIComponent(manual.catalog.title)}-${encodeURIComponent(draftLabel)}-${dateStr}.html"`)
-      return html.replace('</body>', `<p style="color:red;padding:16px;border:2px solid red;margin:16px;">PDF 生成失败：${msg}</p></body>`)
-    }
+    db.prepare('UPDATE catalog_versions SET visibility = ? WHERE id = ?').run(body.visibility, versionId)
+    return ok()
   })
 
   // 获取单个 catalog
@@ -386,23 +300,39 @@ export async function catalogRoutes(app: FastifyInstance) {
       return fail(reply, 403, '你不是该项目的成员')
     }
 
-    // 加载 features 详情用于展示
-    const entries: CatalogFeatureEntry[] = JSON.parse(catalog.features)
-    const featureIds = entries.map(e => e.featureId)
-    const features = featureIds.length > 0
-      ? db.prepare(`SELECT * FROM features WHERE id IN (${featureIds.map(() => '?').join(',')})`).all(...featureIds) as FeatureRow[]
+    // 加载 features 详情用于展示（保留 Part 结构）
+    const entries: CatalogEntry[] = JSON.parse(catalog.features)
+    // 展平收集所有 featureId
+    const allFeatureIds: string[] = []
+    for (const entry of entries) {
+      if (isCatalogPart(entry)) {
+        allFeatureIds.push(...entry.features.map(f => f.featureId))
+      } else {
+        allFeatureIds.push(entry.featureId)
+      }
+    }
+    const features = allFeatureIds.length > 0
+      ? db.prepare(`SELECT * FROM features WHERE id IN (${allFeatureIds.map(() => '?').join(',')})`).all(...allFeatureIds) as FeatureRow[]
       : []
 
     // 按 catalog 中的顺序排列，并应用 sectionOrder
     const featureMap = new Map(features.map(f => [f.id, f]))
-    const orderedFeatures = entries.map(e => {
-      const f = featureMap.get(e.featureId)
+    function resolveFeature(fe: CatalogFeatureEntry) {
+      const f = featureMap.get(fe.featureId)
       if (!f) return null
       const sections = JSON.parse(f.sections || '[]') as { key: string; title: string; description?: string }[]
-      const ordered = e.sectionOrder
-        ? e.sectionOrder.map(k => sections.find(s => s.key === k)).filter(Boolean) as typeof sections
+      const ordered = fe.sectionOrder
+        ? fe.sectionOrder.map(k => sections.find(s => s.key === k)).filter(Boolean) as typeof sections
         : sections
-      return { ...f, sections: ordered, sectionOrder: e.sectionOrder }
+      return { ...f, sections: ordered, sectionOrder: fe.sectionOrder }
+    }
+
+    const orderedFeatures = entries.map(entry => {
+      if (isCatalogPart(entry)) {
+        const resolvedFeatures = entry.features.map(resolveFeature).filter(Boolean)
+        return { type: 'part' as const, id: entry.id, title: entry.title, features: resolvedFeatures }
+      }
+      return resolveFeature(entry)
     }).filter(Boolean)
 
     return success({
@@ -414,12 +344,12 @@ export async function catalogRoutes(app: FastifyInstance) {
   })
 
   // 创建 catalog
-  app.post('/api/v1/catalogs', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  app.post('/api/v1/catalogs', { preHandler: [authMiddleware, requireRole('admin', 'member')] }, async (req, reply) => {
     const body = req.body as CreateCatalogBody
     const projectId = body.projectId || 'default'
 
-    if (!isProjectMember(req.user!.userId, req.user!.role, projectId)) {
-      return fail(reply, 403, '你不是该项目的成员')
+    if (!hasProjectRole(req.user!.userId, req.user!.role, projectId, 'pm')) {
+      return fail(reply, 403, '项目内权限不足')
     }
 
     const id = uuid().slice(0, 8)
@@ -441,7 +371,7 @@ export async function catalogRoutes(app: FastifyInstance) {
   })
 
   // 更新 catalog
-  app.put('/api/v1/catalogs/:id', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  app.put('/api/v1/catalogs/:id', { preHandler: [authMiddleware, requireRole('admin', 'member')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const body = req.body as UpdateCatalogBody
     const db = getDb()
@@ -449,8 +379,8 @@ export async function catalogRoutes(app: FastifyInstance) {
     const existing = db.prepare('SELECT id, project_id FROM catalogs WHERE id = ?').get(id) as { id: string; project_id: string } | undefined
     if (!existing) return fail(reply, 404, 'Not found')
 
-    if (!isProjectMember(req.user!.userId, req.user!.role, existing.project_id)) {
-      return fail(reply, 403, '你不是该项目的成员')
+    if (!hasProjectRole(req.user!.userId, req.user!.role, existing.project_id, 'pm')) {
+      return fail(reply, 403, '项目内权限不足')
     }
 
     db.prepare(`
@@ -470,36 +400,25 @@ export async function catalogRoutes(app: FastifyInstance) {
   })
 
   // 删除 catalog
-  app.delete('/api/v1/catalogs/:id', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  app.delete('/api/v1/catalogs/:id', { preHandler: [authMiddleware, requireRole('admin', 'member')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const db = getDb()
 
     const catalog = db.prepare('SELECT id, project_id FROM catalogs WHERE id = ?').get(id) as { id: string; project_id: string } | undefined
     if (!catalog) return fail(reply, 404, 'Not found')
 
-    if (!isProjectMember(req.user!.userId, req.user!.role, catalog.project_id)) {
-      return fail(reply, 403, '你不是该项目的成员')
+    if (!hasProjectRole(req.user!.userId, req.user!.role, catalog.project_id, 'pm')) {
+      return fail(reply, 403, '项目内权限不足')
     }
 
     db.prepare('DELETE FROM catalogs WHERE id = ?').run(id)
+
+    // 清理静态文档站点文件
+    const docsDir = join(process.cwd(), 'data/docs', id)
+    rm(docsDir, { recursive: true, force: true }).catch(err => {
+      app.log.error(`清理文档站点失败 (catalog ${id}): ${err instanceof Error ? err.message : err}`)
+    })
+
     return ok()
   })
-}
-
-/** 从 Markdown 中提取标题作为 PDF 书签（用于历史版本等没有 headings 数据的场景） */
-function extractHeadings(md: string): HeadingEntry[] {
-  const headings: HeadingEntry[] = []
-  const lines = md.split('\n')
-  for (const line of lines) {
-    const h2Match = line.match(/^## <a id="([^"]+)"><\/a>(\d+)\. (.+)$/)
-    if (h2Match) {
-      headings.push({ level: 2, text: `${h2Match[2]}. ${h2Match[3]}`, id: h2Match[1] })
-      continue
-    }
-    const h3Match = line.match(/^### <a id="([^"]+)"><\/a>(\d+\.\d+) (.+)$/)
-    if (h3Match) {
-      headings.push({ level: 3, text: `${h3Match[2]} ${h3Match[3]}`, id: h3Match[1] })
-    }
-  }
-  return headings
 }

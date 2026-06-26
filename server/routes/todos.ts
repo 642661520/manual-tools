@@ -66,8 +66,12 @@ export async function todoRoutes(app: FastifyInstance) {
           try { reviewChainCache.set(projectId, JSON.parse(project.review_chain || '[]') as string[]) }
           catch { reviewChainCache.set(projectId, []) }
         } else {
-          // fallback: 项目所有 PM
-          const pms = db.prepare("SELECT id FROM users WHERE role = 'pm' AND id IN (SELECT user_id FROM project_members WHERE project_id = ?)").all(projectId) as { id: string }[]
+          // fallback: 项目所有 PM（查 project_members.role = 'pm'）
+          const pms = db.prepare(`
+            SELECT u.id FROM users u
+            JOIN project_members pm ON u.id = pm.user_id
+            WHERE pm.project_id = ? AND pm.role = 'pm'
+          `).all(projectId) as { id: string }[]
           reviewChainCache.set(projectId, pms.map(p => p.id))
         }
       }
@@ -95,7 +99,7 @@ export async function todoRoutes(app: FastifyInstance) {
         }
 
         // 2. 审核任务：待审核且当前用户是当前步骤的审核人
-        if (doc.status === 'pending_review' && (userRole === 'pm' || userRole === 'ops')) {
+        if (doc.status === 'pending_review' && (userRole === 'admin' || userRole === 'member')) {
           const currentReviewer = getReviewerAtStep(doc.feature_project_id, doc.review_step)
           if (currentReviewer === userId) {
             // 避免重复（如果用户既是指派人又是审核人）

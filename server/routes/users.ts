@@ -1,5 +1,6 @@
-// 用户管理路由（PM only）
+// 用户管理路由（admin only）
 import { FastifyInstance } from 'fastify'
+import bcrypt from 'bcryptjs'
 import { authMiddleware, requireRole } from '../auth/middleware.js'
 import { getDb } from '../db/index.js'
 import { v4 as uuid } from 'uuid'
@@ -16,7 +17,7 @@ export async function userRoutes(app: FastifyInstance) {
   })
 
   // 创建用户
-  app.post('/api/v1/auth/users', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  app.post('/api/v1/auth/users', { preHandler: [authMiddleware, requireRole('admin')] }, async (req, reply) => {
     const { username, displayName, password, role } = req.body as { username: string; displayName: string; password: string; role: string }
     if (!username || !username.trim()) return fail(reply, 400, '用户名不能为空')
 
@@ -26,14 +27,15 @@ export async function userRoutes(app: FastifyInstance) {
     }
     const db = getDb()
     const id = uuid()
+    const hashed = bcrypt.hashSync(password, 10)
     db.prepare('INSERT INTO users (id, username, display_name, password_hash, role) VALUES (?, ?, ?, ?, ?)').run(
-      id, username, displayName || username, password, role || 'ops',
+      id, username, displayName || username, hashed, role || 'member',
     )
     return created(id)
   })
 
   // 删除用户
-  app.delete('/api/v1/auth/users/:id', { preHandler: [authMiddleware, requireRole('pm')] }, async (req) => {
+  app.delete('/api/v1/auth/users/:id', { preHandler: [authMiddleware, requireRole('admin')] }, async (req) => {
     const { id } = req.params as { id: string }
     const db = getDb()
     db.prepare('DELETE FROM users WHERE id = ?').run(id)
@@ -41,10 +43,10 @@ export async function userRoutes(app: FastifyInstance) {
   })
 
   // 修改用户角色
-  app.put('/api/v1/auth/users/:id/role', { preHandler: [authMiddleware, requireRole('pm')] }, async (req, reply) => {
+  app.put('/api/v1/auth/users/:id/role', { preHandler: [authMiddleware, requireRole('admin')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const { role } = req.body as { role?: string }
-    if (!role || !['pm', 'ops', 'guest'].includes(role)) {
+    if (!role || !['admin', 'member', 'guest'].includes(role)) {
       return fail(reply, 400, '无效的角色')
     }
     const db = getDb()
@@ -54,8 +56,8 @@ export async function userRoutes(app: FastifyInstance) {
     db.prepare('UPDATE users SET role = ?, token_version = token_version + 1 WHERE id = ?').run(role, id)
 
     const operator = db.prepare('SELECT display_name FROM users WHERE id = ?').get(req.user!.userId) as { display_name: string } | undefined
-    notifyRoleChange(id, oldRole, role, operator?.display_name || '管理员')
-      .catch(e => console.error('飞书通知失败(角色变更):', e))
+    notifyRoleChange(id, oldRole, role, operator?.display_name || '系统管理员')
+      .catch((e: unknown) => app.log.error(`飞书通知失败(角色变更): ${e instanceof Error ? e.message : e}`))
 
     return ok()
   })

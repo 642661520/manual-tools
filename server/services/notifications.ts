@@ -2,8 +2,9 @@
 // 所有函数 fire-and-forget，失败只记日志，不阻断业务
 import { getDb } from '../db/index.js'
 import { sendFeishuMessage, buildCardMessage } from './feishu.js'
+import { config } from '../config.js'
 
-const APP_BASE_URL = process.env.APP_BASE_URL || 'http://localhost:5173'
+const APP_BASE_URL = config.appBaseUrl
 
 // ---- 辅助 ----
 
@@ -66,10 +67,10 @@ function getUserOpenIdById(userId: string): string | null {
   return user?.feishu_open_id || null
 }
 
-function getPMOpenIds(): string[] {
+function getAdminOpenIds(): string[] {
   const db = getDb()
-  const pms = db.prepare("SELECT feishu_open_id FROM users WHERE role = 'pm' AND feishu_open_id IS NOT NULL").all() as { feishu_open_id: string }[]
-  return pms.map(p => p.feishu_open_id)
+  const admins = db.prepare("SELECT feishu_open_id FROM users WHERE role = 'admin' AND feishu_open_id IS NOT NULL").all() as { feishu_open_id: string }[]
+  return admins.map(p => p.feishu_open_id)
 }
 
 // ---- 通知函数 ----
@@ -226,21 +227,21 @@ export async function notifyStatusReset(
   }
 }
 
-/** 新成员飞书注册 → 通知所有 PM 授权 */
+/** 新成员飞书注册 → 通知所有 Admin 授权 */
 export async function notifyNewGuest(displayName: string): Promise<void> {
   try {
-    const pmOpenIds = getPMOpenIds()
-    if (pmOpenIds.length === 0) return
+    const adminOpenIds = getAdminOpenIds()
+    if (adminOpenIds.length === 0) return
 
     const settingsUrl = `${APP_BASE_URL}/settings`
 
     const card = buildCardMessage(
       '👤 新成员注册',
-      `${displayName} 通过飞书登录注册了账号，当前角色为「游客」。\n请前往设置页为其分配操作权限。`,
+      `${displayName} 通过飞书登录注册了账号，当前角色为「成员」。\n请前往设置页将其加入项目并分配项目角色。`,
       { color: 'blue', link: { url: settingsUrl, title: '去设置' } },
     )
 
-    await Promise.allSettled(pmOpenIds.map(openId => sendFeishuMessage(openId, card)))
+    await Promise.allSettled(adminOpenIds.map(openId => sendFeishuMessage(openId, card)))
   } catch (e: unknown) {
     console.error('通知新成员失败:', e instanceof Error ? e.message : e)
   }
@@ -253,6 +254,7 @@ export async function notifyJoinProject(
   projectName: string,
   targetUserId: string,
   operatorName: string,
+  projectRole: string,
 ): Promise<void> {
   try {
     if (!shouldNotify(targetUserId, 'project')) return
@@ -260,10 +262,11 @@ export async function notifyJoinProject(
     if (!openId) return
 
     const previewUrl = `${APP_BASE_URL}/preview`
+    const projectRoleLabel = (r: string) => r === 'pm' ? '项目管理员' : r === 'writer' ? '编辑' : r === 'viewer' ? '只读' : r
 
     const card = buildCardMessage(
       '👥 已加入项目',
-      `${operatorName} 将你加入了项目「${projectName}」\n现在可以参与该项目的编写和审核。`,
+      `${operatorName} 将你加入了项目「${projectName}」\n项目角色：${projectRoleLabel(projectRole)}`,
       { color: 'blue', link: { url: previewUrl, title: '去查看' } },
     )
 
@@ -296,7 +299,7 @@ export async function notifyLeaveProject(
   }
 }
 
-/** PM 修改用户角色 → 通知被变更的用户 */
+/** 系统管理员修改用户系统角色 → 通知被变更的用户 */
 export async function notifyRoleChange(
   targetUserId: string,
   oldRole: string,
@@ -308,7 +311,7 @@ export async function notifyRoleChange(
     const openId = getUserOpenIdById(targetUserId)
     if (!openId) return
 
-    const roleLabel = (r: string) => r === 'pm' ? '产品' : r === 'ops' ? '运维' : '游客'
+    const roleLabel = (r: string) => r === 'admin' ? '系统管理员' : r === 'member' ? '成员' : '游客'
 
     const card = buildCardMessage(
       '🔑 角色变更',
@@ -319,6 +322,33 @@ export async function notifyRoleChange(
     await sendFeishuMessage(openId, card)
   } catch (e: unknown) {
     console.error('通知角色变更失败:', e instanceof Error ? e.message : e)
+  }
+}
+
+/** PM 修改用户项目角色 → 通知被变更的用户 */
+export async function notifyProjectRoleChange(
+  projectName: string,
+  targetUserId: string,
+  oldRole: string,
+  newRole: string,
+  operatorName: string,
+): Promise<void> {
+  try {
+    if (!shouldNotify(targetUserId, 'project')) return
+    const openId = getUserOpenIdById(targetUserId)
+    if (!openId) return
+
+    const projectRoleLabel = (r: string) => r === 'pm' ? '项目管理员' : r === 'writer' ? '编辑' : r === 'viewer' ? '只读' : r
+
+    const card = buildCardMessage(
+      '🔑 项目角色变更',
+      `${operatorName} 将你在项目「${projectName}」中的角色从「${projectRoleLabel(oldRole)}」变更为「${projectRoleLabel(newRole)}」`,
+      { color: 'blue', link: { url: `${APP_BASE_URL}/preview`, title: '去查看' } },
+    )
+
+    await sendFeishuMessage(openId, card)
+  } catch (e: unknown) {
+    console.error('通知项目角色变更失败:', e instanceof Error ? e.message : e)
   }
 }
 

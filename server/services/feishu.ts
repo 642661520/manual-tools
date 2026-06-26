@@ -1,8 +1,8 @@
 // 飞书服务：token 管理、消息发送、OAuth
-// 基于 server/auth/feishu.ts 的 OAuth 逻辑扩展 Bot 能力
+import { config } from '../config.js'
 import type { FeishuTokenResponse, FeishuUserResponse, FeishuUserInfoResponse } from '../types.js'
 
-const FEISHU_HOST = process.env.FEISHU_HOST || 'https://open.feishu.cn'
+const FEISHU_HOST = config.feishuHost
 
 // ---- Token 缓存 ----
 
@@ -14,8 +14,8 @@ interface TokenCache {
 let tenantTokenCache: TokenCache | null = null
 
 function getAppCredentials(): { appId: string; appSecret: string } {
-  const appId = process.env.FEISHU_APP_ID
-  const appSecret = process.env.FEISHU_APP_SECRET
+  const appId = config.feishuAppId
+  const appSecret = config.feishuAppSecret
   if (!appId || !appSecret) {
     throw new Error('飞书未配置：缺少 FEISHU_APP_ID 或 FEISHU_APP_SECRET')
   }
@@ -185,7 +185,7 @@ export interface FeishuUserInfo {
 
 export function getFeishuAuthUrl(state: string): string {
   const { appId } = getAppCredentials()
-  const redirectUri = process.env.FEISHU_REDIRECT_URI
+  const redirectUri = config.feishuRedirectUri
   if (!redirectUri) {
     throw new Error('飞书 OAuth 未配置：缺少 FEISHU_REDIRECT_URI')
   }

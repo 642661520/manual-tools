@@ -5,13 +5,16 @@ import type { WebSocket as WsSocket } from 'ws'
 import { Awareness, removeAwarenessStates, encodeAwarenessUpdate, applyAwarenessUpdate } from 'y-protocols/awareness'
 import { authMiddleware } from '../auth/middleware.js'
 import { verifyToken } from '../auth/jwt.js'
-import type { FastifyRequest } from 'fastify'
-import { ok } from '../lib/response.js'
+import { isProjectMember } from '../auth/membership.js'
+import { getDb } from '../db/index.js'
+import { ok, fail } from '../lib/response.js'
 import {
   getOrCreateDoc,
   ensureDocument,
   encodeStateAsUpdate,
   applyUpdate,
+  scheduleEviction,
+  cancelEviction,
 } from '../services/yjs-doc.js'
 
 const messageSync = 0
@@ -61,20 +64,14 @@ export async function yjsRoutes(app: FastifyInstance) {
   }
 
   app.get('/ws/doc/:docId', { websocket: true }, (socket, req) => {
-    // WebSocket 认证：从 query 参数中读取 token
-    const query = (req as FastifyRequest).query as { token?: string }
-    try {
-      if (!query.token) throw new Error('missing token')
-      verifyToken(query.token)
-    } catch {
-      socket.close(4001, '未登录或登录已过期')
-      return
-    }
-
     const params = req.params as { docId: string }
     const docId = params.docId
 
+    // 首条消息认证：连接建立后客户端必须先发 { type: 'auth', token } JSON 帧
+    let authenticated = false
+
     const state = getOrCreateDoc(docId)
+    cancelEviction(docId)
     const awareness = getAwareness(docId)
 
     state.clients.add(socket)
@@ -83,6 +80,33 @@ export async function yjsRoutes(app: FastifyInstance) {
 
     socket.on('message', (raw) => {
       const data = raw as Buffer
+
+      // 未认证时，首条消息必须是 JSON 认证帧
+      if (!authenticated) {
+        try {
+          const msg = JSON.parse(data.toString('utf-8'))
+          if (msg.type === 'auth' && msg.token) {
+            const payload = verifyToken(msg.token)
+
+            // 校验项目成员身份：从 docId 提取 featureId 查询项目归属
+            const featureId = docId.includes('/') ? docId.split('/')[0] : docId
+            const db = getDb()
+            const feature = db.prepare('SELECT project_id FROM features WHERE id = ?').get(featureId) as { project_id: string } | undefined
+            if (!feature || !isProjectMember(payload.userId, payload.role, feature.project_id)) {
+              socket.close(4003, '无权访问此文档')
+              return
+            }
+
+            authenticated = true
+          } else {
+            socket.close(4001, '认证失败')
+          }
+        } catch {
+          socket.close(4001, '认证失败')
+        }
+        return
+      }
+
       const uint8 = new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
 
       try {
@@ -127,7 +151,7 @@ export async function yjsRoutes(app: FastifyInstance) {
           applyUpdate(docId, update)
         }
       } catch (e) {
-        console.error('Y.js parse error:', e)
+        app.log.error(`Y.js parse error: ${e}`)
       }
     })
 
@@ -149,6 +173,10 @@ export async function yjsRoutes(app: FastifyInstance) {
       if (idsToRemove.length > 0) {
         broadcastAwareness(awareness, state.clients, idsToRemove)
       }
+      // 无活跃客户端时延迟卸载文档内存
+      if (state.clients.size === 0) {
+        scheduleEviction(docId)
+      }
     })
 
     socket.on('error', () => {
@@ -167,14 +195,24 @@ export async function yjsRoutes(app: FastifyInstance) {
       if (idsToRemove.length > 0) {
         broadcastAwareness(awareness, state.clients, idsToRemove)
       }
+      // 无活跃客户端时延迟卸载文档内存
+      if (state.clients.size === 0) {
+        scheduleEviction(docId)
+      }
     })
   })
 
-  app.post('/api/v1/documents/ensure', { preHandler: [authMiddleware] }, async (req) => {
+  app.post('/api/v1/documents/ensure', { preHandler: [authMiddleware] }, async (req, reply) => {
     const { docId, featureId, sectionKey } = req.body as {
       docId: string
       featureId: string
       sectionKey: string
+    }
+    // 检查项目成员身份
+    const db = getDb()
+    const feature = db.prepare('SELECT project_id FROM features WHERE id = ?').get(featureId) as { project_id: string } | undefined
+    if (!feature || !isProjectMember(req.user!.userId, req.user!.role, feature.project_id)) {
+      return fail(reply, 403, '无权访问此项目')
     }
     ensureDocument(docId, featureId, sectionKey)
     return ok()

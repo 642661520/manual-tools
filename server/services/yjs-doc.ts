@@ -11,9 +11,37 @@ interface DocState {
 // 内存中的文档缓存
 const docs = new Map<string, DocState>()
 
+// 延迟清理定时器：文档无活跃连接后 5 分钟从内存卸载
+const evictionTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+/** 取消待执行的清理 */
+export function cancelEviction(docId: string) {
+  const timer = evictionTimers.get(docId)
+  if (timer) {
+    clearTimeout(timer)
+    evictionTimers.delete(docId)
+  }
+}
+
+/** 安排延迟清理：当所有客户端断开后调用 */
+export function scheduleEviction(docId: string, delayMs = 5 * 60 * 1000) {
+  cancelEviction(docId)
+  const timer = setTimeout(() => {
+    evictionTimers.delete(docId)
+    const state = docs.get(docId)
+    if (state && state.clients.size === 0) {
+      state.doc.off('update', () => {})
+      docs.delete(docId)
+    }
+  }, delayMs)
+  evictionTimers.set(docId, timer)
+}
+
 export function getOrCreateDoc(docId: string): DocState {
   let state = docs.get(docId)
   if (!state) {
+    // 取消可能正在等待的清理定时器
+    cancelEviction(docId)
     // 自动创建文档记录（确保 FK 约束不阻止 update 写入）
     ensureDocumentRecord(docId)
 
@@ -139,9 +167,11 @@ export function onUpdate(docId: string, callback: (update: Uint8Array) => void) 
   return () => state.doc.off('update', handler)
 }
 
+import { config } from '../config.js'
+
 // 获取当前 snapshot 阈值
 export function getSnapshotThreshold() {
-  return parseInt(process.env.YJS_SNAPSHOT_UPDATE_THRESHOLD || '500')
+  return config.yjsSnapshotThreshold
 }
 
 // 创建快照

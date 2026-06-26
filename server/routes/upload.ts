@@ -4,6 +4,7 @@ import { join } from 'path'
 import { writeFile, mkdir, access } from 'fs/promises'
 import { authMiddleware } from '../auth/middleware.js'
 import { success, fail } from '../lib/response.js'
+import { config } from '../config.js'
 
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
 const IMAGE_EXT: Record<string, string> = {
@@ -19,7 +20,7 @@ const VIDEO_EXT: Record<string, string> = {
   'video/webm': '.webm',
 }
 
-const UPLOAD_BASE = process.env.UPLOAD_DIR || join(process.cwd(), 'data/uploads')
+const UPLOAD_BASE = config.uploadDir
 
 /** 通用上传处理：校验类型 → 大小 → 哈希去重 → 返回 URL */
 async function handleUpload(
@@ -62,11 +63,11 @@ export async function uploadRoutes(app: FastifyInstance) {
     const file = await req.file()
     if (!file) return fail(reply, 400, '未选择文件')
     try {
-      const maxMB = parseInt(process.env.UPLOAD_MAX_SIZE || '10')
+      const maxMB = config.uploadMaxSize
       const result = await handleUpload(file, IMAGE_TYPES, IMAGE_EXT, maxMB, 'images')
       return success(result)
     } catch (e: unknown) {
-      return fail(reply, 400, (e as Error).message)
+      return fail(reply, 400, e instanceof Error ? e.message : '图片上传失败')
     }
   })
 
@@ -75,11 +76,11 @@ export async function uploadRoutes(app: FastifyInstance) {
     const file = await req.file()
     if (!file) return fail(reply, 400, '未选择文件')
     try {
-      const maxMB = parseInt(process.env.VIDEO_MAX_SIZE || '100')
+      const maxMB = config.videoMaxSize
       const result = await handleUpload(file, VIDEO_TYPES, VIDEO_EXT, maxMB, 'videos')
       return success(result)
     } catch (e: unknown) {
-      return fail(reply, 400, (e as Error).message)
+      return fail(reply, 400, e instanceof Error ? e.message : '视频上传失败')
     }
   })
 }

@@ -2,6 +2,7 @@ import { ZipArchive } from 'archiver'
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { v4 as uuid } from 'uuid'
+import { config } from '../config.js'
 import type { ManualResult } from '../types.js'
 
 interface ImageEntry {
@@ -100,7 +101,7 @@ async function fetchImage(url: string): Promise<Buffer | null> {
 
     if (fullUrl.startsWith('/uploads/')) {
       // 本地上传文件
-      const uploadDir = process.env.UPLOAD_DIR || join(process.cwd(), 'data/uploads/images')
+      const uploadDir = config.uploadDir
       const filepath = join(uploadDir, fullUrl.replace(/^\/uploads\/images\//, ''))
       if (existsSync(filepath)) {
         return readFileSync(filepath)
