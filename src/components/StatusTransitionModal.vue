@@ -18,8 +18,9 @@ interface TransitionOption {
 const props = defineProps<{
   visible: boolean
   currentStatus: SectionStatus
-  isPM: boolean
+  canManageProject: boolean
   isCurrentReviewer: boolean
+  canWriteContent?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -36,13 +37,13 @@ const availableTransitions = computed<TransitionOption[]>(() => {
   const s = props.currentStatus
   const result: TransitionOption[] = []
 
-  if (!props.isPM) {
+  if (!props.canManageProject) {
     // 编写者
     if (s === 'draft' || s === 'in_progress') {
       result.push({
         target: 'pending_review',
         label: '提交审核',
-        description: '提交给 PM 进行审核',
+        description: '提交给项目管理员进行审核',
         needNote: false,
         variant: 'primary',
       })
@@ -51,7 +52,7 @@ const availableTransitions = computed<TransitionOption[]>(() => {
       result.push({
         target: 'pending_review',
         label: '重新提交审核',
-        description: '修改完成后重新提交 PM 审核',
+        description: '修改完成后重新提交项目管理员审核',
         needNote: false,
         variant: 'primary',
       })

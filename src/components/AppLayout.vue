@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useProject } from '@/composables/useProject'
@@ -8,25 +8,26 @@ import SelectDropdown from '@/components/SelectDropdown.vue'
 
 const router = useRouter()
 const route = useRoute()
-const { user, isPM, isGuest, logout } = useAuth()
+const { user, isAdmin, isGuest, canManageProject, logout } = useAuth()
 const { projects, currentProjectId, loadProjects, switchProject } = useProject()
 const { confirm } = useDialog()
+
+const showUserMenu = ref(false)
 
 const navItems = [
   { path: '/features', label: '主题', icon: 'i-lucide-clipboard-list', hideForGuest: true },
   { path: '/todos', label: '待办', icon: 'i-lucide-list-checks', hideForGuest: true },
   { path: '/preview', label: '预览', icon: 'i-lucide-book-open', hideForGuest: true },
-  { path: '/profile', label: '我的', icon: 'i-lucide-user' },
-]
-
-const pmItems = [
-  { path: '/catalogs/new', label: '目录', icon: 'i-lucide-pencil' },
-  { path: '/settings', label: '设置', icon: 'i-lucide-settings' },
 ]
 
 function isActive(path: string) {
   if (path === '/catalogs/new') return route.path.startsWith('/catalogs/')
   return route.path.startsWith(path)
+}
+
+function roleLabel(role: string) {
+  const map: Record<string, string> = { admin: '系统管理员', member: '成员', guest: '游客' }
+  return map[role] || role
 }
 
 async function handleProjectSwitch(id: string) {
@@ -51,8 +52,17 @@ async function handleProjectSwitch(id: string) {
 }
 
 async function handleLogout() {
+  showUserMenu.value = false
   if (!await confirm('确定退出登录？')) return
   logout()
+}
+
+function toggleUserMenu() {
+  showUserMenu.value = !showUserMenu.value
+}
+
+function closeUserMenu() {
+  showUserMenu.value = false
 }
 
 onMounted(loadProjects)
@@ -63,7 +73,8 @@ onMounted(loadProjects)
     <!-- 顶部导航 -->
     <header class="flex items-center justify-between px-6 py-2 bg-white border-b border-gray-200 flex-shrink-0">
       <div class="flex items-center gap-1">
-        <span class="text-sm font-semibold text-gray-400 mr-3">manual-tools</span>
+        <img src="/favicon.svg" alt="Logo" class="w-6 h-6 mr-2 flex-shrink-0" />
+        <span class="text-sm font-semibold text-gray-400">操作手册编写平台</span>
         <button
           v-for="item in navItems.filter(i => !i.hideForGuest || !isGuest)"
           :key="item.path"
@@ -75,18 +86,26 @@ onMounted(loadProjects)
         >
           <span :class="item.icon" class="mr-1 w-4 h-4 inline-block align-middle" />{{ item.label }}
         </button>
-        <template v-if="isPM">
+        <!-- 目录编排 + 项目设置：仅项目 pm+ 可见 -->
+        <template v-if="canManageProject">
           <span class="text-gray-200 mx-1">|</span>
           <button
-            v-for="item in pmItems"
-            :key="item.path"
             class="px-3 py-1.5 rounded-md text-sm transition-colors"
-            :class="isActive(item.path)
+            :class="isActive('/catalogs/new')
               ? 'bg-blue-50 text-blue-700'
               : 'text-gray-600 hover:bg-gray-100'"
-            @click="router.push(item.path)"
+            @click="router.push('/catalogs/new')"
           >
-            <span :class="item.icon" class="mr-1 w-4 h-4 inline-block align-middle" />{{ item.label }}
+            <span class="i-lucide-pencil mr-1 w-4 h-4 inline-block align-middle" />目录
+          </button>
+          <button
+            class="px-3 py-1.5 rounded-md text-sm transition-colors"
+            :class="route.path.startsWith('/settings/project')
+              ? 'bg-blue-50 text-blue-700'
+              : 'text-gray-600 hover:bg-gray-100'"
+            @click="router.push('/settings/project')"
+          >
+            <span class="i-lucide-settings mr-1 w-4 h-4 inline-block align-middle" />设置
           </button>
         </template>
       </div>
@@ -102,16 +121,49 @@ onMounted(loadProjects)
           @update:model-value="(val: string | number | null) => handleProjectSwitch(val as string)"
         />
 
-        <span class="text-xs text-gray-400 flex items-center gap-1.5">
-          <img v-if="user?.avatarUrl" :src="user.avatarUrl" class="w-5 h-5 rounded-full" alt="" />
-          <span v-else class="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 text-xs font-semibold flex-shrink-0">{{ (user?.displayName || user?.username || '?')[0] }}</span>
-          {{ user?.feishuName || user?.displayName }}
-          <span class="text-gray-300">·</span>
-          {{ user?.role === 'pm' ? '产品' : user?.role === 'guest' ? '游客' : '运维' }}
-        </span>
-        <button class="text-xs text-gray-400 hover:text-red-500" @click="handleLogout">
-          退出
-        </button>
+        <!-- 用户头像下拉 -->
+        <div class="relative">
+          <button
+            class="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+            @click="toggleUserMenu"
+            @blur="closeUserMenu"
+          >
+            <img v-if="user?.avatarUrl" :src="user.avatarUrl" class="w-5 h-5 rounded-full" alt="" />
+            <span v-else class="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 text-xs font-semibold flex-shrink-0">{{ (user?.displayName || user?.username || '?')[0] }}</span>
+            {{ user?.feishuName || user?.displayName }}
+            <span class="text-gray-300">·</span>
+            {{ roleLabel(user?.role || '') }}
+            <span class="i-lucide-chevron-down w-3 h-3" />
+          </button>
+
+          <!-- 下拉菜单 -->
+          <div
+            v-if="showUserMenu"
+            class="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 min-w-32 py-1"
+            @mousedown.prevent
+          >
+            <button
+              class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+              @click="router.push('/profile'); closeUserMenu()"
+            >
+              <span class="i-lucide-user w-4 h-4" />个人中心
+            </button>
+            <button
+              v-if="isAdmin"
+              class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+              @click="router.push('/settings'); closeUserMenu()"
+            >
+              <span class="i-lucide-shield w-4 h-4" />系统设置
+            </button>
+            <div class="border-t border-gray-100 my-1" />
+            <button
+              class="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 flex items-center gap-2"
+              @click="handleLogout"
+            >
+              <span class="i-lucide-log-out w-4 h-4" />退出登录
+            </button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -121,3 +173,23 @@ onMounted(loadProjects)
     </div>
   </div>
 </template>
+
+<style>
+@media print {
+  @page { margin: 1.5cm; }
+  /* 隐藏顶部导航 */
+  header {
+    display: none !important;
+  }
+  /* 移除内容区域的限制 */
+  .flex-1.overflow-hidden {
+    overflow: visible !important;
+  }
+  /* 隐藏所有浮层、下拉菜单、弹窗 */
+  body > [style*="z-index"],
+  .dialog-container,
+  [class*="modal-overlay"] {
+    display: none !important;
+  }
+}
+</style>

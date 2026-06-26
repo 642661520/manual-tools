@@ -25,8 +25,4 @@ const showLayout = computed(() => ready.value && route.path !== '/login')
 </template>
 
 <style>
-[class*="i-lucide-"] {
-  transform: translateY(-1px);
-  flex-shrink: 0;
-}
 </style>

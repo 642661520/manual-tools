@@ -113,6 +113,10 @@ function toggleFullscreen() {
   isFullscreen.value = !isFullscreen.value
 }
 
+function printPage() {
+  window.print()
+}
+
 // 颜色选择器
 const showColorPicker = ref<'text' | 'highlight' | null>(null)
 const textColors = ['#000000', '#374151', '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#ffffff']
@@ -531,22 +535,32 @@ defineExpose({ connected, synced, initialSyncDone })
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('bold') }"
         title="加粗" @click="editor.chain().focus().toggleBold().run()">
-        <span class="font-bold">B</span>
+        <span class="i-lucide-bold w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('italic') }"
         title="斜体" @click="editor.chain().focus().toggleItalic().run()">
-        <span class="italic">I</span>
+        <span class="i-lucide-italic w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('strike') }"
         title="删除线" @click="editor.chain().focus().toggleStrike().run()">
-        <span class="line-through">S</span>
+        <span class="i-lucide-strikethrough w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('underline') }"
         title="下划线" @click="editor.chain().focus().toggleUnderline().run()">
-        <span class="underline">U</span>
+        <span class="i-lucide-underline w-4 h-4 inline-block align-middle" />
+      </button>
+      <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        :class="{ 'bg-gray-200': editor.isActive('subscript') }"
+        title="下标" @click="editor.chain().focus().toggleSubscript().run()">
+        <span class="i-lucide-subscript w-4 h-4 inline-block align-middle" />
+      </button>
+      <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        :class="{ 'bg-gray-200': editor.isActive('superscript') }"
+        title="上标" @click="editor.chain().focus().toggleSuperscript().run()">
+        <span class="i-lucide-superscript w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('code') }"
@@ -578,32 +592,32 @@ defineExpose({ connected, synced, initialSyncDone })
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('heading', { level: 1 }) }"
         title="标题1" @click="editor.chain().focus().toggleHeading({ level: 1 }).run()">
-        H1
+        <span class="i-lucide-heading-1 w-5 h-5 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('heading', { level: 2 }) }"
         title="标题2" @click="editor.chain().focus().toggleHeading({ level: 2 }).run()">
-        H2
+        <span class="i-lucide-heading-2 w-5 h-5 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('heading', { level: 3 }) }"
         title="标题3" @click="editor.chain().focus().toggleHeading({ level: 3 }).run()">
-        H3
+        <span class="i-lucide-heading-3 w-5 h-5 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('heading', { level: 4 }) }"
         title="标题4" @click="editor.chain().focus().toggleHeading({ level: 4 }).run()">
-        H4
+        <span class="i-lucide-heading-4 w-5 h-5 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('heading', { level: 5 }) }"
         title="标题5" @click="editor.chain().focus().toggleHeading({ level: 5 }).run()">
-        H5
+        <span class="i-lucide-heading-5 w-5 h-5 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('heading', { level: 6 }) }"
         title="标题6" @click="editor.chain().focus().toggleHeading({ level: 6 }).run()">
-        H6
+        <span class="i-lucide-heading-6 w-5 h-5 inline-block align-middle" />
       </button>
       <div class="w-px h-5 bg-gray-300 mx-1" />
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
@@ -696,6 +710,10 @@ defineExpose({ connected, synced, initialSyncDone })
         :class="{ 'bg-gray-200': searchVisible }"
         title="查找替换" @click="toggleSearch">
         <span class="i-lucide-search w-4 h-4 inline-block align-middle" />
+      </button>
+      <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        title="打印" @click="printPage">
+        <span class="i-lucide-printer w-4 h-4 inline-block align-middle" />
       </button>
       <div class="w-px h-5 bg-gray-300 mx-1" />
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
@@ -892,7 +910,7 @@ defineExpose({ connected, synced, initialSyncDone })
       @close="searchVisible = false"
     />
 
-    <div class="flex-1 overflow-y-auto relative" @keydown="onEsc">
+    <div class="editor-print-content flex-1 overflow-y-auto relative" @keydown="onEsc">
       <div v-if="!synced" class="absolute inset-0 flex items-center justify-center bg-gray-50/80 z-10">
         <div class="text-center text-gray-400">
           <span class="i-lucide-loader-2 w-6 h-6 inline-block animate-spin mb-2" />
@@ -1054,5 +1072,26 @@ defineExpose({ connected, synced, initialSyncDone })
   font-weight: 600; left: -1px; line-height: normal;
   padding: 1px 4px; position: absolute; top: -1.4em;
   user-select: none; white-space: nowrap;
+}
+
+/* 打印样式 */
+@media print {
+  .tiptap-editor {
+    position: static !important;
+    background: #fff !important;
+  }
+  .tiptap-editor > *:not(.editor-print-content) {
+    display: none !important;
+  }
+  .editor-print-content {
+    overflow: visible !important;
+    flex: none !important;
+  }
+  .editor-print-content > div[class*="absolute"] {
+    display: none !important;
+  }
+  .tiptap-editor .ProseMirror {
+    padding: 0 !important;
+  }
 }
 </style>

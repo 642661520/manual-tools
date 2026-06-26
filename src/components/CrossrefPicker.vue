@@ -108,13 +108,13 @@ function selectSection(featureId: string, sectionKey: string) {
 
 function confirm() {
   if (!selectedFeatureId.value) return
-  const f = features.value.find((f: any) => f.id === selectedFeatureId.value)
+  const f = features.value.find((f: FeatureEntry) => f.id === selectedFeatureId.value)
   if (!f) return
 
   const label = customLabel.value.trim() || selectedLabel.value
 
   if (selectedSectionKey.value) {
-    const sec = f.sections.find((s: any) => s.key === selectedSectionKey.value)
+    const sec = f.sections.find((s: { key: string; title: string }) => s.key === selectedSectionKey.value)
     if (sec) {
       emit('select', f.id, label, sec.key, sec.title)
       return

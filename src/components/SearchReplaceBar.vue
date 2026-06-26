@@ -241,12 +241,12 @@ defineExpose({ focusSearch })
 
     <!-- 区分大小写 -->
     <button
-      class="flex-shrink-0 px-1.5 py-0.5 rounded text-xs transition-colors"
+      class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded transition-colors"
       :class="caseSensitive ? 'bg-blue-100 text-blue-700' : 'text-gray-400 hover:text-gray-600'"
       title="区分大小写"
       @click="caseSensitive = !caseSensitive"
     >
-      Aa
+      <span class="i-lucide-case-sensitive w-4 h-4 inline-block align-middle" />
     </button>
 
     <!-- 上下导航 -->
