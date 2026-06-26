@@ -1,10 +1,16 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import UnoCSS from 'unocss/vite'
+import vueDevTools from 'vite-plugin-vue-devtools'
 import { resolve } from 'path'
 
 export default defineConfig({
-  plugins: [vue(), UnoCSS()],
+  plugins: [
+    vue(),
+    vueDevTools(),
+    UnoCSS(),
+  ],
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
@@ -14,12 +20,18 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api/v1': 'http://localhost:3000',
-      '/uploads': 'http://localhost:3000',
+      '/api/v1': 'http://localhost:5000',
+      '/uploads': 'http://localhost:5000',
+      '/docs': 'http://localhost:5000',
       '/ws': {
-        target: 'ws://localhost:3000',
+        target: 'ws://localhost:5000',
         ws: true,
       },
     },
+  },
+  test: {
+    environment: 'node',
+    include: ['server/__tests__/**/*.test.ts'],
+    testTimeout: 10000,
   },
 })

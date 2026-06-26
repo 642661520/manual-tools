@@ -26,6 +26,7 @@ export default tseslint.config(
       'data/',
       'node_modules/',
       'server/db/migrations/',
+      'server/services/site-builder/script.js',
       '**/*.d.ts',
       'uno.config.ts',
       'vite.config.ts',

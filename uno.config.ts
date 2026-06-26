@@ -6,9 +6,11 @@ export default defineConfig({
     presetIcons({
       scale: 1.4,
       warn: true,
+      cdn: 'https://esm.sh/',
       extraProperties: {
         'display': 'inline-block',
         'flex-shrink': '0',
+        'transform': 'translateY(-1px)',
       },
     }),
     presetTypography(),

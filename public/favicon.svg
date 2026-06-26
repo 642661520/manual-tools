@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- 底层页面 - 浅色 -->
+  <rect x="4" y="12" width="44" height="44" rx="6" fill="#DBEAFE" />
+  <!-- 顶层页面 - 深色 -->
+  <rect x="16" y="4" width="44" height="44" rx="6" fill="#2563EB" />
+  <!-- 粗文字线 - 深层页面 -->
+  <rect x="24" y="16" width="28" height="5" rx="2.5" fill="#BFDBFE" />
+  <rect x="24" y="25" width="22" height="5" rx="2.5" fill="#BFDBFE" />
+  <rect x="24" y="34" width="26" height="5" rx="2.5" fill="#93C5FD" />
+  <rect x="24" y="43" width="18" height="5" rx="2.5" fill="#93C5FD" />
+</svg>
