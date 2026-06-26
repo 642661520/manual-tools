@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-catalog-id="{{CATALOG_ID}}" data-version-label="{{VERSION_LABEL}}" data-current-chapter="{{CURRENT_CHAPTER}}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{PAGE_TITLE}}</title>
+<style>
+{{STYLES}}
+</style>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <h1><a href="./">{{TITLE}}</a></h1>
+    <div class="version-switcher" id="versionSwitcher">
+      <button class="vs-btn" id="vsBtn" onclick="toggleVersionMenu()">
+        <span class="vs-label">{{VERSION_LABEL}}</span>
+        <span class="vs-arrow">&#9662;</span>
+      </button>
+      <div class="vs-menu" id="vsMenu"></div>
+    </div>
+  </div>
+  <nav class="sidebar-nav">
+    <ul style="list-style:none">
+      <li class="nav-cover"><a href="./">📖 目录</a></li>
+      {{SIDEBAR}}
+    </ul>
+  </nav>
+</aside>
+<main class="main" id="mainContent">
+  {{CONTENT}}
+</main>
+<script>
+{{SCRIPTS}}
+</script>
+</body>
+</html>
