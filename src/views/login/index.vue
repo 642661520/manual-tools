@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { getFeishuLoginUrl } from '@/api/endpoints/auth'
 import FormField from '@/components/FormField.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 
 const router = useRouter()
+const route = useRoute()
 const { login } = useAuth()
 
 const username = ref('')
@@ -24,7 +25,12 @@ async function handleLogin() {
   error.value = ''
   try {
     await login(username.value.trim(), password.value)
-    router.push('/features')
+    const redirect = route.query.redirect as string | undefined
+    if (redirect) {
+      window.location.href = redirect
+    } else {
+      router.push('/features')
+    }
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : '登录失败'
   } finally {
@@ -61,9 +67,7 @@ async function feishuLogin() {
     <div class="relative z-10 w-96 max-w-full">
       <div class="card !border-slate-200/80 !shadow-lg !shadow-slate-200/50 p-8">
         <div class="text-center mb-6">
-          <div class="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center mx-auto mb-3 shadow-md shadow-blue-500/20">
-            <span class="i-lucide-book-open text-white w-6 h-6" />
-          </div>
+          <img src="/favicon.svg" alt="Logo" class="w-14 h-14 mx-auto mb-3" />
           <h1 class="text-2xl font-bold text-gray-900">操作手册编写平台</h1>
           <p class="text-sm text-gray-500 mt-1">请登录系统</p>
         </div>
@@ -77,7 +81,7 @@ async function feishuLogin() {
 
           <FormField label="密码">
             <div class="relative">
-              <input v-model="password" class="input pr-8" :type="showPassword ? 'text' : 'password'" placeholder="输入密码" @keyup.enter="handleLogin" />
+              <input v-model="password" class="input pr-8" :type="showPassword ? 'text' : 'password'" placeholder="输入密码" />
               <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" @click="showPassword = !showPassword">
                 <span :class="showPassword ? 'i-lucide-eye-off' : 'i-lucide-eye'" class="w-4 h-4 inline-block align-middle" />
               </button>

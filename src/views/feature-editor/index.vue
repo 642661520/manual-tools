@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useDialog } from '@/composables/useDialog'
@@ -32,7 +32,7 @@ const route = useRoute()
 const router = useRouter()
 
 type ComponentStatus = 'draft' | 'in_progress' | 'completed' | 'pending_review' | 'rejected' | 'approved'
-const { isPM, isGuest } = useAuth()
+const { canManageProject, isGuest, canWriteContent } = useAuth()
 const { confirm, dangerConfirm, prompt } = useDialog()
 const featureId = computed(() => route.params.id as string)
 
@@ -44,6 +44,9 @@ const currentSection = ref('')
 const currentSectionData = computed(() => {
   const sec = feature.value?.sections.find(s => s.key === currentSection.value)
   if (sec) return sec
+  if (currentSection.value === '_default') {
+    return { key: '_default', title: feature.value?.title || '正文', status: 'draft' as ComponentStatus }
+  }
   return feature.value?.orphaned?.find(o => o.key === currentSection.value) || null
 })
 
@@ -81,7 +84,7 @@ const sectionReviewLog = computed(() => {
 
 // 当前用户是否是当前审核环节的审核人
 const isCurrentReviewer = computed(() => {
-  if (!isPM.value) return false
+  if (!canManageProject.value) return false
   const status = currentSectionData.value?.status
   if (status !== 'pending_review') return false
   if (reviewChain.value.length === 0) return true // 无链时任何 PM 可审
@@ -100,9 +103,13 @@ async function loadFeature() {
     const data = await getFeature(featureId.value)
     feature.value = data as FeatureDetailExt
     const fromUrl = route.query.section as string | undefined
-    currentSection.value = (fromUrl && data.sections.find((s: any) => s.key === fromUrl))
-      ? fromUrl
-      : data.sections[0]?.key || ''
+    if (fromUrl && data.sections.find((s) => s.key === fromUrl)) {
+      currentSection.value = fromUrl
+    } else if (data.sections.length > 0) {
+      currentSection.value = data.sections[0].key
+    } else {
+      currentSection.value = '_default'
+    }
   } catch (e: unknown) {
     loadError.value = '加载失败: ' + (e instanceof Error ? e.message : String(e))
   } finally {
@@ -199,20 +206,28 @@ watch(currentSection, (val) => {
   }
 })
 
+// 更新浏览器标题（打印时作为文件名）
+watch([() => feature.value?.title, currentSectionData], () => {
+  const parts = [feature.value?.title, currentSectionData.value?.title].filter(Boolean)
+  document.title = parts.length > 0 ? parts.join(' - ') : '操作手册编写平台'
+})
+
+onUnmounted(() => { document.title = '操作手册编写平台' })
+
 // 状态更新
 const showStatusModal = ref(false)
 
 const hasStatusTransitions = computed(() => {
   const s = currentSectionData.value?.status || 'draft'
-  if (!isPM.value) return s === 'draft' || s === 'in_progress' || s === 'rejected'
+  if (!canManageProject.value) return s === 'draft' || s === 'in_progress' || s === 'rejected'
   return true // PM 始终有可用操作
 })
 
 const statusActionLabel = computed(() => {
   const s = currentSectionData.value?.status || 'draft'
-  if (!isPM.value && (s === 'draft' || s === 'in_progress')) return '提交审核'
-  if (!isPM.value && s === 'rejected') return '重新提交审核'
-  if (isPM.value && s === 'pending_review' && isCurrentReviewer.value) return '审核...'
+  if (!canManageProject.value && (s === 'draft' || s === 'in_progress')) return '提交审核'
+  if (!canManageProject.value && s === 'rejected') return '重新提交审核'
+  if (canManageProject.value && s === 'pending_review' && isCurrentReviewer.value) return '审核...'
   return '变更状态'
 })
 
@@ -275,6 +290,14 @@ async function deleteOrphaned(sectionKey: string) {
         <div class="p-4">
           <span class="text-xs font-semibold text-gray-400 uppercase">编写进度</span>
           <nav class="space-y-1 mt-3">
+            <!-- 无显式章节时显示默认章节 -->
+            <template v-if="feature.sections.length === 0">
+              <div class="w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 bg-blue-50 text-blue-700 font-medium">
+                <span class="i-lucide-file-text w-4 h-4 inline-block flex-shrink-0 text-blue-400" />
+                <span class="flex-1 truncate">正文</span>
+                <span class="text-xs text-blue-400">默认</span>
+              </div>
+            </template>
             <button
               v-for="section in feature.sections"
               :key="section.key"
@@ -307,7 +330,7 @@ async function deleteOrphaned(sectionKey: string) {
             >
               <span class="flex-1 truncate">{{ o.key }}</span>
               <button
-                v-if="isPM"
+                v-if="canManageProject"
                 class="text-red-400 hover:text-red-600 text-xs flex-shrink-0 p-1"
                 @click.stop="deleteOrphaned(o.key)"
               >
@@ -322,7 +345,7 @@ async function deleteOrphaned(sectionKey: string) {
             <span class="i-lucide-alert-triangle w-4 h-4 text-orange-500 mr-1 inline-block" />此章节已从骨架中移除，内容未删除。可将内容合并到现有章节后清除。
           </div>
           <div class="text-xs font-semibold text-gray-400 uppercase mb-1">当前章节</div>
-          <p class="text-xs text-gray-500 mb-3">{{ currentSectionData.description || '' }}</p>
+          <p class="text-xs text-gray-500 mb-3">{{ currentSectionData?.description || '' }}</p>
 
           <div class="text-xs font-semibold text-gray-400 uppercase mb-2 flex items-center gap-2">
             状态
@@ -343,7 +366,8 @@ async function deleteOrphaned(sectionKey: string) {
           <StatusTransitionModal
             :visible="showStatusModal"
             :current-status="(currentSectionData?.status || 'draft') as ComponentStatus"
-            :is-p-m="isPM"
+            :can-manage-project="canManageProject"
+            :can-write-content="canWriteContent"
             :is-current-reviewer="isCurrentReviewer"
             @close="showStatusModal = false"
             @confirm="(payload) => handleStatusTransition(currentSection, payload)"
@@ -353,7 +377,7 @@ async function deleteOrphaned(sectionKey: string) {
           <div class="mt-3">
             <div class="text-xs font-semibold text-gray-400 uppercase mb-1">指派编写人</div>
             <!-- PM：tag 模式多选 -->
-            <div v-if="isPM">
+            <div v-if="canManageProject">
               <div class="flex flex-wrap gap-1 mb-2">
                 <span
                   v-for="uid in getCurrentAssignees()"
@@ -443,3 +467,17 @@ async function deleteOrphaned(sectionKey: string) {
     </div>
   </div>
 </template>
+
+<style scoped>
+@media print {
+  header {
+    display: none !important;
+  }
+  aside {
+    display: none !important;
+  }
+  main {
+    flex: 1 !important;
+  }
+}
+</style>

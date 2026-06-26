@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Sortable from 'sortablejs'
 import { useProject } from '@/composables/useProject'
@@ -8,7 +8,7 @@ import { useDialog } from '@/composables/useDialog'
 import { getFeatures } from '@/api/endpoints/features'
 import { getCatalogs, getCatalog, createCatalog, updateCatalog, deleteCatalog as apiDeleteCatalog } from '@/api/endpoints/catalogs'
 import { getCategories } from '@/api/endpoints/categories'
-import type { FeatureSummary, CategoryInfo, CatalogInfo } from '@shared/types'
+import type { FeatureSummary, CategoryInfo, CatalogInfo, CatalogEntry } from '@shared/types'
 
 // 本地类型：目录中引用的功能
 interface CatFeature {
@@ -26,6 +26,19 @@ interface CatEntry {
   sectionOrder?: string[]
 }
 
+interface CatPart {
+  type: 'part'
+  id: string
+  title: string
+  features: CatEntry[]
+}
+
+type CatNode = CatEntry | CatPart
+
+function isPart(node: CatNode): node is CatPart {
+  return (node as CatPart).type === 'part'
+}
+
 interface CatalogResponseFeature {
   id: string
   title: string
@@ -35,10 +48,19 @@ interface CatalogResponseFeature {
   sectionOrder?: string[]
 }
 
+interface CatalogResponsePart {
+  type: 'part'
+  id: string
+  title: string
+  features: CatalogResponseFeature[]
+}
+
+type CatalogResponseNode = CatalogResponseFeature | CatalogResponsePart
+
 interface CatalogResponse {
   title: string
   targets: string[]
-  features: CatalogResponseFeature[]
+  features: CatalogResponseNode[]
 }
 
 interface SortableElement extends HTMLElement {
@@ -47,19 +69,20 @@ interface SortableElement extends HTMLElement {
 import PageHeader from '@/components/PageHeader.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import SelectDropdown from '@/components/SelectDropdown.vue'
 
 const route = useRoute()
 const router = useRouter()
 const { currentProjectId } = useProject()
-const { isPM } = useAuth()
+const { canManageProject } = useAuth()
 const { confirm, dangerConfirm } = useDialog()
 const catalogId = computed(() => route.params.id as string)
 const isNew = computed(() => catalogId.value === 'new')
 
-const catalog = ref<{ title: string; targets: string[]; features: CatEntry[] }>({
+const catalog = ref<{ title: string; targets: string[]; entries: CatNode[] }>({
   title: '',
   targets: [] as string[],
-  features: [] as CatEntry[],
+  entries: [] as CatNode[],
 })
 
 const allFeatures = ref<FeatureSummary[]>([])
@@ -69,6 +92,31 @@ const searchQuery = ref('')
 const saving = ref(false)
 const saveError = ref('')
 const expandedIndex = ref<number | null>(null)
+const highlightedId = ref<string | null>(null)
+const dirty = ref(false)
+const saveSuccess = ref(false)
+const movingFeatureId = ref<string | null>(null)
+const movingPoolFeature = ref<FeatureSummary | null>(null)
+const moveMenuX = ref(0)
+const moveMenuY = ref(0)
+const poolMenuX = ref(0)
+const poolMenuY = ref(0)
+
+function openMoveMenu(e: MouseEvent, featureId: string) {
+  if (movingFeatureId.value === featureId) { movingFeatureId.value = null; return }
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  moveMenuX.value = rect.left
+  moveMenuY.value = rect.bottom + 4
+  movingFeatureId.value = featureId
+}
+
+function openPoolMoveMenu(e: MouseEvent, f: FeatureSummary) {
+  if (movingPoolFeature.value?.id === f.id) { movingPoolFeature.value = null; return }
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  poolMenuX.value = rect.right
+  poolMenuY.value = rect.top
+  movingPoolFeature.value = f
+}
 
 // 解析 sections JSON 用于展示
 function getSections(f: { sections?: string }): { key: string; title: string }[] {
@@ -98,13 +146,25 @@ const categoryMap = computed(() =>
   new Map(categories.value.map(c => [c.id, c.name]))
 )
 
+// 收集所有已选中的 feature id
+const selectedFeatureIds = computed(() => {
+  const ids = new Set<string>()
+  for (const node of catalog.value.entries) {
+    if (isPart(node)) {
+      for (const fe of node.features) ids.add(fe.feature.id)
+    } else {
+      ids.add(node.feature.id)
+    }
+  }
+  return ids
+})
+
 // 过滤可选主题
 const filteredFeatures = computed(() => {
   const q = searchQuery.value.toLowerCase()
-  const selectedIds = new Set(catalog.value.features.map((e: CatEntry) => e.feature.id))
   return allFeatures.value.filter((f: FeatureSummary) => {
     const catName = f.categoryId ? categoryMap.value.get(f.categoryId) || '' : ''
-    return !selectedIds.has(f.id) &&
+    return !selectedFeatureIds.value.has(f.id) &&
       (!q || f.title.toLowerCase().includes(q) || catName.toLowerCase().includes(q))
   })
 })
@@ -145,10 +205,27 @@ async function loadData() {
   if (!isNew.value) {
     try {
       const data = await getCatalog(catalogIdVal) as unknown as CatalogResponse
-      catalog.value = {
-        title: data.title,
-        targets: data.targets || [],
-        features: (data.features || []).map((f: CatalogResponseFeature) => ({
+      function parseNode(node: CatalogResponseNode): CatNode {
+        if ((node as CatalogResponsePart).type === 'part') {
+          const p = node as CatalogResponsePart
+          return {
+            type: 'part',
+            id: p.id,
+            title: p.title,
+            features: (p.features || []).map((f: CatalogResponseFeature) => ({
+              feature: {
+                id: f.id,
+                title: f.title,
+                description: f.description,
+                sections: JSON.stringify(f.sections || []),
+                categoryId: f.categoryId,
+              },
+              sectionOrder: f.sectionOrder,
+            })),
+          }
+        }
+        const f = node as CatalogResponseFeature
+        return {
           feature: {
             id: f.id,
             title: f.title,
@@ -157,22 +234,69 @@ async function loadData() {
             categoryId: f.categoryId,
           },
           sectionOrder: f.sectionOrder,
-        })),
+        }
+      }
+      catalog.value = {
+        title: data.title,
+        targets: data.targets || [],
+        entries: (data.features || []).map(parseNode),
       }
     } catch {
       // 无权访问或不存在，清空内容
-      catalog.value = { title: '', targets: [], features: [] }
+      catalog.value = { title: '', targets: [], entries: [] }
     }
   } else {
-    catalog.value = { title: '', targets: [], features: [] }
+    catalog.value = { title: '', targets: [], entries: [] }
   }
+  dirty.value = false
 }
 
 function addFeature(f: FeatureSummary) {
-  // f.sections 从 API 返回时已经是 JSON 字符串（数据库原始格式），
-  // 不要再 JSON.stringify，否则会双重编码导致解析失败
   const sectionsStr = typeof f.sections === 'string' ? f.sections : JSON.stringify(f.sections || [])
-  catalog.value.features.push({
+  catalog.value.entries.push({
+    feature: {
+      id: f.id, title: f.title, description: f.description,
+      sections: sectionsStr, categoryId: f.categoryId,
+      totalSections: f.totalSections, approvedSections: f.approvedSections,
+    },
+  })
+  dirty.value = true
+  highlightedId.value = f.id
+  nextTick(() => {
+    const el = sortList.value?.querySelector(`[data-entry-id="${f.id}"]`)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    setTimeout(() => { highlightedId.value = null }, 1500)
+  })
+}
+
+// 添加 Part
+function addPart() {
+  const partCount = catalog.value.entries.filter(e => isPart(e)).length + 1
+  catalog.value.entries.push({
+    type: 'part',
+    id: `part-${Date.now()}`,
+    title: `部分 ${partCount}`,
+    features: [],
+  })
+  dirty.value = true
+}
+
+// 删除 Part（features 提升到顶层）
+function removePart(index: number) {
+  const node = catalog.value.entries[index]
+  if (!isPart(node)) return
+  // 将 part 内的 features 提升到 entries 顶层
+  const promoted = node.features
+  catalog.value.entries.splice(index, 1, ...promoted)
+  dirty.value = true
+}
+
+// 向 Part 内添加 feature
+function addFeatureToPart(targetPartId: string, f: FeatureSummary) {
+  const node = catalog.value.entries.find(e => isPart(e) && (e as CatPart).id === targetPartId)
+  if (!node || !isPart(node)) return
+  const sectionsStr = typeof f.sections === 'string' ? f.sections : JSON.stringify(f.sections || [])
+  node.features.push({
     feature: {
       id: f.id,
       title: f.title,
@@ -183,11 +307,32 @@ function addFeature(f: FeatureSummary) {
       approvedSections: f.approvedSections,
     },
   })
+  dirty.value = true
+  highlightedId.value = f.id
+  nextTick(() => {
+    const el = sortList.value?.querySelector(`[data-entry-id="${f.id}"]`)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    setTimeout(() => { highlightedId.value = null }, 1500)
+  })
 }
 
-function removeFeature(index: number) {
-  catalog.value.features.splice(index, 1)
-  if (expandedIndex.value === index) expandedIndex.value = null
+// 从 Part 中移除 feature（提升到顶层）
+function removeFeatureFromPart(partIndex: number, featIndex: number) {
+  const node = catalog.value.entries[partIndex]
+  if (!isPart(node)) return
+  const [removed] = node.features.splice(featIndex, 1)
+  if (removed) {
+    // 插入到该 part 之后
+    catalog.value.entries.splice(partIndex + 1, 0, removed)
+  }
+  dirty.value = true
+}
+
+function removeFeature(entryIndex: number) {
+  catalog.value.entries.splice(entryIndex, 1)
+  if (expandedIndex.value === entryIndex) expandedIndex.value = null
+  else if (expandedIndex.value !== null && expandedIndex.value > entryIndex) expandedIndex.value--
+  dirty.value = true
 }
 
 async function deleteCatalog(id: string) {
@@ -202,15 +347,39 @@ async function deleteCatalog(id: string) {
 
 function toggleExpand(index: number) {
   expandedIndex.value = expandedIndex.value === index ? null : index
+  nextTick(() => initSectionSorts())
 }
 
-// section 拖拽排序
+// section 拖拽排序（entryIndex 指向 entries 中的 CatEntry）
 function updateSectionOrder(entryIndex: number, newOrder: string[]) {
-  const entry = catalog.value.features[entryIndex]
+  const entry = catalog.value.entries[entryIndex]
+  if (isPart(entry)) return
   const defaultOrder = getSections(entry.feature).map(s => s.key)
   // 只有顺序跟默认不同时才保存
   const isSame = newOrder.length === defaultOrder.length && newOrder.every((k, i) => k === defaultOrder[i])
   entry.sectionOrder = isSame ? undefined : newOrder
+  if (!isSame) dirty.value = true
+}
+
+// Part 内 section 排序（partIndex + featIndex）
+function updateSectionOrderInPart(partIndex: number, featIndex: number, newOrder: string[]) {
+  const node = catalog.value.entries[partIndex]
+  if (!isPart(node)) return
+  const entry = node.features[featIndex]
+  const defaultOrder = getSections(entry.feature).map(s => s.key)
+  const isSame = newOrder.length === defaultOrder.length && newOrder.every((k, i) => k === defaultOrder[i])
+  entry.sectionOrder = isSame ? undefined : newOrder
+  if (!isSame) dirty.value = true
+}
+
+// 从编排中移除某个 section
+async function removeSection(entryIndex: number, sectionKey: string) {
+  const entry = catalog.value.entries[entryIndex]
+  if (isPart(entry)) return
+  const current = getOrderedSections(entry).map(s => s.key)
+  const filtered = current.filter(k => k !== sectionKey)
+  updateSectionOrder(entryIndex, filtered)
+  dirty.value = true
 }
 
 async function save() {
@@ -223,26 +392,43 @@ async function save() {
   }
   saving.value = true
   try {
+    function serializeNode(node: CatNode): object {
+      if (isPart(node)) {
+        return {
+          type: 'part',
+          id: node.id,
+          title: node.title,
+          features: node.features.map((e: CatEntry) => ({
+            featureId: e.feature.id,
+            sectionOrder: e.sectionOrder,
+          })),
+        }
+      }
+      return {
+        featureId: node.feature.id,
+        sectionOrder: node.sectionOrder,
+      }
+    }
     const payload = {
       title: catalog.value.title.trim(),
       targets: catalog.value.targets,
-      features: catalog.value.features.map((e: CatEntry) => ({
-        featureId: e.feature.id,
-        sectionOrder: e.sectionOrder,
-      })),
+      features: catalog.value.entries.map(serializeNode) as CatalogEntry[],
       cover: {},
       projectId: currentProjectId.value || undefined,
     }
 
     if (isNew.value) {
       const res = await createCatalog(payload)
+      dirty.value = false
       router.replace(`/catalogs/${res.id}`)
     } else {
       await updateCatalog(catalogId.value, payload)
-      // 刷新目录列表和当前数据
+      dirty.value = false
+      saveSuccess.value = true
+      setTimeout(() => { saveSuccess.value = false }, 2000)
       await loadData()
       await nextTick()
-      initSort()
+      initAllSorts()
     }
   } catch (e: unknown) {
     saveError.value = e instanceof Error ? e.message : '网络错误，保存失败'
@@ -255,19 +441,152 @@ async function save() {
 watch(catalogId, () => {
   loadData().then(() => {
     nextTick(() => {
-      initSort()
+      initAllSorts()
     })
   })
 })
 
-// 初始化拖拽（主题排序）
+async function switchCatalog(id: string | number | null) {
+  if (!id || id === catalogId.value) return
+  if (dirty.value && !window.confirm('有未保存的更改，确定切换？')) return
+  router.push(`/catalogs/${id}`)
+}
+
+function handleBeforeUnload(e: BeforeUnloadEvent) {
+  if (dirty.value) {
+    e.preventDefault()
+  }
+}
+
+watch(() => catalog.value.title, () => { dirty.value = true })
+
+onMounted(() => {
+  window.addEventListener('beforeunload', handleBeforeUnload)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload)
+})
+
+// 计算全局 feature 编号（跨 Part 连续）
+function getGlobalFeatNum(entryIndex: number, featIndex?: number): number {
+  let count = 0
+  for (let i = 0; i < catalog.value.entries.length; i++) {
+    const node = catalog.value.entries[i]
+    if (i === entryIndex) {
+      if (isPart(node)) {
+        // 对于 part 内的 feature，计算在它之前的 feature 数量
+        if (featIndex !== undefined) {
+          return count + featIndex + 1
+        }
+        // 对于 part 本身，返回其第一个 feature 的编号
+        return count + 1
+      }
+      return count + 1
+    }
+    if (isPart(node)) {
+      count += node.features.length
+    } else {
+      count++
+    }
+  }
+  return count + 1
+}
+
+// ====== 拖拽系统 ======
+// SortableJS 负责同容器内排序；左侧池 HTML5 拖拽负责添加到右侧
 const sortList = ref<HTMLElement>()
 
-function onDragStart(e: DragEvent, f: FeatureSummary) {
+// ---- 左侧池 HTML5 拖拽 → 右侧 ----
+
+function onPoolDragStart(e: DragEvent, f: FeatureSummary) {
   if (!e.dataTransfer) return
   e.dataTransfer.setData('text/plain', f.id)
   e.dataTransfer.effectAllowed = 'copy'
 }
+
+function onDragOver(e: DragEvent) {
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+}
+
+/** 主区域 drop：接收左侧池拖入 → 顶层 */
+function onDrop(e: DragEvent) {
+  const target = e.target as HTMLElement
+  if (target.closest('.part-drop-target')) return
+  const featureId = e.dataTransfer?.getData('text/plain')
+  if (!featureId) return
+  const f = allFeatures.value.find((x: FeatureSummary) => x.id === featureId)
+  if (f) addFeature(f)
+}
+
+// ---- Part 容器 HTML5 drop：接收左侧池拖入 ----
+
+function onPartDragEnter(e: DragEvent) {
+  const el = (e.currentTarget as HTMLElement).closest('.part-drop-target') as HTMLElement | null
+  if (!el) return
+  const count = Number(el.dataset.dragCount || '0') + 1
+  el.dataset.dragCount = String(count)
+  el.classList.add('bg-indigo-50')
+}
+
+function onPartDragLeave(e: DragEvent) {
+  const el = (e.currentTarget as HTMLElement).closest('.part-drop-target') as HTMLElement | null
+  if (!el) return
+  const count = Math.max(0, Number(el.dataset.dragCount || '1') - 1)
+  el.dataset.dragCount = String(count)
+  if (count === 0) el.classList.remove('bg-indigo-50')
+}
+
+function onPartDrop(e: DragEvent) {
+  const el = (e.currentTarget as HTMLElement).closest('.part-drop-target') as HTMLElement | null
+  if (el) { el.dataset.dragCount = '0'; el.classList.remove('bg-indigo-50') }
+  const targetPartId = el?.dataset.partId
+  if (!targetPartId) return
+  const featureId = e.dataTransfer?.getData('text/plain')
+  if (!featureId) return
+  const f = allFeatures.value.find((x: FeatureSummary) => x.id === featureId)
+  if (!f) return
+  const node = catalog.value.entries.find(e => isPart(e) && (e as CatPart).id === targetPartId)
+  if (!node || !isPart(node)) return
+  const sectionsStr = typeof f.sections === 'string' ? f.sections : JSON.stringify(f.sections || [])
+  node.features.push({
+    feature: { id: f.id, title: f.title, description: f.description, sections: sectionsStr, categoryId: f.categoryId, totalSections: f.totalSections, approvedSections: f.approvedSections },
+  })
+  dirty.value = true
+  nextTick(() => initAllSorts())
+}
+
+// ---- 按钮操作：跨容器移动 ----
+
+function moveFeatureToPart(featureId: string, targetPartId: string) {
+  const src = findEntryById(featureId)
+  if (!src || src.type === 'part') return // 只在顶层才能移入 Part
+  const n = catalog.value.entries[src.entryIndex]
+  if (!n || isPart(n)) return
+  const [moved] = catalog.value.entries.splice(src.entryIndex, 1) as unknown as CatEntry[]
+  const targetNode = catalog.value.entries.find(e => isPart(e) && (e as CatPart).id === targetPartId)
+  if (!targetNode || !isPart(targetNode)) { catalog.value.entries.push(moved) }
+  else { targetNode.features.push(moved) }
+  expandedIndex.value = null
+  dirty.value = true
+  nextTick(() => initAllSorts())
+}
+
+/** 在数据模型中查找 featureId */
+function findEntryById(featureId: string): { type: 'main' | 'part'; entryIndex: number; featIndex?: number } | null {
+  for (let i = 0; i < catalog.value.entries.length; i++) {
+    const node = catalog.value.entries[i]
+    if (isPart(node)) {
+      for (let j = 0; j < node.features.length; j++) {
+        if (node.features[j].feature.id === featureId) return { type: 'part', entryIndex: i, featIndex: j }
+      }
+    } else if (node.feature.id === featureId) return { type: 'main', entryIndex: i }
+  }
+  return null
+}
+
+// ---- SortableJS：同容器内排序 ----
 
 function initSort() {
   if (!sortList.value) return
@@ -279,77 +598,103 @@ function initSort() {
     filter: '.drop-zone-placeholder',
     ghostClass: 'bg-blue-50',
     onEnd(evt) {
-      if (evt.oldIndex !== undefined && evt.newIndex !== undefined) {
-        const items = catalog.value.features
-        const [moved] = items.splice(evt.oldIndex, 1)
-        items.splice(evt.newIndex, 0, moved)
-        expandedIndex.value = null
-      }
-    },
-  })
-}
-
-function onDragOver(e: DragEvent) {
-  e.preventDefault()
-  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
-}
-
-function onDrop(e: DragEvent) {
-  const featureId = e.dataTransfer?.getData('text/plain')
-  if (!featureId) return
-  const feature = allFeatures.value.find((f: FeatureSummary) => f.id === featureId)
-  if (feature) addFeature(feature)
-}
-
-// section 拖拽初始化
-function initSectionSort(index: number) {
-  const container = sortList.value?.querySelectorAll('.section-sort-area')[index] as HTMLElement | undefined
-  if (!container) return
-  const el = container as SortableElement
-  if (el._sortable) el._sortable.destroy()
-  Sortable.create(container, {
-    animation: 200,
-    handle: '.section-drag-handle',
-    ghostClass: 'bg-blue-50',
-    onEnd(evt) {
       if (evt.oldIndex === undefined || evt.newIndex === undefined) return
-      const entry = catalog.value.features[index]
-      const ordered = getOrderedSections(entry)
-      const [moved] = ordered.splice(evt.oldIndex, 1)
-      ordered.splice(evt.newIndex, 0, moved)
-      updateSectionOrder(index, ordered.map(s => s.key))
+      const [moved] = catalog.value.entries.splice(evt.oldIndex, 1)
+      catalog.value.entries.splice(evt.newIndex, 0, moved)
+      expandedIndex.value = null
+      dirty.value = true
     },
   })
 }
 
-// 展开时初始化 section 拖拽
-watch(expandedIndex, async (newVal) => {
-  if (newVal !== null) {
-    await nextTick()
-    initSectionSort(newVal)
-  }
-})
+function initPartSorts() {
+  const containers = sortList.value?.querySelectorAll<HTMLElement>('.part-features-sort')
+  containers?.forEach(container => {
+    const el = container as SortableElement
+    if (el._sortable) el._sortable.destroy()
+    const partId = (container.closest('.part-drop-target') as HTMLElement | null)?.dataset.partId
+    if (!partId) return
+    Sortable.create(container, {
+      animation: 200,
+      handle: '.part-feat-drag',
+      ghostClass: 'bg-blue-50',
+      onEnd(evt) {
+        if (evt.oldIndex === undefined || evt.newIndex === undefined) return
+        const node = catalog.value.entries.find(e => isPart(e) && (e as CatPart).id === partId)
+        if (!node || !isPart(node)) return
+        const [moved] = node.features.splice(evt.oldIndex, 1)
+        node.features.splice(evt.newIndex, 0, moved)
+        dirty.value = true
+      },
+    })
+  })
+}
+
+function initAllSorts() {
+  initSort()
+  initPartSorts()
+  initSectionSorts()
+}
+
+// ---- 章节排序 ----
+
+function initSectionSorts() {
+  const areas = sortList.value?.querySelectorAll<HTMLElement>('.section-sort-area')
+  areas?.forEach(area => {
+    const el = area as SortableElement
+    if (el._sortable) el._sortable.destroy()
+    const featureId = area.dataset.featureId
+    if (!featureId) return
+    Sortable.create(area, {
+      animation: 200,
+      handle: '.section-drag-handle',
+      ghostClass: 'bg-blue-50',
+      onEnd(evt) {
+        if (evt.oldIndex === undefined || evt.newIndex === undefined) return
+        // 用 featureId 查找 entry（避免索引移位）
+        const src = findEntryById(featureId)
+        if (!src) return
+        let entry: CatEntry | undefined
+        if (src.type === 'part' && src.featIndex !== undefined) {
+          const node = catalog.value.entries[src.entryIndex]
+          if (isPart(node)) entry = node.features[src.featIndex]
+        } else if (src.type === 'main') {
+          const node = catalog.value.entries[src.entryIndex]
+          if (!isPart(node)) entry = node
+        }
+        if (!entry) return
+        const ordered = getOrderedSections(entry)
+        const [moved] = ordered.splice(evt.oldIndex, 1)
+        ordered.splice(evt.newIndex, 0, moved)
+        const defaultOrder = getSections(entry.feature).map(s => s.key)
+        const newOrder = ordered.map(s => s.key)
+        const isSame = newOrder.length === defaultOrder.length && newOrder.every((k, i) => k === defaultOrder[i])
+        entry.sectionOrder = isSame ? undefined : newOrder
+        dirty.value = true
+      },
+    })
+  })
+}
 
 onMounted(async () => {
   await loadData()
   await nextTick()
-  initSort()
+  initAllSorts()
 })
 
-// 目录内容变化时重建右侧拖拽
-watch(() => catalog.value.features.length, async () => {
+// 目录内容变化时重建拖拽
+watch(() => catalog.value.entries.length, async () => {
   await nextTick()
-  initSort()
+  initAllSorts()
 })
 
 watch(currentProjectId, () => {
   loadData().then(() => {
-    // 切换项目后，如果当前目录不属于新项目，跳转到新建
     if (!isNew.value && !catalogList.value.some((c: CatalogInfo) => c.id === catalogId.value)) {
       router.replace('/catalogs/new')
     }
     nextTick(() => {
-      initSort()
+      initAllSorts()
     })
   })
 })
@@ -360,45 +705,31 @@ watch(currentProjectId, () => {
     <!-- 头部 -->
     <PageHeader>
       <template #left>
-        <router-link to="/features" class="text-gray-400 hover:text-gray-600"><span class="i-lucide-arrow-left w-4 h-4 inline-block align-middle mr-1" />返回</router-link>
-        <input v-model="catalog.title" class="text-lg font-semibold bg-transparent border-none outline-none" placeholder="目录名称" :readonly="!isPM" />
+        <SelectDropdown
+          v-if="catalogList.length > 0"
+          width-class="w-48"
+          :model-value="isNew ? '' : catalogId"
+          :options="catalogList.map(c => ({ value: c.id, label: c.title }))"
+          placeholder="选择目录"
+          @update:model-value="switchCatalog"
+        />
+        <span class="text-xs text-gray-400 flex-shrink-0">{{ catalogList.length }} 个目录</span>
+        <button v-if="canManageProject && !isNew" class="btn-secondary text-sm px-2 py-1.5" title="新建目录" @click="router.push('/catalogs/new')"><span class="i-lucide-plus w-4 h-4 inline-block align-middle" /></button>
+        <button v-if="canManageProject && !isNew" class="btn-secondary text-sm px-2 py-1.5 text-red-400 hover:text-red-600" title="删除目录" @click="deleteCatalog(catalogId)"><span class="i-lucide-trash-2 w-4 h-4 inline-block align-middle" /></button>
+        <div class="w-px h-5 bg-gray-200" />
+        <input v-model="catalog.title" class="text-lg font-semibold bg-transparent border-none outline-none min-w-0" placeholder="目录名称" :readonly="!canManageProject" />
       </template>
       <template #right>
+        <span v-if="dirty" class="text-xs text-amber-500 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-amber-400" />未保存</span>
         <ErrorMessage :message="saveError" />
-        <button class="btn-secondary text-sm" @click="router.push(`/preview/${catalogId}`)">预览</button>
-        <button class="btn-primary text-sm" v-if="isPM" :disabled="saving" @click="save">{{ saving ? '保存中...' : '保存' }}</button>
+        <span v-if="saveSuccess" class="text-xs text-green-600 flex items-center gap-1"><span class="i-lucide-check w-3.5 h-3.5 inline-block align-middle" />已保存</span>
+        <button class="btn-primary text-sm" v-if="canManageProject" :disabled="saving" @click="save">{{ saving ? '保存中...' : '保存' }}</button>
       </template>
     </PageHeader>
 
-    <!-- 已保存目录列表 -->
-    <div v-if="catalogList.length > 0" class="flex items-center gap-2 px-6 py-2 bg-gray-50 border-b border-gray-200 overflow-x-auto">
-      <span class="text-xs text-gray-400 flex-shrink-0">已保存的目录：</span>
-      <button
-        v-for="c in catalogList"
-        :key="c.id"
-        class="text-xs px-2.5 py-1 rounded-full transition-colors flex-shrink-0 flex items-center gap-1"
-        :class="catalogId === c.id ? 'bg-blue-100 text-blue-700 font-medium' : 'text-gray-500 hover:bg-gray-200'"
-        @click="router.push(`/catalogs/${c.id}`)"
-      >
-        {{ c.title }}
-        <span
-          v-if="isPM"
-          class="text-red-400 hover:text-red-600"
-          @click.stop="deleteCatalog(c.id)"
-        ><span class="i-lucide-x w-4 h-4 inline-block align-middle" /></span>
-      </button>
-      <button
-        v-if="isPM"
-        class="text-xs px-2.5 py-1 rounded-full text-gray-400 hover:bg-gray-200 flex-shrink-0 inline-flex items-center gap-0.5"
-        @click="router.push('/catalogs/new')"
-      >
-        <span class="i-lucide-plus w-3.5 h-3.5" />新建
-      </button>
-    </div>
-
     <div class="flex-1 flex overflow-hidden">
       <!-- 左侧：可选主题（仅 PM 可编辑） -->
-      <aside v-if="isPM" class="w-72 border-r border-gray-200 bg-white flex-shrink-0 flex flex-col">
+      <aside v-if="canManageProject" class="w-72 border-r border-gray-200 bg-white flex-shrink-0 flex flex-col">
         <div class="p-4 flex-shrink-0">
           <input
             v-model="searchQuery"
@@ -418,102 +749,272 @@ watch(currentProjectId, () => {
               <span v-if="catId === '__uncategorized__'" class="text-gray-300">未分类</span>
               <span v-else>{{ categoryInfo.get(catId)?.name || catId }}</span>
             </div>
-            <button
+            <div
               v-for="f in items"
               :key="f.id"
               :data-feature-id="f.id"
-              draggable="true"
-              class="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-gray-50 transition-colors mb-1 flex items-center gap-2 group cursor-grab"
-              @click="addFeature(f)"
-              @dragstart="onDragStart($event, f)"
+              class="w-full text-left rounded-lg text-sm hover:bg-gray-50 transition-colors mb-1 flex items-center group"
             >
-              <span class="flex-1 text-gray-700">{{ f.title }}</span>
-              <span v-if="f.totalSections" class="text-xs text-gray-400 flex-shrink-0">
-                {{ f.approvedSections ?? 0 }}/{{ f.totalSections }}
-              </span>
-              <span class="text-gray-300 opacity-0 group-hover:opacity-100"><span class="i-lucide-plus w-4 h-4 inline-block align-middle" /></span>
-            </button>
+              <button
+                class="flex-1 flex items-center gap-2 px-3 py-2 cursor-grab"
+                draggable="true"
+                @click="addFeature(f)"
+                @dragstart="onPoolDragStart($event, f)"
+              >
+                <span class="flex-1 text-gray-700 text-left">{{ f.title }}</span>
+                <span v-if="f.totalSections" class="text-xs text-gray-400 flex-shrink-0">
+                  {{ f.approvedSections ?? 0 }}/{{ f.totalSections }}
+                </span>
+              </button>
+              <div v-if="catalog.entries.some(e => isPart(e))" class="relative flex-shrink-0">
+                <button
+                  class="text-gray-300 hover:text-indigo-500 px-1 py-2 transition-colors"
+                  title="添加到部分"
+                  @click.stop="openPoolMoveMenu($event, f)"
+                >
+                  <span class="i-lucide-folder-plus w-3.5 h-3.5 inline-block align-middle" />
+                </button>
+              </div>
+            </div>
           </template>
 
           <EmptyState v-if="Object.keys(grouped).length === 0" title="暂无可用主题" />
         </div>
       </aside>
 
-      <!-- 右侧：已编排主题 -->
+      <!-- 右侧：已编排内容 -->
       <main
         class="flex-1 overflow-y-auto bg-gray-50 p-6"
         @dragover="onDragOver"
         @drop="onDrop"
       >
-        <div ref="sortList" class="space-y-2 max-w-2xl" :class="{ 'min-h-[240px]': catalog.features.length === 0 }">
+        <!-- 添加部分按钮 -->
+        <div v-if="canManageProject" class="mb-3 max-w-3xl">
+          <button class="btn-secondary text-sm" @click="addPart">
+            <span class="i-lucide-folder-plus w-4 h-4 inline-block align-middle" /> 添加部分
+          </button>
+        </div>
+
+        <div ref="sortList" class="space-y-3 max-w-3xl min-h-[240px] pb-24">
           <!-- 空状态 / 拖放目标区 -->
           <div
-            v-if="catalog.features.length === 0"
+            v-if="catalog.entries.length === 0"
             class="drop-zone-placeholder border-2 border-dashed border-gray-300 rounded-xl h-48 flex flex-col items-center justify-center text-gray-400 transition-colors hover:border-blue-400 hover:text-blue-400"
           >
             <span class="i-lucide-book-open text-3xl mb-3 opacity-40" />
             <span class="text-sm">从左侧拖入或点击主题添加到目录</span>
           </div>
 
-          <div
-            v-for="(entry, i) in catalog.features"
-            :key="entry.feature.id"
-            class="card !p-0 overflow-hidden"
-          >
-            <!-- 主题行 -->
-            <div class="flex items-center gap-3 px-4 py-3">
-              <div v-if="isPM" class="drag-handle cursor-grab text-gray-300 hover:text-gray-500 text-lg"><span class="i-lucide-grip-vertical w-4 h-4 inline-block align-middle" /></div>
-              <span class="text-sm font-mono text-gray-300 bg-gray-100 px-2 py-0.5 rounded">
-                {{ i + 1 }}
-              </span>
-              <button
-                class="text-xs text-gray-400 hover:text-gray-600 w-5 h-5 flex items-center justify-center rounded"
-                @click="toggleExpand(i)"
-              >
-                <span :class="expandedIndex === i ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'" class="w-4 h-4 inline-block align-middle" />
-              </button>
-              <div class="flex-1 min-w-0">
-                <div class="font-medium text-gray-900 text-sm flex items-center gap-2">
-                  {{ entry.feature.title }}
-                  <span v-if="entry.feature.totalSections" class="text-xs font-normal" :class="(entry.feature.approvedSections ?? 0) === (entry.feature.totalSections ?? 0) ? 'text-green-500' : 'text-gray-400'">
-                    ✓{{ entry.feature.approvedSections ?? 0 }}/{{ entry.feature.totalSections }}
-                  </span>
-                </div>
-                <div class="text-xs text-gray-400 flex items-center gap-1.5">
-                  <template v-if="entry.feature.categoryId && categoryInfo.has(entry.feature.categoryId)">
-                    <span class="w-2 h-2 rounded-full flex-shrink-0" :style="{ backgroundColor: categoryInfo.get(entry.feature.categoryId)!.color }" />
-                    {{ categoryInfo.get(entry.feature.categoryId)!.name }} ·
-                  </template>
-                  {{ entry.feature.id }}
+          <template v-for="(node, ni) in catalog.entries" :key="isPart(node) ? node.id : node.feature.id">
+            <!-- ====== Part 容器 ====== -->
+            <div
+              v-if="isPart(node)"
+              class="part-drop-target card !p-0 overflow-hidden border-l-4 border-indigo-300 transition-colors"
+              :data-part-index="ni"
+              :data-part-id="node.id"
+              @dragenter.prevent="onPartDragEnter($event)"
+              @dragleave="onPartDragLeave($event)"
+              @dragover.prevent
+              @drop.stop.prevent="onPartDrop($event)"
+            >
+              <div class="flex items-center gap-3 px-4 py-3 bg-indigo-50/50">
+                <div v-if="canManageProject" class="drag-handle cursor-grab text-gray-300 hover:text-gray-500"><span class="i-lucide-grip-vertical w-4 h-4 inline-block align-middle" /></div>
+                <span class="i-lucide-folder text-indigo-400 w-4 h-4 inline-block align-middle flex-shrink-0" />
+                <input
+                  v-model="node.title"
+                  class="flex-1 text-sm font-semibold bg-transparent border-none outline-none text-gray-800"
+                  placeholder="部分名称"
+                  @input="dirty = true"
+                />
+                <span class="text-xs text-gray-400 flex-shrink-0">{{ node.features.length }} 个主题</span>
+                <button
+                  v-if="canManageProject"
+                  class="text-gray-300 hover:text-red-500 text-sm flex-shrink-0"
+                  title="删除此部分（主题将提升到顶层）"
+                  @click="removePart(ni)"
+                >
+                  <span class="i-lucide-trash-2 w-4 h-4 inline-block align-middle" />
+                </button>
+              </div>
+
+              <!-- Part 内的 features（始终渲染以支持 SortableJS group 空容器拖入） -->
+              <div class="part-features-sort border-t border-gray-100" :class="{ 'min-h-[40px]': node.features.length === 0 }">
+                <div v-if="node.features.length === 0" class="px-4 py-3 text-xs text-gray-400 text-center">拖入左侧主题，或点击左侧主题的 <span class="i-lucide-folder-plus w-3 h-3 inline-block align-middle text-indigo-400" /> 按钮添加到此处</div>
+                <div
+                  v-for="(fe, fi) in node.features"
+                  :key="fe.feature.id"
+                  :data-entry-id="fe.feature.id"
+                  class="border-b border-gray-50 last:border-b-0"
+                  :class="{ 'highlight-new': highlightedId === fe.feature.id }"
+                >
+                  <div class="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-50" @click="toggleExpand(ni * 10000 + fi)">
+                    <div v-if="canManageProject" class="part-feat-drag cursor-grab text-gray-300 hover:text-gray-500 flex-shrink-0"><span class="i-lucide-grip-vertical w-3.5 h-3.5 inline-block align-middle" /></div>
+                    <span class="text-xs font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{{ getGlobalFeatNum(ni, fi) }}</span>
+                    <span :class="expandedIndex === ni * 10000 + fi ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'" class="w-3.5 h-3.5 text-gray-400 inline-block align-middle flex-shrink-0" />
+                    <div class="flex-1 min-w-0">
+                      <span class="text-sm text-gray-800">{{ fe.feature.title }}</span>
+                      <span v-if="fe.feature.totalSections" class="text-xs ml-1.5" :class="(fe.feature.approvedSections ?? 0) === (fe.feature.totalSections ?? 0) ? 'text-green-500' : 'text-gray-400'">
+                        ✓{{ fe.feature.approvedSections ?? 0 }}/{{ fe.feature.totalSections }}
+                      </span>
+                    </div>
+                    <button
+                      v-if="canManageProject"
+                      class="text-gray-300 hover:text-red-500 text-xs"
+                      title="移出此部分"
+                      @click.stop="removeFeatureFromPart(ni, fi)"
+                    >
+                      <span class="i-lucide-log-out w-3.5 h-3.5 inline-block align-middle" />
+                    </button>
+                  </div>
+
+                  <!-- 展开的 section 排序 -->
+                  <div v-if="expandedIndex === ni * 10000 + fi" class="border-t border-gray-100 bg-gray-50 px-4 py-2">
+                    <div v-if="canManageProject" class="text-xs text-gray-400 mb-2">章节排序（拖拽调整）</div>
+                    <div
+                      class="section-sort-area space-y-1"
+                      :data-feature-id="fe.feature.id"
+                    >
+                      <div
+                        v-for="(sec, si) in getOrderedSections(fe)"
+                        :key="sec.key"
+                        class="flex items-center gap-2 text-sm bg-white px-3 py-1.5 rounded border border-gray-100 group"
+                      >
+                        <div v-if="canManageProject" class="section-drag-handle cursor-grab text-gray-300 hover:text-gray-500"><span class="i-lucide-grip-vertical w-3.5 h-3.5 inline-block align-middle" /></div>
+                        <span class="text-gray-400 font-mono text-xs">{{ getGlobalFeatNum(ni, fi) }}.{{ si + 1 }}</span>
+                        <span class="text-gray-700 flex-1">{{ sec.title }}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <button
-                v-if="isPM"
-                class="text-gray-300 hover:text-red-500 text-sm"
-                @click.stop="removeFeature(i)"
-              >
-                <span class="i-lucide-x w-4 h-4 inline-block align-middle" />
-              </button>
             </div>
 
-            <!-- 展开的 section 排序 -->
-            <div v-if="expandedIndex === i" class="border-t border-gray-100 bg-gray-50 px-4 py-2">
-              <div v-if="isPM" class="text-xs text-gray-400 mb-2">章节排序（拖拽调整）</div>
-              <div class="section-sort-area space-y-1">
+            <!-- ====== 直接 Feature（不在 Part 内） ====== -->
+            <div
+              v-else
+              :data-entry-id="node.feature.id"
+              class="card !p-0 overflow-hidden"
+              :class="{ 'highlight-new': highlightedId === node.feature.id }"
+            >
+              <div class="flex items-center gap-3 px-4 py-3 cursor-pointer" @click="toggleExpand(ni)">
+                <div v-if="canManageProject" class="drag-handle cursor-grab text-gray-300 hover:text-gray-500 flex-shrink-0"><span class="i-lucide-grip-vertical w-4 h-4 inline-block align-middle" /></div>
+                <span class="text-sm font-mono text-gray-400 bg-gray-100 px-2 py-0.5 rounded">{{ getGlobalFeatNum(ni) }}</span>
+                <span :class="expandedIndex === ni ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'" class="w-4 h-4 text-gray-400 inline-block align-middle flex-shrink-0" />
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium text-gray-900 text-sm flex items-center gap-2">
+                    {{ node.feature.title }}
+                    <span v-if="node.feature.totalSections" class="text-xs font-normal" :class="(node.feature.approvedSections ?? 0) === (node.feature.totalSections ?? 0) ? 'text-green-500' : 'text-gray-400'">
+                      ✓{{ node.feature.approvedSections ?? 0 }}/{{ node.feature.totalSections }}
+                    </span>
+                    <span
+                      v-if="node.feature.categoryId && categoryInfo.has(node.feature.categoryId)"
+                      class="text-xs font-normal px-1.5 py-0.5 rounded-full flex items-center gap-1"
+                      :style="{ backgroundColor: categoryInfo.get(node.feature.categoryId)!.color + '18', color: categoryInfo.get(node.feature.categoryId)!.color }"
+                    >
+                      <span class="w-1.5 h-1.5 rounded-full" :style="{ backgroundColor: categoryInfo.get(node.feature.categoryId)!.color }" />
+                      {{ categoryInfo.get(node.feature.categoryId)!.name }}
+                    </span>
+                  </div>
+                  <div v-if="node.feature.description" class="text-xs text-gray-400 truncate mt-0.5">{{ node.feature.description }}</div>
+                </div>
+                <div class="relative" v-if="canManageProject && catalog.entries.some(e => isPart(e))">
+                  <button
+                    class="text-gray-300 hover:text-indigo-500 text-xs px-1.5 py-1 rounded"
+                    title="移至部分"
+                    @click.stop="openMoveMenu($event, node.feature.id)"
+                  >
+                    <span class="i-lucide-folder-input w-3.5 h-3.5 inline-block align-middle" />
+                  </button>
+                  <Teleport to="body">
+                    <div v-if="movingFeatureId === node.feature.id" class="fixed inset-0 z-40" @click="movingFeatureId = null">
+                      <div
+                        class="absolute bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[160px]"
+                        :style="{ top: `${moveMenuY}px`, left: `${moveMenuX}px` }"
+                        @click.stop
+                      >
+                        <div class="text-xs text-gray-400 px-3 py-1">移至部分：</div>
+                        <button
+                          v-for="(en, eni) in catalog.entries"
+                          :key="isPart(en) ? en.id : ''"
+                          v-show="isPart(en)"
+                          class="w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 flex items-center gap-2"
+                          @click.stop="moveFeatureToPart(node.feature.id, (en as CatPart).id); movingFeatureId = null"
+                        >
+                          <span class="i-lucide-folder w-3.5 h-3.5 inline-block align-middle text-indigo-400" />
+                          {{ (en as CatPart).title || '未命名部分' }}
+                        </button>
+                      </div>
+                    </div>
+                  </Teleport>
+                </div>
+                <button v-if="canManageProject" class="text-gray-300 hover:text-red-500 text-sm" @click.stop="removeFeature(ni)">
+                  <span class="i-lucide-x w-4 h-4 inline-block align-middle" />
+                </button>
+              </div>
+
+              <!-- 展开的 section 排序 -->
+              <div v-if="expandedIndex === ni" class="border-t border-gray-100 bg-gray-50 px-4 py-2">
+                <div v-if="canManageProject" class="text-xs text-gray-400 mb-2">章节排序（拖拽调整，点击 × 移除）</div>
                 <div
-                  v-for="sec in getOrderedSections(entry)"
-                  :key="sec.key"
-                  class="flex items-center gap-2 text-sm bg-white px-3 py-1.5 rounded border border-gray-100"
+                  class="section-sort-area space-y-1"
+                  :data-feature-id="node.feature.id"
                 >
-                  <div v-if="isPM" class="section-drag-handle cursor-grab text-gray-300 hover:text-gray-500"><span class="i-lucide-grip-vertical w-4 h-4 inline-block align-middle" /></div>
-                  <span class="text-gray-500 font-mono text-xs">{{ sec.key }}</span>
-                  <span class="text-gray-700">{{ sec.title }}</span>
+                  <div
+                    v-for="(sec, si) in getOrderedSections(node)"
+                    :key="sec.key"
+                    class="flex items-center gap-2 text-sm bg-white px-3 py-1.5 rounded border border-gray-100 group"
+                  >
+                    <div v-if="canManageProject" class="section-drag-handle cursor-grab text-gray-300 hover:text-gray-500"><span class="i-lucide-grip-vertical w-3.5 h-3.5 inline-block align-middle" /></div>
+                    <span class="text-gray-400 font-mono text-xs">{{ getGlobalFeatNum(ni) }}.{{ si + 1 }}</span>
+                    <span class="text-gray-700 flex-1">{{ sec.title }}</span>
+                    <button
+                      v-if="canManageProject"
+                      class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="移除此章节"
+                      @click.stop="removeSection(ni, sec.key)"
+                    >
+                      <span class="i-lucide-x w-3.5 h-3.5 inline-block align-middle" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </template>
         </div>
       </main>
     </div>
   </div>
+
+  <!-- 左侧池 "添加到部分" 下拉菜单 -->
+  <Teleport to="body">
+    <div v-if="movingPoolFeature" class="fixed inset-0 z-40" @click="movingPoolFeature = null">
+      <div
+        class="absolute bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[160px]"
+        :style="{ top: `${poolMenuY}px`, left: `${poolMenuX}px` }"
+        @click.stop
+      >
+        <div class="text-xs text-gray-400 px-3 py-1">添加到：</div>
+        <button
+          v-for="(en, eni) in catalog.entries"
+          :key="isPart(en) ? en.id : ''"
+          v-show="isPart(en)"
+          class="w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 flex items-center gap-2"
+          @click.stop="addFeatureToPart((en as CatPart).id, movingPoolFeature!); movingPoolFeature = null"
+        >
+          <span class="i-lucide-folder w-3.5 h-3.5 inline-block align-middle text-indigo-400" />
+          {{ (en as CatPart).title || '未命名部分' }}
+        </button>
+      </div>
+    </div>
+  </Teleport>
 </template>
+
+<style scoped>
+@keyframes highlight-fade {
+  from { background-color: #eff6ff; }
+  to { background-color: transparent; }
+}
+.highlight-new {
+  animation: highlight-fade 1.5s ease-out;
+}
+</style>

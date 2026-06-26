@@ -1,20 +1,24 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProject } from '@/composables/useProject'
 import { useAuth } from '@/composables/useAuth'
 import { useDialog } from '@/composables/useDialog'
-import { getCatalogs, getPreview, getVersions, getVersionPreview, publishCatalog, getExportUrl, getMarkdownExportUrl, getVersionExportUrl } from '@/api/endpoints/catalogs'
+import { useSidebarTree } from '@/composables/useSidebarTree'
+import { getCatalogs, getPreview, getVersions, getVersionPreview, publishCatalog, updateVersionVisibility, getMarkdownExportUrl } from '@/api/endpoints/catalogs'
 import { api } from '@/api/client'
-import type { CatalogInfo, CatalogVersionInfo, ManualPreviewResponse, VersionPreviewResponse } from '@shared/types'
+import type { CatalogInfo, CatalogVersionInfo, CatalogEntry } from '@shared/types'
 import SelectDropdown from '@/components/SelectDropdown.vue'
+import ModalDialog from '@/components/ModalDialog.vue'
 import LoadingState from '@/components/LoadingState.vue'
+import PreviewSidebar from './PreviewSidebar.vue'
+import PreviewContent from './PreviewContent.vue'
 
 const route = useRoute()
 const router = useRouter()
 const { currentProjectId } = useProject()
-const { isPM } = useAuth()
-const { prompt, alert } = useDialog()
+const { canManageProject } = useAuth()
+const { alert } = useDialog()
 
 // ====== 目录列表 ======
 const catalogs = ref<CatalogInfo[]>([])
@@ -25,7 +29,6 @@ async function loadCatalogs() {
   try {
     const data = await getCatalogs(pid || undefined)
     catalogs.value = data
-    // 默认选中：URL params（/preview/:id）> URL query（?catalog=）> 第一个
     const fromParam = route.params.id as string | undefined
     const fromQuery = route.query.catalog as string | undefined
     const fromUrl = fromParam || fromQuery
@@ -69,70 +72,161 @@ function selectVersion(id: string | number | null) {
   router.replace({ query })
 }
 
-// ====== 预览 ======
+// ====== 预览数据 ======
 const catalogTitle = ref('')
-const bodyHtml = ref('')
 const loading = ref(true)
 const previewMode = ref<'all' | 'approved'>('all')
 const notFound = ref(false)
 
+interface FeatureMeta {
+  id: string
+  title: string
+  description: string
+  sections: Array<{ key: string; title: string; description?: string }>
+}
+
+const previewData = ref<{
+  title: string
+  features: FeatureMeta[]
+  entries: CatalogEntry[]
+}>({
+  title: '',
+  features: [],
+  entries: [],
+})
+
+// 侧边栏树
+const { tree, chapterMap, hasParts, totalChapters } = useSidebarTree(
+  computed(() => previewData.value.entries),
+  computed(() => previewData.value.features),
+)
+
+// 当前章节
+const activeChapter = ref<number | null>(null)
+
+// 从 URL hash 恢复章节
+function syncChapterFromHash() {
+  const hash = window.location.hash.slice(1)
+  if (hash === 'cover') {
+    activeChapter.value = 0
+    return
+  }
+  const match = hash.match(/^ch(\d+)/)
+  if (match) {
+    const ch = parseInt(match[1])
+    if (ch >= 1 && ch <= totalChapters.value) {
+      activeChapter.value = ch
+      return
+    }
+  }
+  activeChapter.value = 0 // 默认概览
+}
+
+// 章节切换
+function navigateToChapter(chNum: number, anchorId?: string) {
+  if (chNum < 0 || chNum > totalChapters.value) return
+  activeChapter.value = chNum
+  if (chNum === 0) {
+    router.replace({ hash: '#cover' })
+  } else {
+    router.replace({ hash: '#ch' + chNum })
+  }
+  if (anchorId) {
+    nextTick(() => {
+      setTimeout(() => {
+        const el = document.getElementById(anchorId)
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 150)
+    })
+  }
+}
+
 async function loadPreview() {
-  if (!selectedCatalogId.value) { bodyHtml.value = ''; loading.value = false; return }
+  if (!selectedCatalogId.value) {
+    previewData.value = { title: '', features: [], entries: [] }
+    loading.value = false
+    return
+  }
   loading.value = true
   notFound.value = false
   try {
     if (selectedVersionId.value) {
       const data = await getVersionPreview(selectedCatalogId.value, selectedVersionId.value, previewMode.value)
-      bodyHtml.value = renderMarkdown(data.markdown)
       catalogTitle.value = data.title
+      previewData.value = {
+        title: data.title,
+        features: data.features || [],
+        entries: data.entries || [],
+      }
     } else {
       const data = await getPreview(selectedCatalogId.value, previewMode.value)
-      bodyHtml.value = renderMarkdown(data.markdown)
       catalogTitle.value = data.catalog.title
+      previewData.value = {
+        title: data.catalog.title,
+        features: data.features,
+        entries: data.catalog.entries || [],
+      }
     }
+    syncChapterFromHash()
   } catch {
     notFound.value = true
+    previewData.value = { title: '', features: [], entries: [] }
   } finally {
     loading.value = false
   }
 }
 
 // ====== 操作 ======
-const exporting = ref(false)
 const exportingMd = ref(false)
 const publishing = ref(false)
+const publishDialogVisible = ref(false)
+const publishChangeNotes = ref('')
+const publishVisibility = ref('project_members')
+const publishError = ref('')
 
-async function publishVersion() {
-  const changeNotes = await prompt('变更说明：')
-  if (changeNotes === null) return
+const visibilityOptions = [
+  { value: 'project_members', label: '仅项目成员' },
+  { value: 'login_required', label: '登录即可查看' },
+  { value: 'public', label: '公开（无需登录）' },
+]
+
+const visibilityLabels: Record<string, string> = {
+  public: '公开',
+  login_required: '登录可见',
+  project_members: '项目成员',
+}
+
+function openPublishDialog() {
+  publishChangeNotes.value = ''
+  publishVisibility.value = 'project_members'
+  publishError.value = ''
+  publishDialogVisible.value = true
+}
+
+async function doPublish() {
+  if (!publishChangeNotes.value.trim()) {
+    publishError.value = '请输入变更说明'
+    return
+  }
   publishing.value = true
+  publishError.value = ''
   try {
-    const data = await publishCatalog(selectedCatalogId.value!, changeNotes)
+    const data = await publishCatalog(selectedCatalogId.value!, publishChangeNotes.value.trim(), publishVisibility.value)
+    publishDialogVisible.value = false
     await loadVersions()
     await alert(`版本 v${data.versionMajor}.${data.versionMinor} 已发布`)
   } catch (e: unknown) {
-    await alert('发布失败: ' + (e instanceof Error ? e.message : '网络错误'))
+    publishError.value = e instanceof Error ? e.message : '网络错误'
   } finally { publishing.value = false }
 }
 
-async function exportDraft() {
-  if (!selectedCatalogId.value) return
-  exporting.value = true
+async function updateVisibility(versionId: string, visibility: string) {
   try {
-    const url = getExportUrl(selectedCatalogId.value, previewMode.value)
-    await api.download(url)
-  } catch (e: unknown) { await alert('导出失败: ' + (e instanceof Error ? e.message : '网络错误')) }
-  finally { exporting.value = false }
-}
-
-async function downloadVersion() {
-  if (!selectedVersionId.value || !selectedCatalogId.value) return
-  exporting.value = true
-  try {
-    const url = getVersionExportUrl(selectedCatalogId.value, selectedVersionId.value, previewMode.value)
-    await api.download(url)
-  } catch (e: unknown) { await alert('下载失败: ' + (e instanceof Error ? e.message : '网络错误')) }
-  finally { exporting.value = false }
+    await updateVersionVisibility(selectedCatalogId.value!, versionId, visibility)
+    await loadVersions()
+  } catch (e: unknown) {
+    await alert('切换失败: ' + (e instanceof Error ? e.message : '网络错误'))
+  }
 }
 
 async function exportMarkdown() {
@@ -145,48 +239,42 @@ async function exportMarkdown() {
   finally { exportingMd.value = false }
 }
 
-// ====== Markdown 渲染 ======
-function escapeHtml(s: string) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') }
-
-function renderMarkdown(md: string): string {
-  let html = md
-    .replace(/<crossref\s+[^>]*(?:data-feature-id|featureid|featureId)="([^"]+)"[^>]*>(?:[^<]*)<\/crossref>/gi,
-      (_m, fid: string) => { const lm = _m.match(/(?:data-label|label)="([^"]*)"/i); return `<a href="#feature-${fid}" class="crossref-link">→ 参见：${escapeHtml(lm?.[1] || fid)}</a>` })
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
-    .replace(/^#### (.+)$/gm, '<h4>$1</h4>').replace(/^### (.+)$/gm, '<h3>$1</h3>').replace(/^## (.+)$/gm, '<h2>$1</h2>').replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    .replace(/^---$/gm, '<hr>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
-    .replace(/`(.+?)`/g, '<code>$1</code>')
-    .replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br>')
-  html = '<p>' + html + '</p>'
-  html = html.replace(/<p><h([1-4])>/g, '<h$1>').replace(/<\/h([1-4])><\/p>/g, '</h$1>')
-  html = html.replace(/<p><hr><\/p>/g, '<hr>')
-  html = html.replace(/<p><blockquote>/g, '<blockquote>').replace(/<\/blockquote><\/p>/g, '</blockquote>')
-  html = html.replace(/<p><(ul|ol|pre)\b/g, '<$1').replace(/<\/(ul|ol|pre)>\s*<\/p>/g, '</$1>')
-  return html
-}
-
 // ====== 变更记录 ======
 const changelogVersions = computed(() => {
   if (!selectedVersionId.value) return versions.value
   const t = versions.value.find((v: CatalogVersionInfo) => v.id === selectedVersionId.value)
   if (!t) return versions.value
-  return versions.value.filter((v: CatalogVersionInfo) => v.versionMajor < t.versionMajor || (v.versionMajor === t.versionMajor && v.versionMinor <= t.versionMinor))
+  return versions.value.filter((v: CatalogVersionInfo) =>
+    v.versionMajor < t.versionMajor ||
+    (v.versionMajor === t.versionMajor && v.versionMinor <= t.versionMinor),
+  )
+})
+
+const currentVersionVis = computed(() => {
+  const v = versions.value.find((v: CatalogVersionInfo) => v.id === selectedVersionId.value)
+  return v?.visibility || 'project_members'
+})
+
+const docUrl = computed(() => {
+  const v = versions.value.find((v: CatalogVersionInfo) => v.id === selectedVersionId.value)
+  if (!v) return ''
+  return `/docs/${selectedCatalogId.value}/v${v.versionMajor}.${v.versionMinor}/`
 })
 
 // ====== 生命周期 ======
 async function reloadAll() { await loadCatalogs(); await loadVersions(); await loadPreview() }
 onMounted(reloadAll)
 
-// 项目切换：重载目录列表
 watch(currentProjectId, () => { reloadAll() })
-
-// 目录切换：重载版本 + 预览
 watch(selectedCatalogId, () => { loadVersions().then(loadPreview) })
-
-// 版本 / 模式切换：重载预览
 watch([selectedVersionId, previewMode], () => { loadPreview() })
+watch(catalogTitle, (t) => { if (t) document.title = t })
+onUnmounted(() => { document.title = '操作手册编写平台' })
+
+// URL hash 变化 → 切换章节
+window.addEventListener('hashchange', () => {
+  syncChapterFromHash()
+})
 </script>
 
 <template>
@@ -194,9 +282,6 @@ watch([selectedVersionId, previewMode], () => { loadPreview() })
     <!-- 顶部操作栏 -->
     <header class="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between z-10">
       <div class="flex items-center gap-4 min-w-0">
-        <h1 class="text-lg font-semibold flex-shrink-0">{{ catalogTitle || '手册预览' }}</h1>
-
-        <!-- 目录选择器 -->
         <SelectDropdown
           v-if="catalogs.length > 0"
           width-class="w-48"
@@ -205,16 +290,19 @@ watch([selectedVersionId, previewMode], () => { loadPreview() })
           :options="catalogs.map(c => ({ value: c.id, label: c.title }))"
           @update:model-value="selectCatalog"
         />
+        <h1 v-else class="text-lg font-semibold flex-shrink-0">{{ catalogTitle || '手册预览' }}</h1>
 
-        <!-- 版本选择器 -->
         <SelectDropdown
           v-if="selectedCatalogId && versions.length > 0"
-          width-class="w-56"
+          width-class="w-64"
           placeholder="当前最新（实时内容）"
           :model-value="selectedVersionId || ''"
           :options="[
             { value: '', label: '当前最新（实时内容）' },
-            ...versions.map(v => ({ value: v.id, label: `v${v.versionMajor}.${v.versionMinor} · ${v.createdAt.slice(0, 10)}` }))
+            ...versions.map(v => {
+              const vis = visibilityLabels[v.visibility] || '项目成员'
+              return { value: v.id, label: `v${v.versionMajor}.${v.versionMinor} · ${v.createdAt.slice(0, 10)} · ${vis}` }
+            }),
           ]"
           @update:model-value="selectVersion"
         />
@@ -227,13 +315,10 @@ watch([selectedVersionId, previewMode], () => { loadPreview() })
           @update:model-value="(val: string | number | null) => previewMode = (val as 'all' | 'approved') || 'all'"
         />
 
-        <!-- PM：实时内容 → 发布 + 导出草稿 + 编排 -->
-        <template v-if="isPM && selectedCatalogId && !selectedVersionId">
-          <button class="btn-secondary text-sm" :disabled="publishing" @click="publishVersion">
+        <!-- PM：实时内容 → 发布 + 编排 -->
+        <template v-if="canManageProject && selectedCatalogId && !selectedVersionId">
+          <button class="btn-secondary text-sm" :disabled="publishing" @click="openPublishDialog">
             <span v-if="publishing" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />发布版本
-          </button>
-          <button class="btn-primary text-sm" :disabled="exporting" @click="exportDraft">
-            <span v-if="exporting" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />导出草稿
           </button>
           <button class="btn-secondary text-sm" :disabled="exportingMd" @click="exportMarkdown">
             <span v-if="exportingMd" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />下载 MD
@@ -242,10 +327,15 @@ watch([selectedVersionId, previewMode], () => { loadPreview() })
         </template>
 
         <!-- PM：历史版本 → 下载 + 编排 -->
-        <template v-if="isPM && selectedCatalogId && selectedVersionId">
-          <button class="btn-primary text-sm" :disabled="exporting" @click="downloadVersion">
-            <span v-if="exporting" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />下载
-          </button>
+        <template v-if="canManageProject && selectedCatalogId && selectedVersionId">
+          <SelectDropdown
+            width-class="w-28"
+            :model-value="currentVersionVis"
+            :options="visibilityOptions"
+            @update:model-value="(val: string | number | null) => updateVisibility(selectedVersionId!, val as string)"
+          />
+          <div class="w-px h-5 bg-gray-300 mx-1" />
+          <a v-if="selectedVersionId" :href="docUrl" target="_blank" class="btn-secondary text-sm">在线文档</a>
           <button class="btn-secondary text-sm" :disabled="exportingMd" @click="exportMarkdown">
             <span v-if="exportingMd" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />下载 MD
           </button>
@@ -253,11 +343,13 @@ watch([selectedVersionId, previewMode], () => { loadPreview() })
         </template>
 
         <!-- 运维：仅历史版本可下载 -->
-        <template v-if="!isPM && selectedCatalogId">
-          <button class="btn-primary text-sm" :disabled="exporting || !selectedVersionId"
-            :title="!selectedVersionId ? '请先选择一个已发布版本' : ''" @click="downloadVersion">
-            <span v-if="exporting" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />下载
-          </button>
+        <template v-if="!canManageProject && selectedCatalogId">
+          <span v-if="selectedVersionId" class="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0"
+            :class="currentVersionVis === 'public' ? 'bg-green-100 text-green-700' : currentVersionVis === 'login_required' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'">
+            {{ visibilityLabels[currentVersionVis] || '项目成员' }}
+          </span>
+          <div v-if="selectedVersionId" class="w-px h-5 bg-gray-300 mx-1" />
+          <a v-if="selectedVersionId" :href="docUrl" target="_blank" class="btn-secondary text-sm">在线文档</a>
           <button class="btn-secondary text-sm" :disabled="exportingMd" @click="exportMarkdown">
             <span v-if="exportingMd" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />下载 MD
           </button>
@@ -272,51 +364,80 @@ watch([selectedVersionId, previewMode], () => { loadPreview() })
       <div class="text-center">
         <span class="i-lucide-book-open text-4xl text-gray-300 mb-3 block mx-auto" />
         <p class="text-gray-500 text-sm">当前项目暂无目录</p>
-        <router-link v-if="isPM" to="/catalogs/new" class="btn-primary text-sm mt-3 inline-block">新建目录</router-link>
+        <router-link v-if="canManageProject" to="/catalogs/new" class="btn-primary text-sm mt-3 inline-block">新建目录</router-link>
       </div>
     </div>
 
-    <!-- 手册内容 -->
-    <div v-else-if="bodyHtml" class="flex-1 overflow-y-auto">
-      <div class="max-w-4xl mx-auto py-8 px-6">
-        <div class="bg-white rounded-xl shadow-sm p-8 mb-6">
-          <div class="manual-content" v-html="bodyHtml" />
+    <!-- 手册内容：左右布局 -->
+    <div v-else-if="previewData.entries.length > 0 || previewData.features.length > 0" class="flex-1 flex overflow-hidden">
+      <PreviewSidebar
+        :tree="tree"
+        :active-chapter="activeChapter"
+        :has-parts="hasParts"
+        @select-chapter="navigateToChapter"
+        @select-section="navigateToChapter"
+        @select-cover="navigateToChapter(0)"
+      />
+      <PreviewContent
+        v-if="activeChapter !== null"
+        :catalog-id="selectedCatalogId"
+        :version-id="selectedVersionId"
+        :preview-mode="previewMode"
+        :ch-num="activeChapter"
+        :total-chapters="totalChapters"
+        :catalog-title="catalogTitle"
+        :tree="tree"
+        :has-parts="hasParts"
+        :changelog="changelogVersions"
+        :selected-version-id="selectedVersionId"
+        :on-select-version="selectVersion"
+        @navigate="navigateToChapter"
+      />
+      <div v-else class="flex-1 flex items-center justify-center text-gray-400 text-sm">
+        无法定位章节
+      </div>
+    </div>
+
+    <!-- 发布版本弹窗 -->
+    <ModalDialog
+      :visible="publishDialogVisible"
+      title="发布版本"
+      confirm-text="发布"
+      cancel-text="取消"
+      :error="publishError"
+      :loading="publishing"
+      @close="publishDialogVisible = false"
+      @confirm="doPublish"
+    >
+      <div class="space-y-4">
+        <div>
+          <label class="text-xs text-gray-500 mb-1 block">变更说明</label>
+          <input
+            v-model="publishChangeNotes"
+            class="input text-sm"
+            placeholder="本次发布的内容..."
+            @keyup.enter="doPublish"
+          />
         </div>
-        <div v-if="changelogVersions.length > 0" class="bg-white rounded-xl shadow-sm p-8 mb-6">
-          <h2 class="text-lg font-semibold mb-4">变更记录</h2>
-          <div class="space-y-3">
-            <div v-for="v in changelogVersions" :key="v.id"
-              class="flex items-start gap-3 text-sm border-b border-gray-50 pb-2"
-              :class="{ 'cursor-pointer text-blue-600 hover:text-blue-800': v.id !== selectedVersionId }"
-              @click="v.id !== selectedVersionId && selectVersion(v.id)">
-              <span class="font-mono text-gray-500 flex-shrink-0">v{{ v.versionMajor }}.{{ v.versionMinor }}</span>
-              <span class="text-gray-400 flex-shrink-0">{{ v.createdAt.slice(0, 10) }}</span>
-              <span class="text-gray-600">{{ v.changeNotes || '（无变更说明）' }}</span>
-            </div>
+        <div>
+          <label class="text-xs text-gray-500 mb-1 block">文档可见性</label>
+          <div class="flex gap-2">
+            <button
+              v-for="opt in visibilityOptions"
+              :key="opt.value"
+              class="px-3 py-1.5 rounded border text-xs transition-colors"
+              :class="publishVisibility === opt.value ? 'bg-blue-100 border-blue-300 text-blue-700' : 'border-gray-300 hover:bg-gray-100'"
+              @click="publishVisibility = opt.value"
+            >{{ opt.label }}</button>
           </div>
         </div>
       </div>
-    </div>
+    </ModalDialog>
   </div>
 </template>
 
 <style scoped>
-.manual-content :deep(*) { overflow-wrap: break-word; word-break: break-all; }
-.manual-content :deep(h1) { font-size: 1.75rem; font-weight: 700; margin: 1.5em 0 0.5em; }
-.manual-content :deep(h2) { font-size: 1.25rem; font-weight: 600; margin: 1.25em 0 0.5em; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.25em; }
-.manual-content :deep(h3) { font-size: 1.1rem; font-weight: 600; margin: 1em 0 0.5em; }
-.manual-content :deep(h4) { font-size: 1rem; font-weight: 600; margin: 0.75em 0 0.5em; }
-.manual-content :deep(p) { margin: 0.5em 0; line-height: 1.8; }
-.manual-content :deep(blockquote) { border-left: 3px solid #d1d5db; padding-left: 1em; color: #6b7280; margin: 0.5em 0; }
-.manual-content :deep(code) { background: #f3f4f6; padding: 0.15em 0.3em; border-radius: 0.25em; font-size: 0.875em; }
-.manual-content :deep(pre) { overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
-.manual-content :deep(hr) { border: none; border-top: 1px solid #e5e7eb; margin: 1.5em 0; }
-.manual-content :deep(strong) { font-weight: 600; }
-.manual-content :deep(em) { font-style: italic; }
-.manual-content :deep(a) { color: #2563eb; text-decoration: none; }
-.manual-content :deep(a:hover) { text-decoration: underline; }
-.manual-content :deep(table) { table-layout: fixed; width: 100%; }
-.manual-content :deep(td) { overflow-wrap: break-word; }
-.manual-content :deep(.crossref-link) { color: #2563eb; background: #eff6ff; padding: 0.1em 0.4em; border-radius: 0.25em; font-size: 0.9em; text-decoration: none; white-space: nowrap; }
-.manual-content :deep(.crossref-link:hover) { text-decoration: underline; background: #dbeafe; }
+@media print {
+  header { display: none !important; }
+}
 </style>

@@ -13,7 +13,7 @@ import ModalDialog from '@/components/ModalDialog.vue'
 import FormField from '@/components/FormField.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 
-const { user, isGuest, logout, refreshUser, token, updateProfile } = useAuth()
+const { user, isGuest, logout, refreshUser, token, updateProfile, updateUsername } = useAuth()
 const { confirm } = useDialog()
 
 async function handleLogout() {
@@ -121,46 +121,72 @@ async function unbindFeishu() {
 }
 
 function roleLabel(role: string): string {
-  const labels: Record<string, string> = { pm: '产品', ops: '运维人员', guest: '游客' }
+  const labels: Record<string, string> = { admin: '系统管理员', member: '成员', guest: '游客' }
   return labels[role] || role
 }
 
-// 编辑显示名称
-const editingDisplayName = ref(false)
-const newDisplayName = ref('')
-const profileError = ref('')
-const savingProfile = ref(false)
+// 编辑个人资料（弹窗）
+const showEditProfile = ref(false)
+const editProfileForm = ref({ displayName: '', username: '' })
+const editProfileError = ref('')
+const savingEditProfile = ref(false)
+const isFeishuAutoUsername = computed(() => /^feishu_ou_/.test(user.value?.username || ''))
+const canChangeUsername = computed(() => isFeishuAutoUsername.value && !user.value?.usernameChanged)
 
-function startEditDisplayName() {
-  newDisplayName.value = user.value?.displayName || ''
-  profileError.value = ''
-  editingDisplayName.value = true
+function openEditProfile() {
+  editProfileForm.value = {
+    displayName: user.value?.displayName || '',
+    username: user.value?.username || '',
+  }
+  editProfileError.value = ''
+  showEditProfile.value = true
 }
 
-function cancelEditDisplayName() {
-  editingDisplayName.value = false
-  profileError.value = ''
-}
+async function submitEditProfile() {
+  editProfileError.value = ''
+  const dn = editProfileForm.value.displayName.trim()
+  const un = editProfileForm.value.username.trim()
 
-async function saveDisplayName() {
-  const name = newDisplayName.value.trim()
-  if (!name) {
-    profileError.value = '显示名称不能为空'
+  if (!dn) {
+    editProfileError.value = '显示名称不能为空'
     return
   }
-  if (name.length > 64) {
-    profileError.value = '显示名称不能超过64个字符'
+  if (dn.length > 64) {
+    editProfileError.value = '显示名称不能超过64个字符'
     return
   }
-  savingProfile.value = true
-  profileError.value = ''
+  if (canChangeUsername.value) {
+    if (!un) {
+      editProfileError.value = '用户名不能为空'
+      return
+    }
+    if (un.length < 3) {
+      editProfileError.value = '用户名不能少于3个字符'
+      return
+    }
+    if (un.length > 32) {
+      editProfileError.value = '用户名不能超过32个字符'
+      return
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(un)) {
+      editProfileError.value = '用户名只能包含字母、数字和下划线'
+      return
+    }
+  }
+
+  savingEditProfile.value = true
   try {
-    await updateProfile(name)
-    editingDisplayName.value = false
+    if (dn !== (user.value?.displayName || '')) {
+      await updateProfile(dn)
+    }
+    if (canChangeUsername.value && un !== (user.value?.username || '')) {
+      await updateUsername(un)
+    }
+    showEditProfile.value = false
   } catch (e: unknown) {
-    profileError.value = e instanceof Error ? e.message : '保存失败'
+    editProfileError.value = e instanceof Error ? e.message : '保存失败'
   } finally {
-    savingProfile.value = false
+    savingEditProfile.value = false
   }
 }
 
@@ -245,18 +271,18 @@ onMounted(() => {
         <span class="i-lucide-alert-triangle w-4 h-4 inline-block align-middle" />账号待授权
       </h2>
       <p class="text-sm text-amber-600 mt-1">
-        您的账号尚未获得操作权限。请联系管理员将您的角色从「游客」升级为「运维人员」或「产品」。
+        您的账号尚未获得操作权限。请联系系统管理员将您的角色从「游客」升级为「运维人员」或「产品」。
       </p>
     </div>
 
     <!-- 当前用户 -->
     <div class="card mb-6">
       <h2 class="text-sm font-semibold text-gray-500 mb-3">个人信息</h2>
-      <div class="flex items-center gap-4">
+      <div class="flex items-start gap-4">
         <img
           v-if="feishuBound && feishuAvatar"
           :src="feishuAvatar"
-          class="w-12 h-12 rounded-full"
+          class="w-12 h-12 rounded-full flex-shrink-0"
           alt=""
         />
         <div
@@ -265,36 +291,24 @@ onMounted(() => {
         >
           <span class="text-blue-500 text-lg font-semibold">{{ (user?.displayName || user?.username || '?')[0] }}</span>
         </div>
-        <div class="flex-1">
-          <!-- 显示名称（可编辑） -->
-          <div v-if="editingDisplayName" class="flex items-center gap-2 mb-0.5">
-            <input
-              v-model="newDisplayName"
-              class="input text-sm py-1 flex-1"
-              maxlength="64"
-              :disabled="savingProfile"
-              @keyup.enter="saveDisplayName"
-              @keyup.escape="cancelEditDisplayName"
-            />
-            <button class="btn-primary text-xs px-2 py-1" :disabled="savingProfile" @click="saveDisplayName">
-              {{ savingProfile ? '保存中…' : '保存' }}
-            </button>
-            <button class="btn-secondary text-xs px-2 py-1" :disabled="savingProfile" @click="cancelEditDisplayName">取消</button>
+        <div class="flex-1 min-w-0">
+          <div class="text-lg font-medium truncate">{{ user?.displayName }}</div>
+          <div class="text-sm text-gray-500 mt-0.5">
+            <span class="text-gray-400">用户名：</span>
+            <code class="bg-gray-100 px-1 rounded text-xs">{{ user?.username }}</code>
           </div>
-          <div v-else class="font-medium flex items-center gap-1">
-            {{ user?.displayName }}
-            <button class="text-gray-400 hover:text-blue-500" title="编辑显示名称" @click="startEditDisplayName">
-              <span class="i-lucide-pencil w-3.5 h-3.5 inline-block align-middle" />
-            </button>
-          </div>
-          <div v-if="profileError" class="text-red-500 text-xs mt-0.5">{{ profileError }}</div>
-          <div class="text-sm text-gray-500">
+          <div v-if="isFeishuAutoUsername && !user?.usernameChanged" class="text-amber-500 text-xs mt-0.5">该用户名为飞书自动生成，建议修改为易记的用户名</div>
+          <div v-if="user?.usernameChanged" class="text-gray-400 text-xs mt-0.5">用户名已修改，不可再次更改</div>
+          <div class="text-sm text-gray-500 mt-0.5">
             {{ roleLabel(user?.role || '') }}
             <span v-if="feishuBound" class="text-green-600 ml-2 text-xs">已绑定飞书</span>
           </div>
         </div>
-        <button class="btn-secondary text-sm" @click="openChangePassword">修改密码</button>
-        <button class="btn-secondary text-sm" @click="handleLogout">退出登录</button>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button class="btn-secondary text-sm" @click="openEditProfile">编辑资料</button>
+          <button class="btn-secondary text-sm" @click="openChangePassword">修改密码</button>
+          <button class="btn-secondary text-sm" @click="handleLogout">退出登录</button>
+        </div>
       </div>
     </div>
 
@@ -356,6 +370,49 @@ onMounted(() => {
       </div>
     </div>
 
+    <!-- 编辑个人资料 -->
+    <ModalDialog
+      :visible="showEditProfile"
+      title="编辑资料"
+      confirm-text="保存"
+      cancel-text="取消"
+      :error="editProfileError"
+      @close="showEditProfile = false"
+      @confirm="submitEditProfile"
+    >
+      <div class="space-y-4">
+        <FormField label="显示名称" :required="true">
+          <input
+            v-model="editProfileForm.displayName"
+            class="input"
+            maxlength="64"
+            placeholder="输入显示名称"
+            :disabled="savingEditProfile"
+            @keyup.enter="submitEditProfile"
+          />
+        </FormField>
+        <FormField label="用户名" :required="canChangeUsername">
+          <input
+            v-model="editProfileForm.username"
+            class="input"
+            maxlength="32"
+            placeholder="字母、数字、下划线，3-32 位"
+            :disabled="savingEditProfile || !canChangeUsername"
+            @keyup.enter="submitEditProfile"
+          />
+          <p v-if="canChangeUsername" class="text-amber-500 text-xs mt-1">
+            当前用户名为飞书自动生成，建议改为易记的名称，以便后续使用用户名+密码登录（仅可修改一次）
+          </p>
+          <p v-else-if="user?.usernameChanged" class="text-gray-400 text-xs mt-1">
+            用户名已修改，不可再次更改
+          </p>
+          <p v-else class="text-gray-400 text-xs mt-1">
+            用户名不可修改
+          </p>
+        </FormField>
+      </div>
+    </ModalDialog>
+
     <!-- 修改密码 -->
     <ModalDialog
       :visible="showChangePassword"
@@ -367,8 +424,9 @@ onMounted(() => {
       @confirm="submitChangePassword"
     >
       <div class="space-y-4">
-        <div v-if="!hasPassword" class="text-sm text-blue-500 bg-blue-50 rounded-lg px-3 py-2">
-          💡 您通过飞书登录，可直接设置密码
+        <div v-if="!hasPassword" class="text-sm text-blue-500 bg-blue-50 rounded-lg px-3 py-2 space-y-1">
+          <p><span class="i-lucide-lightbulb w-4 h-4 inline-block align-middle mr-1" /> 您通过飞书登录，可直接设置密码。</p>
+          <p v-if="isFeishuAutoUsername && !user?.usernameChanged" class="text-amber-600"><span class="i-lucide-alert-triangle w-4 h-4 inline-block align-middle mr-1" /> 当前用户名 <code class="bg-amber-100 px-1 rounded text-xs">{{ user?.username }}</code> 为自动生成，建议先点击「编辑资料」修改为易记的用户名，再设置密码。</p>
         </div>
         <FormField v-if="hasPassword" label="当前密码" :required="true">
           <div class="relative">

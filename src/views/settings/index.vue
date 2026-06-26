@@ -5,18 +5,22 @@ import { useProject } from '@/composables/useProject'
 import { useDialog } from '@/composables/useDialog'
 import * as authApi from '@/api/endpoints/auth'
 import * as projectApi from '@/api/endpoints/projects'
+import * as dataApi from '@/api/endpoints/data-tasks'
+import type { UserDetail, OrphanFile } from '@shared/types'
 import ModalDialog from '@/components/ModalDialog.vue'
 import FormField from '@/components/FormField.vue'
 import SelectDropdown from '@/components/SelectDropdown.vue'
+import ErrorMessage from '@/components/ErrorMessage.vue'
 
-const { user } = useAuth()
-const { projects, loadProjects, switchProject } = useProject()
+const { isAdmin } = useAuth()
+const { projects, loadProjects } = useProject()
 const { confirm, dangerConfirm } = useDialog()
 
-const localUsers = ref<any[]>([])
+// ===== 用户管理 =====
+const localUsers = ref<UserDetail[]>([])
 const showAddUser = ref(false)
 const addUserError = ref('')
-const newUser = ref({ username: '', displayName: '', password: '', role: 'ops' })
+const newUser = ref({ username: '', displayName: '', password: '', role: 'member' })
 const showNewUserPw = ref(false)
 
 async function loadUsers() {
@@ -33,18 +37,9 @@ async function addUser() {
   }
 
   const pw = newUser.value.password
-  if (!pw) {
-    addUserError.value = '请输入密码'
-    return
-  }
-  if (pw.length < 8) {
-    addUserError.value = '密码不能少于8位'
-    return
-  }
-  if (pw.length > 128) {
-    addUserError.value = '密码不能超过128位'
-    return
-  }
+  if (!pw) { addUserError.value = '请输入密码'; return }
+  if (pw.length < 8) { addUserError.value = '密码不能少于8位'; return }
+  if (pw.length > 128) { addUserError.value = '密码不能超过128位'; return }
 
   let categories = 0
   if (/[A-Z]/.test(pw)) categories++
@@ -59,7 +54,7 @@ async function addUser() {
   try {
     await authApi.createUser(newUser.value)
     showAddUser.value = false
-    newUser.value = { username: '', displayName: '', password: '', role: 'ops' }
+    newUser.value = { username: '', displayName: '', password: '', role: 'member' }
     showNewUserPw.value = false
     await loadUsers()
   } catch (e: unknown) {
@@ -83,17 +78,17 @@ async function changeUserRole(userId: string, newRole: string) {
 }
 
 function roleLabel(role: string): string {
-  const labels: Record<string, string> = { pm: '产品', ops: '运维', guest: '游客' }
+  const labels: Record<string, string> = { admin: '系统管理员', member: '成员', guest: '游客' }
   return labels[role] || role
 }
 
 const roleOptions = [
   { value: 'guest', label: '游客' },
-  { value: 'ops', label: '运维' },
-  { value: 'pm', label: '产品' },
+  { value: 'member', label: '成员' },
+  { value: 'admin', label: '系统管理员' },
 ]
 
-// 项目管理
+// ===== 项目管理 =====
 const showAddProject = ref(false)
 const projectError = ref('')
 const editingProject = ref<{ id: string; name: string; description: string } | null>(null)
@@ -145,106 +140,77 @@ async function deleteProject(id: string) {
   } catch { /* ignore */ }
 }
 
-// 成员管理
-const showMembersDialog = ref(false)
-const membersProjectId = ref('')
-const membersProjectName = ref('')
-const members = ref<any[]>([])
-const memberError = ref('')
-const newMemberId = ref<string | null>(null)
+// ===== 系统备份 =====
+const backupTaskId = ref('')
+const backupRunning = ref(false)
+const backupLink = ref('')
 
-async function openMembersDialog(projectId: string, projectName: string) {
-  membersProjectId.value = projectId
-  membersProjectName.value = projectName
-  memberError.value = ''
+async function startSystemBackup() {
+  backupRunning.value = true
   try {
-    members.value = await projectApi.getMembers(projectId)
-  } catch { /* ignore */ }
-  showMembersDialog.value = true
-}
-
-async function addMember(userId: string) {
-  memberError.value = ''
-  try {
-    await projectApi.addMember(membersProjectId.value, userId)
-    members.value = await projectApi.getMembers(membersProjectId.value)
+    const { taskId } = await dataApi.startSystemExport()
+    backupTaskId.value = taskId
+    // 轮询等待完成
+    let attempts = 0
+    while (attempts < 30) {
+      await new Promise(r => setTimeout(r, 1000))
+      const tasks = await dataApi.listTasks()
+      const task = (tasks as any[]).find(t => t.id === taskId)
+      if (task?.status === 'completed') {
+        backupLink.value = `/api/v1/data-tasks/${taskId}/download`
+        return
+      }
+      if (task?.status === 'failed') {
+        backupError.value = '备份失败'
+        return
+      }
+      attempts++
+    }
+    backupError.value = '备份超时'
   } catch (e: unknown) {
-    memberError.value = e instanceof Error ? e.message : '网络错误'
+    backupError.value = e instanceof Error ? e.message : '备份出错'
+  } finally {
+    backupRunning.value = false
   }
 }
 
-async function removeMember(userId: string) {
-  memberError.value = ''
+const backupError = ref('')
+
+// ===== 存储清理 =====
+const orphans = ref<OrphanFile[]>([])
+const orphansTotalSize = ref(0)
+const orphansLoading = ref(false)
+const orphansError = ref('')
+const cleanResult = ref<{ deleted: number } | null>(null)
+
+async function loadOrphans() {
+  orphansLoading.value = true
+  orphansError.value = ''
   try {
-    await projectApi.removeMember(membersProjectId.value, userId)
-    members.value = await projectApi.getMembers(membersProjectId.value)
+    const data = await dataApi.getOrphans()
+    orphans.value = data.orphans
+    orphansTotalSize.value = data.totalSize
   } catch (e: unknown) {
-    memberError.value = e instanceof Error ? e.message : '网络错误'
+    orphansError.value = e instanceof Error ? e.message : '加载失败'
+  } finally {
+    orphansLoading.value = false
   }
 }
 
-// 获取非成员用户列表
-function nonMembers(): any[] {
-  const memberIds = new Set(members.value.map((m: any) => m.id))
-  return localUsers.value.filter((u: any) => !memberIds.has(u.id))
-}
-
-// 审核链配置
-const showReviewChainDialog = ref(false)
-const reviewChainProjectId = ref('')
-const reviewChainProjectName = ref('')
-const reviewChainUsers = ref<any[]>([])
-const availablePMs = ref<any[]>([])
-const reviewChainError = ref('')
-const newReviewerId = ref<string | null>(null)
-
-async function openReviewChainDialog(projectId: string, projectName: string) {
-  reviewChainProjectId.value = projectId
-  reviewChainProjectName.value = projectName
-  reviewChainError.value = ''
-  newReviewerId.value = null
+async function handleCleanOrphans() {
+  if (!await dangerConfirm(`确定清理 ${orphans.value.length} 个孤立文件（${formatSize(orphansTotalSize.value)}）？此操作不可撤销。`)) return
   try {
-    const data = await projectApi.getReviewChain(projectId)
-    reviewChainUsers.value = data.chain || []
-    availablePMs.value = data.availablePMs || []
-  } catch { /* ignore */ }
-  showReviewChainDialog.value = true
-}
-
-async function saveReviewChain() {
-  reviewChainError.value = ''
-  try {
-    const chain = reviewChainUsers.value.map((u: any) => u.id)
-    await projectApi.updateReviewChain(reviewChainProjectId.value, chain)
-    showReviewChainDialog.value = false
+    cleanResult.value = await dataApi.deleteOrphans()
+    await loadOrphans()
   } catch (e: unknown) {
-    reviewChainError.value = e instanceof Error ? e.message : '网络错误'
+    orphansError.value = e instanceof Error ? e.message : '清理失败'
   }
 }
 
-function addReviewer(uid: string) {
-  const user = availablePMs.value.find((p: any) => p.id === uid)
-  if (user) {
-    reviewChainUsers.value.push(user)
-    availablePMs.value = availablePMs.value.filter((p: any) => p.id !== uid)
-  }
-  newReviewerId.value = null
-}
-
-function removeReviewer(index: number) {
-  const removed = reviewChainUsers.value[index]
-  reviewChainUsers.value.splice(index, 1)
-  if (removed) {
-    availablePMs.value.push(removed)
-  }
-}
-
-function moveReviewer(index: number, direction: -1 | 1) {
-  const newIndex = index + direction
-  if (newIndex < 0 || newIndex >= reviewChainUsers.value.length) return
-  const temp = reviewChainUsers.value[index]
-  reviewChainUsers.value[index] = reviewChainUsers.value[newIndex]
-  reviewChainUsers.value[newIndex] = temp
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 onMounted(() => {
@@ -255,31 +221,33 @@ onMounted(() => {
 
 <template>
   <div class="p-6 max-w-2xl mx-auto h-full overflow-y-auto">
-    <h1 class="text-2xl font-bold mb-6">设置</h1>
+    <h1 class="text-2xl font-bold mb-6">系统设置</h1>
 
-    <!-- 项目管理（仅 PM 可见） -->
-
-    <!-- 项目管理（仅 PM 可见） -->
-    <div v-if="user?.role === 'pm'" class="card mb-6">
+    <!-- 项目管理（仅 admin 可见） -->
+    <div v-if="isAdmin" class="card mb-6">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-sm font-semibold text-gray-500">项目管理</h2>
-        <button class="btn-primary text-sm" @click="showAddProject = true"><span class="i-lucide-plus w-4 h-4 inline-block align-middle mr-1" />新建项目</button>
+        <button class="btn-primary text-sm" @click="showAddProject = true">
+          <span class="i-lucide-plus w-4 h-4 inline-block align-middle mr-1" />新建项目
+        </button>
       </div>
 
       <div v-for="p in projects" :key="p.id" class="flex items-center gap-3 py-3 border-t border-gray-100">
         <div class="flex-1 min-w-0">
-          <div class="font-medium text-sm truncate">{{ p.name }}</div>
+          <div class="font-medium text-sm truncate">
+            {{ p.name }}
+            <span v-if="p.id === 'default'" class="inline-block text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded ml-1 align-middle">默认</span>
+          </div>
           <div class="text-xs text-gray-400 truncate">{{ p.description || '无描述' }}</div>
         </div>
         <button class="text-blue-400 hover:text-blue-600 text-sm" @click="openEditProject(p)">编辑</button>
-        <button class="text-green-500 hover:text-green-700 text-sm" @click="openMembersDialog(p.id, p.name)">成员</button>
-        <button class="text-purple-500 hover:text-purple-700 text-sm" @click="openReviewChainDialog(p.id, p.name)">审核链</button>
         <button
+          v-if="p.id !== 'default'"
           class="text-red-400 hover:text-red-600 text-sm"
-          :disabled="p.id === 'default'"
-          :title="p.id === 'default' ? '不能删除默认项目' : '删除'"
+          title="删除"
           @click="deleteProject(p.id)"
         ><span class="i-lucide-x w-4 h-4 inline-block align-middle" /></button>
+        <span v-else class="text-xs text-gray-300 cursor-not-allowed select-none" title="不能删除默认项目">—</span>
       </div>
     </div>
 
@@ -323,113 +291,13 @@ onMounted(() => {
       </div>
     </ModalDialog>
 
-    <!-- 成员管理 -->
-    <ModalDialog
-      :visible="showMembersDialog"
-      :title="'项目成员 — ' + membersProjectName"
-      confirm-text=""
-      cancel-text="关闭"
-      :error="memberError"
-      @close="showMembersDialog = false"
-    >
-      <div class="space-y-3">
-        <!-- 当前成员 -->
-        <div v-if="members.length === 0" class="text-sm text-gray-400 py-2">暂无成员</div>
-        <div v-for="m in members" :key="m.id" class="flex items-center gap-2 py-1.5 border-b border-gray-50">
-          <img v-if="m.feishuAvatarUrl" :src="m.feishuAvatarUrl" class="w-6 h-6 rounded-full flex-shrink-0" alt="" />
-          <span v-else class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 text-xs font-semibold flex-shrink-0">{{ (m.feishuName || m.displayName || m.username || '?')[0] }}</span>
-          <div class="flex-1 min-w-0">
-            <span class="text-sm">{{ m.feishuName || m.displayName }}</span>
-            <span class="text-xs text-gray-400 ml-1">({{ roleLabel(m.role) }})</span>
-          </div>
-          <button class="text-red-400 hover:text-red-600 text-xs" @click="removeMember(m.id)">移除</button>
-        </div>
-        <!-- 添加成员 -->
-        <div class="pt-2">
-          <FormField label="添加成员">
-            <div class="flex gap-2">
-              <SelectDropdown
-                v-model="newMemberId"
-                :key="membersProjectId"
-                width-class="flex-1"
-                placeholder="选择用户..."
-                :options="nonMembers().map((u: any) => {
-                  const name = u.feishuName || u.displayName
-                  return {
-                    value: u.id,
-                    label: `${name} (${roleLabel(u.role)})`,
-                    avatar: u.feishuAvatarUrl || undefined,
-                    initial: u.feishuAvatarUrl ? undefined : (name || '?')[0],
-                  }
-                })"
-                @update:model-value="(val: string | number | null) => { if (val) { addMember(val as string); newMemberId = null } }"
-              />
-            </div>
-          </FormField>
-        </div>
-      </div>
-    </ModalDialog>
-
-    <!-- 审核链配置 -->
-    <ModalDialog
-      :visible="showReviewChainDialog"
-      :title="'审核流程 — ' + reviewChainProjectName"
-      confirm-text="保存"
-      cancel-text="关闭"
-      :error="reviewChainError"
-      @close="showReviewChainDialog = false"
-      @confirm="saveReviewChain"
-    >
-      <div class="space-y-3">
-        <div v-if="reviewChainUsers.length === 0" class="text-sm text-gray-400 py-2">
-          未手动配置，将使用默认顺序：所有项目产品按姓名排序
-        </div>
-        <div v-for="(u, i) in reviewChainUsers" :key="u.id" class="flex items-center gap-2 py-1.5 border-b border-gray-50">
-          <span class="text-xs text-gray-400 w-6">{{ i + 1 }}.</span>
-          <img v-if="u.feishuAvatarUrl" :src="u.feishuAvatarUrl" class="w-6 h-6 rounded-full flex-shrink-0" alt="" />
-          <span v-else class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 text-xs font-semibold flex-shrink-0">{{ (u.feishuName || u.displayName || u.username || '?')[0] }}</span>
-          <div class="flex-1 min-w-0">
-            <span class="text-sm">{{ u.feishuName || u.displayName }}</span>
-            <span class="text-xs text-gray-400 ml-1">(产品)</span>
-          </div>
-          <button
-            class="text-gray-400 hover:text-gray-600 text-xs"
-            :disabled="i === 0"
-            @click="moveReviewer(i, -1)"
-          >↑</button>
-          <button
-            class="text-gray-400 hover:text-gray-600 text-xs"
-            :disabled="i === reviewChainUsers.length - 1"
-            @click="moveReviewer(i, 1)"
-          >↓</button>
-          <button class="text-red-400 hover:text-red-600 text-xs" @click="removeReviewer(i)">移除</button>
-        </div>
-        <div class="pt-2" v-if="availablePMs.length > 0">
-          <FormField label="添加审核人">
-            <SelectDropdown
-              v-model="newReviewerId"
-              placeholder="选择产品..."
-              :options="[{ value: null, label: '选择产品...' }, ...availablePMs.map((u: any) => {
-                const name = u.feishuName || u.displayName
-                return {
-                  value: u.id,
-                  label: `${name} (产品)`,
-                  avatar: u.feishuAvatarUrl || undefined,
-                  initial: u.feishuAvatarUrl ? undefined : (name || '?')[0],
-                }
-              })]"
-              @update:model-value="(val: string | number | null) => { if (val) addReviewer(val as string) }"
-            />
-          </FormField>
-        </div>
-      </div>
-    </ModalDialog>
-
-    <!-- 账号管理（仅 PM 可见） -->
-    <div v-if="user?.role === 'pm'" class="card mb-6">
+    <!-- 账号管理（仅 admin 可见） -->
+    <div v-if="isAdmin" class="card mb-6">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-sm font-semibold text-gray-500">账号管理</h2>
-        <button class="btn-primary text-sm" @click="showAddUser = true"><span class="i-lucide-plus w-4 h-4 inline-block align-middle mr-1" />添加账号</button>
+        <button class="btn-primary text-sm" @click="showAddUser = true">
+          <span class="i-lucide-plus w-4 h-4 inline-block align-middle mr-1" />添加账号
+        </button>
       </div>
 
       <div v-if="localUsers.length === 0" class="text-sm text-gray-400 py-4 text-center">暂无账号</div>
@@ -443,13 +311,11 @@ onMounted(() => {
         />
         <span v-else class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 text-sm font-semibold flex-shrink-0">{{ (u.feishuName || u.displayName || u.username || '?')[0] }}</span>
         <div class="flex-1 min-w-0">
-          <div class="font-medium text-sm truncate">
-            {{ u.feishuName || u.displayName }}
-          </div>
+          <div class="font-medium text-sm truncate">{{ u.feishuName || u.displayName }}</div>
           <div class="text-xs text-gray-400 truncate">{{ u.username }} · {{ roleLabel(u.role) }}</div>
         </div>
         <SelectDropdown
-          width-class="w-24"
+          width-class="w-32"
           :model-value="u.role"
           :options="roleOptions"
           @update:model-value="(val: string | number | null) => changeUserRole(u.id, val as string)"
@@ -484,16 +350,41 @@ onMounted(() => {
           </div>
         </FormField>
         <FormField label="角色">
-          <SelectDropdown
-            v-model="newUser.role"
-            :options="[
-              { value: 'guest', label: '游客' },
-              { value: 'ops', label: '运维' },
-              { value: 'pm', label: '产品' },
-            ]"
-          />
+          <SelectDropdown v-model="newUser.role" :options="roleOptions" />
         </FormField>
       </div>
     </ModalDialog>
+
+    <!-- 系统备份（仅 admin 可见） -->
+    <div v-if="isAdmin" class="card mb-6">
+      <h2 class="text-sm font-semibold text-gray-500 mb-3">系统备份</h2>
+      <p class="text-xs text-gray-400 mb-3">导出完整数据库文件，用于系统迁移或灾难恢复。</p>
+      <ErrorMessage :message="backupError" />
+      <button class="btn-primary text-sm" :disabled="backupRunning" @click="startSystemBackup">
+        <span class="i-lucide-database w-4 h-4 inline-block align-middle mr-1" />{{ backupRunning ? '备份中...' : '完整备份' }}
+      </button>
+      <a v-if="backupLink" :href="backupLink" class="text-blue-500 hover:underline text-sm ml-3">下载备份</a>
+    </div>
+
+    <!-- 存储清理（仅 admin 可见） -->
+    <div v-if="isAdmin" class="card mb-6">
+      <h2 class="text-sm font-semibold text-gray-500 mb-3">存储清理</h2>
+      <p class="text-xs text-gray-400 mb-3">扫描并清理未被任何文档引用的上传文件。</p>
+      <ErrorMessage :message="orphansError" />
+      <div class="flex gap-2 mb-3">
+        <button class="btn-secondary text-sm" :disabled="orphansLoading" @click="loadOrphans">
+          {{ orphansLoading ? '扫描中...' : '扫描孤立文件' }}
+        </button>
+        <button
+          v-if="orphans.length > 0"
+          class="btn-danger text-sm"
+          @click="handleCleanOrphans"
+        >清理 {{ orphans.length }} 个文件 ({{ formatSize(orphansTotalSize) }})</button>
+      </div>
+      <div v-if="cleanResult" class="text-xs text-green-600">已删除 {{ cleanResult.deleted }} 个文件</div>
+      <div v-if="orphans.length > 0" class="text-xs text-gray-400 max-h-32 overflow-y-auto space-y-0.5">
+        <div v-for="f in orphans" :key="f.path">{{ f.path }} ({{ formatSize(f.size) }})</div>
+      </div>
+    </div>
   </div>
 </template>

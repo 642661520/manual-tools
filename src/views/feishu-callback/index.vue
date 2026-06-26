@@ -36,7 +36,7 @@ async function handleLogin(code: string) {
     localStorage.setItem('auth_user', JSON.stringify(data.user))
     status.value = 'success'
     successMsg.value = data.user.role === 'guest'
-      ? '登录成功，您的账号正在等待管理员授权'
+      ? '登录成功，您的账号正在等待系统管理员授权'
       : '登录成功'
 
     setTimeout(() => {
