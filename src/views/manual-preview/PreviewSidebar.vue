@@ -94,7 +94,7 @@ const totalChapters = computed(() => {
               :class="expandedParts.has((node as SidebarPart).id) ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
               class="w-3 h-3 inline-block align-middle flex-shrink-0 text-gray-400"
             />
-            <span class="i-lucide-folder w-3.5 h-3.5 inline-block align-middle flex-shrink-0 text-indigo-400" />
+            <span class="i-lucide-book-open w-3.5 h-3.5 inline-block align-middle flex-shrink-0 text-indigo-400" />
             <span class="truncate">{{ (node as SidebarPart).title }}</span>
           </button>
           <ul v-show="expandedParts.has((node as SidebarPart).id)" class="ml-3 mt-0.5 space-y-0.5">
