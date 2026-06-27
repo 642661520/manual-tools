@@ -113,9 +113,6 @@ function toggleFullscreen() {
   isFullscreen.value = !isFullscreen.value
 }
 
-function printPage() {
-  window.print()
-}
 
 // 颜色选择器
 const showColorPicker = ref<'text' | 'highlight' | null>(null)
@@ -691,7 +688,7 @@ defineExpose({ connected, synced, initialSyncDone })
         :disabled="videoUploading"
         title="插入视频" @click="openVideoDialog">
         <span v-if="videoUploading" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin" />
-        <span v-else class="i-lucide-video w-4 h-4 inline-block align-middle" />
+        <span v-else class="i-lucide-film w-4 h-4 inline-block align-middle" />
       </button>
       <input
         ref="videoFileInput"
@@ -711,11 +708,7 @@ defineExpose({ connected, synced, initialSyncDone })
         title="查找替换" @click="toggleSearch">
         <span class="i-lucide-search w-4 h-4 inline-block align-middle" />
       </button>
-      <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
-        title="打印" @click="printPage">
-        <span class="i-lucide-printer w-4 h-4 inline-block align-middle" />
-      </button>
-      <div class="w-px h-5 bg-gray-300 mx-1" />
+
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         title="撤销" @click="editor.chain().focus().undo().run()">
         <span class="i-lucide-undo-2 w-4 h-4 inline-block align-middle" />

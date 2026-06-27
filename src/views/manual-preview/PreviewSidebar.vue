@@ -112,7 +112,7 @@ const totalChapters = computed(() => {
                   :class="activeChapter === ch.chNum ? 'text-blue-400' : 'text-gray-300'" />
                 <span class="truncate text-left">{{ ch.title }}</span>
               </button>
-              <!-- 多章节：可展开 -->
+              <!-- 多小节：可展开 -->
               <template v-else>
                 <button
                   class="w-full flex items-center gap-1.5 px-2 py-1 text-xs rounded transition-colors"
@@ -158,7 +158,7 @@ const totalChapters = computed(() => {
             <span class="text-gray-400 font-mono text-xs w-6 text-right flex-shrink-0">{{ (node as SidebarChapter).chNum }}</span>
             <span class="truncate text-left">{{ (node as SidebarChapter).title }}</span>
           </button>
-          <!-- 多章节：可展开 -->
+          <!-- 多小节：可展开 -->
           <template v-else>
             <button
               class="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded transition-colors"

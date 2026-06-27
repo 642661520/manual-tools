@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 export interface SelectOption {
   value: string | number | null
   label: string
   disabled?: boolean
   avatar?: string
-  initial?: string
+  name?: string
 }
 
 const props = withDefaults(defineProps<{
@@ -164,8 +165,7 @@ onUnmounted(() => {
         class="truncate flex items-center gap-2"
         :class="modelValue === null || modelValue === '' ? 'text-gray-400' : 'text-gray-700'"
       >
-        <img v-if="selectedOption?.avatar" :src="selectedOption.avatar" class="w-5 h-5 rounded-full flex-shrink-0" alt="" />
-        <span v-else-if="selectedOption?.initial" class="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 text-[10px] font-semibold flex-shrink-0">{{ selectedOption.initial }}</span>
+        <UserAvatar v-if="selectedOption?.avatar || selectedOption?.name" :avatar-url="selectedOption?.avatar" :name="selectedOption?.name" size="2xs" />
         <span class="truncate">{{ selectedLabel }}</span>
       </span>
       <span
@@ -202,8 +202,7 @@ onUnmounted(() => {
             @mouseenter="highlightIndex = idx"
           >
             <span class="truncate flex items-center gap-2">
-              <img v-if="opt.avatar" :src="opt.avatar" class="w-5 h-5 rounded-full flex-shrink-0" alt="" />
-              <span v-else-if="opt.initial" class="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 text-[10px] font-semibold flex-shrink-0">{{ opt.initial }}</span>
+              <UserAvatar v-if="opt.avatar || opt.name" :avatar-url="opt.avatar" :name="opt.name" size="2xs" />
               <span class="truncate">{{ opt.label }}</span>
             </span>
             <span

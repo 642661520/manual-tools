@@ -163,7 +163,7 @@ watch(currentProjectId, () => {
         v-model="searchQuery"
         type="text"
         class="input"
-        placeholder="搜索主题名称、模块或章节..."
+        placeholder="搜索章节名称、分类或小节..."
       />
     </div>
 
@@ -172,8 +172,8 @@ watch(currentProjectId, () => {
       <div v-if="loading" class="text-center text-gray-400 py-8 text-sm">加载中...</div>
       <div v-else-if="error" class="text-center text-red-500 py-8 text-sm">{{ error }}</div>
       <div v-else-if="Object.keys(moduleGroups).length === 0" class="text-center text-gray-400 py-8 text-sm">
-        <template v-if="searchQuery">无匹配的主题</template>
-        <template v-else>当前项目暂无主题</template>
+        <template v-if="searchQuery">无匹配的章节</template>
+        <template v-else>当前项目暂无章节</template>
       </div>
 
       <template v-else>
@@ -196,7 +196,7 @@ watch(currentProjectId, () => {
               <span v-else class="w-3.5 flex-shrink-0" />
               <span class="text-sm font-medium flex-1">{{ f.title }}</span>
               <span v-if="f.sections.length > 0" class="text-xs text-gray-400">
-                {{ f.sections.length }} 章节
+                {{ f.sections.length }} 小节
               </span>
             </div>
 

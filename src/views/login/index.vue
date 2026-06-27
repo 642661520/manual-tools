@@ -5,6 +5,7 @@ import { useAuth } from '@/composables/useAuth'
 import { getFeishuLoginUrl } from '@/api/endpoints/auth'
 import FormField from '@/components/FormField.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
+import PasswordInput from '@/components/PasswordInput.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -12,7 +13,6 @@ const { login } = useAuth()
 
 const username = ref('')
 const password = ref('')
-const showPassword = ref(false)
 const error = ref('')
 const loading = ref(false)
 
@@ -80,12 +80,7 @@ async function feishuLogin() {
           </FormField>
 
           <FormField label="密码">
-            <div class="relative">
-              <input v-model="password" class="input pr-8" :type="showPassword ? 'text' : 'password'" placeholder="输入密码" />
-              <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" @click="showPassword = !showPassword">
-                <span :class="showPassword ? 'i-lucide-eye-off' : 'i-lucide-eye'" class="w-4 h-4 inline-block align-middle" />
-              </button>
-            </div>
+            <PasswordInput v-model="password" placeholder="输入密码" />
           </FormField>
 
           <button

@@ -5,6 +5,7 @@ import { useAuth } from '@/composables/useAuth'
 import { useProject } from '@/composables/useProject'
 import { useDialog } from '@/composables/useDialog'
 import SelectDropdown from '@/components/SelectDropdown.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -15,7 +16,7 @@ const { confirm } = useDialog()
 const showUserMenu = ref(false)
 
 const navItems = [
-  { path: '/features', label: '主题', icon: 'i-lucide-clipboard-list', hideForGuest: true },
+  { path: '/features', label: '章节', icon: 'i-lucide-clipboard-list', hideForGuest: true },
   { path: '/todos', label: '待办', icon: 'i-lucide-list-checks', hideForGuest: true },
   { path: '/preview', label: '预览', icon: 'i-lucide-book-open', hideForGuest: true },
 ]
@@ -74,7 +75,7 @@ onMounted(loadProjects)
     <header class="flex items-center justify-between px-6 py-2 bg-white border-b border-gray-200 flex-shrink-0">
       <div class="flex items-center gap-1">
         <img src="/favicon.svg" alt="Logo" class="w-6 h-6 mr-2 flex-shrink-0" />
-        <span class="text-sm font-semibold text-gray-400">操作手册编写平台</span>
+        <span class="text-sm font-semibold text-gray-400 mr-2">操作手册编写平台</span>
         <button
           v-for="item in navItems.filter(i => !i.hideForGuest || !isGuest)"
           :key="item.path"
@@ -128,8 +129,7 @@ onMounted(loadProjects)
             @click="toggleUserMenu"
             @blur="closeUserMenu"
           >
-            <img v-if="user?.avatarUrl" :src="user.avatarUrl" class="w-5 h-5 rounded-full" alt="" />
-            <span v-else class="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 text-xs font-semibold flex-shrink-0">{{ (user?.displayName || user?.username || '?')[0] }}</span>
+            <UserAvatar :avatar-url="user?.avatarUrl" :name="user?.displayName || user?.username" size="sm" />
             {{ user?.feishuName || user?.displayName }}
             <span class="text-gray-300">·</span>
             {{ roleLabel(user?.role || '') }}

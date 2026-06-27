@@ -5,7 +5,7 @@ import { useProject } from '@/composables/useProject'
 import { useAuth } from '@/composables/useAuth'
 import { useDialog } from '@/composables/useDialog'
 import { useSidebarTree } from '@/composables/useSidebarTree'
-import { getCatalogs, getPreview, getVersions, getVersionPreview, publishCatalog, updateVersionVisibility, getMarkdownExportUrl } from '@/api/endpoints/catalogs'
+import { getCatalogs, getPreview, getVersions, getVersionPreview, publishCatalog, updateVersionVisibility, getMarkdownExportUrl, getPdfExportUrl, getVersionPdfExportUrl } from '@/api/endpoints/catalogs'
 import { api } from '@/api/client'
 import type { CatalogInfo, CatalogVersionInfo, CatalogEntry } from '@shared/types'
 import SelectDropdown from '@/components/SelectDropdown.vue'
@@ -178,6 +178,7 @@ async function loadPreview() {
 
 // ====== 操作 ======
 const exportingMd = ref(false)
+const exportingPdf = ref(false)
 const publishing = ref(false)
 const publishDialogVisible = ref(false)
 const publishChangeNotes = ref('')
@@ -237,6 +238,22 @@ async function exportMarkdown() {
     await api.download(url)
   } catch (e: unknown) { await alert('导出失败: ' + (e instanceof Error ? e.message : '网络错误')) }
   finally { exportingMd.value = false }
+}
+
+async function exportPdf() {
+  if (!selectedCatalogId.value) return
+  exportingPdf.value = true
+  try {
+    let url: string
+    const mode = previewMode.value === 'approved' ? 'approved' : undefined
+    if (selectedVersionId.value) {
+      url = getVersionPdfExportUrl(selectedCatalogId.value, selectedVersionId.value, mode)
+    } else {
+      url = getPdfExportUrl(selectedCatalogId.value, mode)
+    }
+    await api.download(url)
+  } catch (e: unknown) { await alert('导出失败: ' + (e instanceof Error ? e.message : '网络错误')) }
+  finally { exportingPdf.value = false }
 }
 
 // ====== 变更记录 ======
@@ -323,6 +340,9 @@ window.addEventListener('hashchange', () => {
           <button class="btn-secondary text-sm" :disabled="exportingMd" @click="exportMarkdown">
             <span v-if="exportingMd" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />下载 MD
           </button>
+          <button class="btn-secondary text-sm" :disabled="exportingPdf" @click="exportPdf">
+            <span v-if="exportingPdf" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />下载 PDF
+          </button>
           <router-link :to="`/catalogs/${selectedCatalogId}`" class="btn-secondary text-sm">编排</router-link>
         </template>
 
@@ -339,6 +359,9 @@ window.addEventListener('hashchange', () => {
           <button class="btn-secondary text-sm" :disabled="exportingMd" @click="exportMarkdown">
             <span v-if="exportingMd" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />下载 MD
           </button>
+          <button class="btn-secondary text-sm" :disabled="exportingPdf" @click="exportPdf">
+            <span v-if="exportingPdf" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />下载 PDF
+          </button>
           <router-link :to="`/catalogs/${selectedCatalogId}`" class="btn-secondary text-sm">编排</router-link>
         </template>
 
@@ -352,6 +375,9 @@ window.addEventListener('hashchange', () => {
           <a v-if="selectedVersionId" :href="docUrl" target="_blank" class="btn-secondary text-sm">在线文档</a>
           <button class="btn-secondary text-sm" :disabled="exportingMd" @click="exportMarkdown">
             <span v-if="exportingMd" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />下载 MD
+          </button>
+          <button class="btn-secondary text-sm" :disabled="exportingPdf" @click="exportPdf">
+            <span v-if="exportingPdf" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />下载 PDF
           </button>
         </template>
       </div>

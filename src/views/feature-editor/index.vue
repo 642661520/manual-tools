@@ -9,8 +9,19 @@ import { getMembers } from '@/api/endpoints/projects'
 import type { FeatureDetail, UpdateSectionStatusBody } from '@shared/types'
 
 // API 响应已自动转为 camelCase
+interface DefaultSection {
+  key: string
+  title: string
+  description?: string
+  status: string
+  assignees: string
+  reviewNote: string
+  reviewStep: number
+  reviewLog: string
+}
 interface FeatureDetailExt extends FeatureDetail {
   reviewChain?: string
+  defaultSection?: DefaultSection | null
 }
 interface ApiUser {
   id: string
@@ -27,6 +38,7 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import StatusTransitionModal from '@/components/StatusTransitionModal.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import SelectDropdown from '@/components/SelectDropdown.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -45,7 +57,8 @@ const currentSectionData = computed(() => {
   const sec = feature.value?.sections.find(s => s.key === currentSection.value)
   if (sec) return sec
   if (currentSection.value === '_default') {
-    return { key: '_default', title: feature.value?.title || '正文', status: 'draft' as ComponentStatus }
+    const ds = (feature.value as FeatureDetailExt)?.defaultSection
+    return ds || { key: '_default', title: feature.value?.title || '正文', status: 'draft' as ComponentStatus }
   }
   return feature.value?.orphaned?.find(o => o.key === currentSection.value) || null
 })
@@ -55,14 +68,14 @@ const docId = computed(() => {
   return `${featureId.value}/${currentSection.value}`
 })
 
-// 当前章节是否可编辑：游客不可编辑，pending_review/approved 时锁定
+// 当前小节是否可编辑：游客不可编辑，pending_review/approved 时锁定
 const editable = computed(() => {
   if (isGuest.value) return false
   const s = currentSectionData.value?.status || 'draft'
   return s !== 'pending_review' && s !== 'approved'
 })
 
-// 当前章节是否为游离文档
+// 当前小节是否为游离文档
 const isOrphaned = computed(() =>
   feature.value?.orphaned?.some(o => o.key === currentSection.value) ?? false
 )
@@ -74,7 +87,7 @@ const reviewChain = computed(() => {
 
 const currentReviewStep = computed(() => currentSectionData.value?.reviewStep || 0)
 
-// 当前章节的审核日志
+// 当前小节的审核日志
 const sectionReviewLog = computed(() => {
   try {
     return JSON.parse((currentSectionData.value as { reviewLog?: string })?.reviewLog || '[]') as { action: string; reviewerId: string; note: string; step: number; createdAt: string }[]
@@ -159,11 +172,6 @@ function getUserAvatar(uid: string): string | null {
   return (users.value.find(u => u.id === uid)?.feishuAvatarUrl as string) || null
 }
 
-function getUserInitial(uid: string): string {
-  const u = users.value.find(u => u.id === uid)
-  return ((u?.feishuName || u?.displayName || '?') as string)[0]
-}
-
 function availableUsers() {
   const assigned = new Set(getCurrentAssignees())
   return users.value.filter(u => !assigned.has(u.id) && projectMemberIds.value.has(u.id))
@@ -180,12 +188,43 @@ async function removeAssignee(sectionKey: string, uid: string) {
   await updateAssignees(sectionKey, assignees)
 }
 
+const assigneeError = ref('')
+
 async function updateAssignees(sectionKey: string, assignees: string[]) {
-  const sec = feature.value?.sections.find(s => s.key === sectionKey)
+  assigneeError.value = ''
+  // 找到对应的 section 对象：_default / 普通 section / 游离文档
+  let target: { assignees?: string } | undefined
+  if (sectionKey === '_default') {
+    const ds = (feature.value as FeatureDetailExt)?.defaultSection
+    if (!ds) {
+      // 没有 defaultSection 时创建一个挂到 FeatureDetailExt 上
+      const newDs: DefaultSection = {
+        key: '_default',
+        title: feature.value?.title || '正文',
+        status: 'draft',
+        assignees: '[]',
+        reviewNote: '',
+        reviewStep: 0,
+        reviewLog: '[]',
+      };
+      (feature.value as FeatureDetailExt).defaultSection = newDs
+      target = newDs
+    } else {
+      target = ds
+    }
+  } else {
+    target = feature.value?.sections.find(s => s.key === sectionKey) as { assignees?: string } | undefined
+    if (!target) {
+      target = feature.value?.orphaned?.find(o => o.key === sectionKey) as { assignees?: string } | undefined
+    }
+  }
+
   try {
     await updateSectionStatus(featureId.value, sectionKey, { assignees })
-    if (sec) { (sec as { assignees?: string }).assignees = JSON.stringify(assignees) }
-  } catch { /* ignore */ }
+    if (target) { target.assignees = JSON.stringify(assignees) }
+  } catch (e: unknown) {
+    assigneeError.value = '操作失败: ' + (e instanceof Error ? e.message : '网络错误')
+  }
 }
 
 function statusIcon(status: string): string {
@@ -199,7 +238,7 @@ function statusIcon(status: string): string {
   return icons[status] || 'i-lucide-clock'
 }
 
-// 章节切换同步到 URL
+// 小节切换同步到 URL
 watch(currentSection, (val) => {
   if (val) {
     router.replace({ query: { section: val } })
@@ -240,8 +279,20 @@ async function handleStatusTransition(sectionKey: string, payload: { target: str
     if (['pending_review', 'approved', 'rejected'].includes(payload.target)) {
       await loadFeature()
     } else if (feature.value) {
-      const sec = feature.value.sections.find(s => s.key === sectionKey)
-      if (sec) { sec.status = payload.target; sec.reviewNote = payload.note || '' }
+      // 更新本地状态（含 _default / 普通 section / 游离文档）
+      let target: { status?: string; reviewNote?: string } | undefined
+      if (sectionKey === '_default') {
+        target = (feature.value as FeatureDetailExt)?.defaultSection || undefined
+      } else {
+        target = feature.value.sections.find(s => s.key === sectionKey)
+        if (!target) {
+          target = feature.value.orphaned?.find(o => o.key === sectionKey)
+        }
+      }
+      if (target) {
+        target.status = payload.target
+        target.reviewNote = payload.note || ''
+      }
     }
   } catch { /* ignore */ }
 }
@@ -263,7 +314,7 @@ async function deleteOrphaned(sectionKey: string) {
   <!-- 错误 -->
   <div v-else-if="loadError || !feature" class="h-full flex items-center justify-center">
     <div class="text-center">
-      <p class="text-red-500 mb-4">{{ loadError || '主题不存在' }}</p>
+      <p class="text-red-500 mb-4">{{ loadError || '章节不存在' }}</p>
       <router-link to="/features" class="btn-secondary text-sm">返回列表</router-link>
     </div>
   </div>
@@ -280,17 +331,17 @@ async function deleteOrphaned(sectionKey: string) {
     </header>
 
     <div class="flex-1 flex overflow-hidden">
-      <!-- 左侧：主题骨架 -->
+      <!-- 左侧：章节骨架 -->
       <aside class="w-72 border-r border-gray-200 bg-white overflow-y-auto flex-shrink-0">
         <div class="p-4 border-b border-gray-100">
-          <div class="text-xs font-semibold text-gray-400 uppercase mb-2">主题概述</div>
+          <div class="text-xs font-semibold text-gray-400 uppercase mb-2">章节概述</div>
           <p class="text-sm text-gray-600">{{ feature.description }}</p>
         </div>
 
         <div class="p-4">
           <span class="text-xs font-semibold text-gray-400 uppercase">编写进度</span>
           <nav class="space-y-1 mt-3">
-            <!-- 无显式章节时显示默认章节 -->
+            <!-- 无显式小节时显示默认小节 -->
             <template v-if="feature.sections.length === 0">
               <div class="w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 bg-blue-50 text-blue-700 font-medium">
                 <span class="i-lucide-file-text w-4 h-4 inline-block flex-shrink-0 text-blue-400" />
@@ -317,7 +368,7 @@ async function deleteOrphaned(sectionKey: string) {
         <!-- 游离文档 -->
         <div v-if="feature.orphaned && feature.orphaned.length > 0" class="px-4 pb-4 border-t border-gray-100 pt-3">
           <span class="text-xs font-semibold text-gray-400 uppercase flex items-center gap-1"><span class="i-lucide-alert-triangle w-3.5 h-3.5 text-orange-400 inline-block align-middle" />游离文档</span>
-          <p class="text-xs text-gray-400 mt-1 mb-2">这些文档的章节已从骨架中移除</p>
+          <p class="text-xs text-gray-400 mt-1 mb-2">这些文档的小节已从骨架中移除</p>
           <nav class="space-y-1">
             <button
               v-for="o in feature.orphaned"
@@ -342,9 +393,9 @@ async function deleteOrphaned(sectionKey: string) {
 
         <div class="px-4 pb-4" v-if="currentSectionData">
           <div v-if="isOrphaned" class="bg-orange-50 border border-orange-200 rounded p-2 mb-3 text-xs text-orange-600">
-            <span class="i-lucide-alert-triangle w-4 h-4 text-orange-500 mr-1 inline-block" />此章节已从骨架中移除，内容未删除。可将内容合并到现有章节后清除。
+            <span class="i-lucide-alert-triangle w-4 h-4 text-orange-500 mr-1 inline-block" />此小节已从骨架中移除，内容未删除。可将内容合并到现有小节后清除。
           </div>
-          <div class="text-xs font-semibold text-gray-400 uppercase mb-1">当前章节</div>
+          <div class="text-xs font-semibold text-gray-400 uppercase mb-1">当前小节</div>
           <p class="text-xs text-gray-500 mb-3">{{ currentSectionData?.description || '' }}</p>
 
           <div class="text-xs font-semibold text-gray-400 uppercase mb-2 flex items-center gap-2">
@@ -376,6 +427,7 @@ async function deleteOrphaned(sectionKey: string) {
           <!-- 指派操作人 -->
           <div class="mt-3">
             <div class="text-xs font-semibold text-gray-400 uppercase mb-1">指派编写人</div>
+            <p v-if="assigneeError" class="text-xs text-red-500 mb-2">{{ assigneeError }}</p>
             <!-- PM：tag 模式多选 -->
             <div v-if="canManageProject">
               <div class="flex flex-wrap gap-1 mb-2">
@@ -384,8 +436,7 @@ async function deleteOrphaned(sectionKey: string) {
                   :key="uid"
                   class="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs"
                 >
-                  <img v-if="getUserAvatar(uid)" :src="getUserAvatar(uid)!" class="w-4 h-4 rounded-full" alt="" />
-                  <span v-else class="w-4 h-4 rounded-full bg-blue-100 inline-flex items-center justify-center text-blue-500 text-[8px] font-semibold">{{ getUserInitial(uid) }}</span>
+                  <UserAvatar :avatar-url="getUserAvatar(uid)" :name="getUserName(uid)" size="xs" />
                   {{ getUserName(uid) }}
                   <button @click="removeAssignee(currentSection, uid)" class="hover:text-red-500">&times;</button>
                 </span>
@@ -402,7 +453,7 @@ async function deleteOrphaned(sectionKey: string) {
                       value: u.id,
                       label: userDisplayName(u),
                       avatar: u.feishuAvatarUrl || undefined,
-                      initial: u.feishuAvatarUrl ? undefined : (name || '?')[0],
+                      name: u.feishuAvatarUrl ? undefined : name,
                     }
                   })
                 ]"
@@ -413,8 +464,7 @@ async function deleteOrphaned(sectionKey: string) {
             <div v-else class="text-sm text-gray-600">
               <template v-if="getCurrentAssignees().length > 0">
                 <span v-for="(uid, i) in getCurrentAssignees()" :key="uid" class="inline-flex items-center gap-1 mr-1">
-                  <img v-if="getUserAvatar(uid)" :src="getUserAvatar(uid)!" class="w-4 h-4 rounded-full" alt="" />
-                  <span v-else class="w-4 h-4 rounded-full bg-blue-100 inline-flex items-center justify-center text-blue-500 text-[8px] font-semibold">{{ getUserInitial(uid) }}</span>
+                  <UserAvatar :avatar-url="getUserAvatar(uid)" :name="getUserName(uid)" size="xs" />
                   {{ getUserName(uid) }}<span v-if="i < getCurrentAssignees().length - 1">、</span>
                 </span>
               </template>
@@ -429,8 +479,7 @@ async function deleteOrphaned(sectionKey: string) {
               第 {{ currentReviewStep + 1 }} / {{ reviewChain.length }} 步
             </div>
             <div class="text-xs text-gray-400">
-              <img v-if="getUserAvatar(reviewChain[currentReviewStep])" :src="getUserAvatar(reviewChain[currentReviewStep])!" class="w-4 h-4 rounded-full inline-block align-middle mr-1" alt="" />
-              <span v-else class="w-4 h-4 rounded-full bg-blue-100 inline-flex items-center justify-center text-blue-500 text-[8px] font-semibold align-middle mr-1">{{ getUserInitial(reviewChain[currentReviewStep]) }}</span>
+              <UserAvatar :avatar-url="getUserAvatar(reviewChain[currentReviewStep])" :name="getUserName(reviewChain[currentReviewStep])" size="xs" class="inline-block align-middle mr-1" />
               当前审核人：{{ getUserName(reviewChain[currentReviewStep]) }}
             </div>
           </div>
@@ -443,8 +492,7 @@ async function deleteOrphaned(sectionKey: string) {
                 <span :class="entry.action === 'approved' ? 'text-green-500' : 'text-red-500'">
                   {{ entry.action === 'approved' ? '✓' : '✗' }}
                 </span>
-                <img v-if="getUserAvatar(entry.reviewerId)" :src="getUserAvatar(entry.reviewerId)!" class="w-4 h-4 rounded-full" alt="" />
-                <span v-else class="w-4 h-4 rounded-full bg-blue-100 inline-flex items-center justify-center text-blue-500 text-[8px] font-semibold">{{ getUserInitial(entry.reviewerId) }}</span>
+                <UserAvatar :avatar-url="getUserAvatar(entry.reviewerId)" :name="getUserName(entry.reviewerId)" size="xs" />
                 <span class="font-medium">{{ getUserName(entry.reviewerId) }}</span>
                 <span class="text-gray-400">{{ entry.action === 'approved' ? '通过审核' : '退回修改' }}</span>
                 <span class="text-xs text-gray-400 ml-auto">{{ entry.createdAt.slice(0, 16).replace('T', ' ') }}</span>

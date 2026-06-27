@@ -159,7 +159,7 @@ const selectedFeatureIds = computed(() => {
   return ids
 })
 
-// 过滤可选主题
+// 过滤可选章节
 const filteredFeatures = computed(() => {
   const q = searchQuery.value.toLowerCase()
   return allFeatures.value.filter((f: FeatureSummary) => {
@@ -728,13 +728,13 @@ watch(currentProjectId, () => {
     </PageHeader>
 
     <div class="flex-1 flex overflow-hidden">
-      <!-- 左侧：可选主题（仅 PM 可编辑） -->
+      <!-- 左侧：可选章节（仅 PM 可编辑） -->
       <aside v-if="canManageProject" class="w-72 border-r border-gray-200 bg-white flex-shrink-0 flex flex-col">
         <div class="p-4 flex-shrink-0">
           <input
             v-model="searchQuery"
             class="input text-sm"
-            placeholder="搜索主题..."
+            placeholder="搜索章节..."
           />
         </div>
 
@@ -778,7 +778,7 @@ watch(currentProjectId, () => {
             </div>
           </template>
 
-          <EmptyState v-if="Object.keys(grouped).length === 0" title="暂无可用主题" />
+          <EmptyState v-if="Object.keys(grouped).length === 0" title="暂无可用章节" />
         </div>
       </aside>
 
@@ -802,7 +802,7 @@ watch(currentProjectId, () => {
             class="drop-zone-placeholder border-2 border-dashed border-gray-300 rounded-xl h-48 flex flex-col items-center justify-center text-gray-400 transition-colors hover:border-blue-400 hover:text-blue-400"
           >
             <span class="i-lucide-book-open text-3xl mb-3 opacity-40" />
-            <span class="text-sm">从左侧拖入或点击主题添加到目录</span>
+            <span class="text-sm">从左侧拖入或点击章节添加到目录</span>
           </div>
 
           <template v-for="(node, ni) in catalog.entries" :key="isPart(node) ? node.id : node.feature.id">
@@ -826,11 +826,11 @@ watch(currentProjectId, () => {
                   placeholder="篇名称"
                   @input="dirty = true"
                 />
-                <span class="text-xs text-gray-400 flex-shrink-0">{{ node.features.length }} 个主题</span>
+                <span class="text-xs text-gray-400 flex-shrink-0">{{ node.features.length }} 个章节</span>
                 <button
                   v-if="canManageProject"
                   class="text-gray-300 hover:text-red-500 text-sm flex-shrink-0"
-                  title="删除此篇（主题将提升到顶层）"
+                  title="删除此篇（章节将提升到顶层）"
                   @click="removePart(ni)"
                 >
                   <span class="i-lucide-trash-2 w-4 h-4 inline-block align-middle" />
@@ -839,7 +839,7 @@ watch(currentProjectId, () => {
 
               <!-- Part 内的 features（始终渲染以支持 SortableJS group 空容器拖入） -->
               <div class="part-features-sort border-t border-gray-100" :class="{ 'min-h-[40px]': node.features.length === 0 }">
-                <div v-if="node.features.length === 0" class="px-4 py-3 text-xs text-gray-400 text-center">拖入左侧主题，或点击左侧主题的 <span class="i-lucide-book-plus w-3 h-3 inline-block align-middle text-indigo-400" /> 按钮添加到此处</div>
+                <div v-if="node.features.length === 0" class="px-4 py-3 text-xs text-gray-400 text-center">拖入左侧章节，或点击左侧章节的 <span class="i-lucide-book-plus w-3 h-3 inline-block align-middle text-indigo-400" /> 按钮添加到此处</div>
                 <div
                   v-for="(fe, fi) in node.features"
                   :key="fe.feature.id"

@@ -3,7 +3,7 @@
 // - 自动注入 Authorization header
 // - 自动设 Content-Type: application/json
 // - 统一错误处理（抛 ApiRequestError）
-// - 兼容新旧响应格式
+// - 自动解包 { ok: true, data: T } 响应
 // ============================================================
 
 import { ApiRequestError } from '@shared/types'
@@ -93,10 +93,10 @@ async function request<T>(
   }
 
   // 解包标准响应格式：{ ok: true, data: T } → T
+  // ok() 返回 { ok: true }（JSON 序列化后无 data 字段），直接返回整个对象
   if (data && typeof data === 'object' && 'ok' in data && data.ok === true && 'data' in data) {
     return data.data as T
   }
-  // 如果后端已经解包（如 ok() 返回的 { ok: true } 无 data），直接返回整个对象
   return data as T
 }
 

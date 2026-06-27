@@ -82,7 +82,7 @@ async function openEditDialog(featureId: string) {
 
 function addSection() {
   const title = newSectionTitle.value.trim()
-  if (!title) { featureFormError.value = '请输入章节标题'; return }
+  if (!title) { featureFormError.value = '请输入小节标题'; return }
   featureFormError.value = ''
   featureForm.value.sections.push({ key: generateKey(), title })
   newSectionTitle.value = ''
@@ -90,14 +90,14 @@ function addSection() {
 
 async function removeSection(index: number) {
   if (featureDialogMode.value === 'edit' && featureForm.value.sections.length <= 1) {
-    if (!await confirm('删除最后一个章节将导致主题无法保存，确定删除？')) return
+    if (!await confirm('删除最后一个小节将导致章节无法保存，确定删除？')) return
   }
   featureForm.value.sections.splice(index, 1)
 }
 
 async function saveFeature() {
   featureFormError.value = ''
-  if (!featureForm.value.title.trim()) { featureFormError.value = '请输入主题名称'; return }
+  if (!featureForm.value.title.trim()) { featureFormError.value = '请输入章节名称'; return }
   try {
     if (featureDialogMode.value === 'create') {
       await createFeature({
@@ -232,7 +232,7 @@ async function saveEditCategory() {
 async function deleteCategory(id: string) {
   const count = categoryFeatureCount.value.get(id) || 0
   const msg = count > 0
-    ? `确定删除此分类？该分类下有 ${count} 个主题将变为"未分类"。`
+    ? `确定删除此分类？该分类下有 ${count} 个章节将变为"未分类"。`
     : '确定删除此分类？'
   if (!await dangerConfirm(msg)) return
   await apiDeleteCategory(id)
@@ -304,8 +304,8 @@ watch(showCategoryDialog, async (val) => {
 async function deleteCustomFeature(id: string) {
   const f = features.value.find(f => f.id === id)
   const msg = f
-    ? `确定删除「${f.title}」？\n${f.totalSections} 个章节文档将被一并删除，不可恢复。`
-    : '确定删除此主题？'
+    ? `确定删除「${f.title}」？\n${f.totalSections} 个小节文档将被一并删除，不可恢复。`
+    : '确定删除此章节？'
   if (!await dangerConfirm(msg)) return
   await deleteFeature(id)
   await loadFeatures()
@@ -321,12 +321,12 @@ watch(currentProjectId, loadFeatures)
   <div class="h-full flex flex-col max-w-6xl mx-auto">
     <div class="flex-shrink-0 flex items-center justify-between mb-6 px-6 pt-6">
       <div>
-        <h1 class="text-2xl font-bold">主题列表</h1>
-        <p class="text-sm text-gray-500 mt-1">主题骨架管理与状态总览</p>
+        <h1 class="text-2xl font-bold">章节列表</h1>
+        <p class="text-sm text-gray-500 mt-1">章节骨架管理与状态总览</p>
       </div>
       <div class="flex items-center gap-3">
         <button v-if="canManageProject" class="btn-secondary text-sm" @click="showCategoryDialog = true"><span class="i-lucide-tag w-4 h-4 inline-block align-middle mr-1" />分类管理</button>
-        <button v-if="canManageProject" class="btn-secondary text-sm" @click="openCreateDialog"><span class="i-lucide-plus w-4 h-4 inline-block align-middle mr-1" />自定义主题</button>
+        <button v-if="canManageProject" class="btn-secondary text-sm" @click="openCreateDialog"><span class="i-lucide-plus w-4 h-4 inline-block align-middle mr-1" />自定义章节</button>
       </div>
     </div>
 
@@ -369,18 +369,18 @@ watch(currentProjectId, loadFeatures)
                   <p class="text-sm text-gray-500 mt-0.5 truncate">{{ f.description }}</p>
                 </div>
                 <div class="flex items-center gap-4 text-sm flex-shrink-0">
-                  <span class="text-xs text-gray-400">{{ f.approvedSections }}/{{ f.totalSections || 1 }} 已审核</span>
+                  <span class="text-xs text-gray-400">{{ f.approvedSections }}/{{ f.totalSections || 0 }} 已审核</span>
                   <StatusBadge :status="getOverallStatus(f)" variant="badge" />
                   <button v-if="canManageProject" class="text-blue-400 hover:text-blue-600 text-sm" @click.stop="openEditDialog(f.id)">设置</button>
                   <button v-if="canManageProject" class="text-red-400 hover:text-red-600 text-sm" @click.stop="deleteCustomFeature(f.id)"><span class="i-lucide-x w-4 h-4 inline-block align-middle" /></button>
                 </div>
               </div>
-              <!-- 展开的章节列表 -->
+              <!-- 展开的小节列表 -->
               <div
                 v-if="expandedFeatureId === f.id"
                 class="bg-gray-50 px-10 py-3 border-t border-gray-100"
               >
-                <div class="text-xs text-gray-400 mb-2">章节</div>
+                <div class="text-xs text-gray-400 mb-2">小节</div>
                 <div class="space-y-1">
                   <div
                     v-for="sec in parseSections(f.sections)"
@@ -390,27 +390,36 @@ watch(currentProjectId, loadFeatures)
                   >
                     <span class="text-gray-700">{{ sec.title }}</span>
                   </div>
-                  <div v-if="parseSections(f.sections).length === 0" class="text-xs text-gray-400 py-2">暂无章节</div>
+                  <!-- 无显式小节但有默认小节文档 -->
+                  <div
+                    v-if="parseSections(f.sections).length === 0 && f.totalSections > 0"
+                    class="flex items-center gap-3 text-sm py-1.5 px-3 rounded hover:bg-white cursor-pointer transition-colors"
+                    @click="openEditor(f.id)"
+                  >
+                    <span class="text-gray-700">正文</span>
+                    <span class="text-xs text-gray-400">默认小节</span>
+                  </div>
+                  <div v-if="parseSections(f.sections).length === 0 && f.totalSections === 0" class="text-xs text-gray-400 py-2">暂无小节</div>
                 </div>
               </div>
             </template>
           </div>
         </div>
-        <EmptyState v-if="features.length === 0" icon="i-lucide-clipboard-list" title="暂无主题骨架" description="点击「自定义主题」创建第一个主题" />
+        <EmptyState v-if="features.length === 0" icon="i-lucide-clipboard-list" title="暂无章节骨架" description="点击「自定义章节」创建第一个章节" />
       </template>
     </div>
 
-    <!-- 新建/编辑主题 -->
+    <!-- 新建/编辑章节 -->
     <div v-if="showFeatureDialog" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
       <div class="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
         <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
-          <h2 class="text-lg font-semibold">{{ featureDialogMode === 'create' ? '新建自定义主题' : '主题设置' }}</h2>
+          <h2 class="text-lg font-semibold">{{ featureDialogMode === 'create' ? '新建自定义章节' : '章节设置' }}</h2>
           <button class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100" @click="showFeatureDialog = false"><span class="i-lucide-x w-4 h-4 inline-block align-middle" /></button>
         </div>
         <div class="p-6 overflow-y-auto flex-1">
           <ErrorMessage :message="featureFormError" class="mb-4" />
           <div class="space-y-4">
-            <FormField label="主题名称" :required="true">
+            <FormField label="章节名称" :required="true">
               <input v-model="featureForm.title" class="input" placeholder="如：常见问题" />
             </FormField>
             <FormField label="所属分类">
@@ -422,11 +431,11 @@ watch(currentProjectId, loadFeatures)
                 ]"
               />
             </FormField>
-            <FormField label="主题描述">
-              <textarea v-model="featureForm.description" class="textarea" rows="2" placeholder="简要描述主题用途" />
+            <FormField label="章节描述">
+              <textarea v-model="featureForm.description" class="textarea" rows="2" placeholder="简要描述章节用途" />
             </FormField>
             <div>
-              <label class="label">章节</label>
+              <label class="label">小节</label>
               <div v-if="featureForm.sections.length > 0" ref="featureSectionSortEl" class="mb-3 space-y-1">
                 <div v-for="(s, i) in featureForm.sections" :key="s.key" class="flex items-center gap-2 text-sm bg-gray-50 px-3 py-1.5 rounded">
                   <div class="drag-handle cursor-grab text-gray-300 hover:text-gray-500"><span class="i-lucide-grip-vertical w-4 h-4 inline-block align-middle" /></div>
@@ -435,10 +444,10 @@ watch(currentProjectId, loadFeatures)
                 </div>
               </div>
               <div class="flex gap-2">
-                <input v-model="newSectionTitle" class="input flex-1" placeholder="章节标题" @keyup.enter="addSection" />
+                <input v-model="newSectionTitle" class="input flex-1" placeholder="小节标题" @keyup.enter="addSection" />
                 <button class="btn-secondary text-sm flex-shrink-0" @click="addSection">添加</button>
               </div>
-              <p class="text-xs text-gray-400 mt-1">拖拽可调整章节顺序，可留空使用默认章节</p>
+              <p class="text-xs text-gray-400 mt-1">拖拽可调整小节顺序，可留空使用默认小节</p>
             </div>
           </div>
         </div>
@@ -480,7 +489,7 @@ watch(currentProjectId, loadFeatures)
               <span class="w-3.5 h-3.5 rounded-full flex-shrink-0" :style="{ backgroundColor: c.color }"></span>
               <div v-if="editingCategory?.id !== c.id" class="flex-1 flex items-center gap-2 min-w-0">
                 <span class="font-medium text-sm truncate">{{ c.name }}</span>
-                <span class="text-xs text-gray-400 flex-shrink-0">{{ categoryFeatureCount.get(c.id) || 0 }} 个主题</span>
+                <span class="text-xs text-gray-400 flex-shrink-0">{{ categoryFeatureCount.get(c.id) || 0 }} 个章节</span>
               </div>
               <div v-else class="flex-1 flex items-center gap-2">
                 <input v-model="editCategoryForm.name" class="input text-sm flex-1" @keyup.enter="saveEditCategory" />

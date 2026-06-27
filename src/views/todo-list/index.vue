@@ -42,8 +42,9 @@ async function loadTodos() {
   } finally { loading.value = false }
 }
 
-function openEditor(featureId: string) {
-  router.push(`/features/${featureId}/edit`)
+function openEditor(t: TodoItem) {
+  const query = t.sectionKey ? `?section=${encodeURIComponent(t.sectionKey)}` : ''
+  router.push(`/features/${t.featureId}/edit${query}`)
 }
 
 onMounted(loadTodos)
@@ -77,7 +78,7 @@ watch(currentProjectId, loadTodos)
               :key="t.docId"
               class="flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer hover:shadow-sm transition-all"
               :class="group.bg"
-              @click="openEditor(t.featureId)"
+              @click="openEditor(t)"
             >
               <div class="flex-1 min-w-0">
                 <div class="text-sm font-medium truncate">

@@ -84,3 +84,13 @@ export function updateVersionVisibility(catalogId: string, versionId: string, vi
 export function getMarkdownExportUrl(id: string): string {
   return `${BASE}/${id}/export/markdown`
 }
+
+export function getPdfExportUrl(id: string, mode?: string): string {
+  const m = mode ? `?mode=${mode}` : ''
+  return `${BASE}/${id}/export/pdf${m}`
+}
+
+export function getVersionPdfExportUrl(catalogId: string, versionId: string, mode?: string): string {
+  const m = mode ? `?mode=${mode}` : ''
+  return `${BASE}/${catalogId}/versions/${versionId}/export/pdf${m}`
+}

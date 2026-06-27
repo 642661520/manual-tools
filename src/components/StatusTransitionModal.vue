@@ -183,7 +183,7 @@ const variantRadioFill: Record<string, string> = {
 <template>
   <ModalDialog
     :visible="visible"
-    title="变更章节状态"
+    title="变更小节状态"
     confirm-text="确认变更"
     cancel-text="取消"
     :confirm-disabled="confirmDisabled"

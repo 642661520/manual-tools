@@ -12,6 +12,8 @@ import { changePassword as apiChangePassword } from '@/api/endpoints/auth'
 import ModalDialog from '@/components/ModalDialog.vue'
 import FormField from '@/components/FormField.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
+import PasswordInput from '@/components/PasswordInput.vue'
 
 const { user, isGuest, logout, refreshUser, token, updateProfile, updateUsername } = useAuth()
 const { confirm } = useDialog()
@@ -199,7 +201,6 @@ const changePasswordForm = ref({
   newPassword: '',
   confirmPassword: '',
 })
-const showPw = ref({ current: false, new: false, confirm: false })
 
 function validatePassword(password: string): string | null {
   if (!password) return '请输入新密码'
@@ -219,7 +220,6 @@ function validatePassword(password: string): string | null {
 function openChangePassword() {
   changePasswordError.value = ''
   changePasswordForm.value = { currentPassword: '', newPassword: '', confirmPassword: '' }
-  showPw.value = { current: false, new: false, confirm: false }
   showChangePassword.value = true
 }
 
@@ -279,18 +279,11 @@ onMounted(() => {
     <div class="card mb-6">
       <h2 class="text-sm font-semibold text-gray-500 mb-3">个人信息</h2>
       <div class="flex items-start gap-4">
-        <img
-          v-if="feishuBound && feishuAvatar"
-          :src="feishuAvatar"
-          class="w-12 h-12 rounded-full flex-shrink-0"
-          alt=""
+        <UserAvatar
+          :avatar-url="feishuBound ? feishuAvatar : null"
+          :name="user?.displayName || user?.username"
+          size="lg"
         />
-        <div
-          v-else
-          class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0"
-        >
-          <span class="text-blue-500 text-lg font-semibold">{{ (user?.displayName || user?.username || '?')[0] }}</span>
-        </div>
         <div class="flex-1 min-w-0">
           <div class="text-lg font-medium truncate">{{ user?.displayName }}</div>
           <div class="text-sm text-gray-500 mt-0.5">
@@ -429,28 +422,13 @@ onMounted(() => {
           <p v-if="isFeishuAutoUsername && !user?.usernameChanged" class="text-amber-600"><span class="i-lucide-alert-triangle w-4 h-4 inline-block align-middle mr-1" /> 当前用户名 <code class="bg-amber-100 px-1 rounded text-xs">{{ user?.username }}</code> 为自动生成，建议先点击「编辑资料」修改为易记的用户名，再设置密码。</p>
         </div>
         <FormField v-if="hasPassword" label="当前密码" :required="true">
-          <div class="relative">
-            <input v-model="changePasswordForm.currentPassword" class="input pr-8" :type="showPw.current ? 'text' : 'password'" placeholder="输入当前密码" />
-            <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" @click="showPw.current = !showPw.current">
-              <span :class="showPw.current ? 'i-lucide-eye-off' : 'i-lucide-eye'" class="w-4 h-4 inline-block align-middle" />
-            </button>
-          </div>
+          <PasswordInput v-model="changePasswordForm.currentPassword" placeholder="输入当前密码" />
         </FormField>
         <FormField label="新密码" :required="true">
-          <div class="relative">
-            <input v-model="changePasswordForm.newPassword" class="input pr-8" :type="showPw.new ? 'text' : 'password'" placeholder="至少8位，含大小写字母、数字、特殊字符中至少3种" />
-            <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" @click="showPw.new = !showPw.new">
-              <span :class="showPw.new ? 'i-lucide-eye-off' : 'i-lucide-eye'" class="w-4 h-4 inline-block align-middle" />
-            </button>
-          </div>
+          <PasswordInput v-model="changePasswordForm.newPassword" placeholder="至少8位，含大小写字母、数字、特殊字符中至少3种" />
         </FormField>
         <FormField label="确认密码" :required="true">
-          <div class="relative">
-            <input v-model="changePasswordForm.confirmPassword" class="input pr-8" :type="showPw.confirm ? 'text' : 'password'" placeholder="再次输入新密码" />
-            <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" @click="showPw.confirm = !showPw.confirm">
-              <span :class="showPw.confirm ? 'i-lucide-eye-off' : 'i-lucide-eye'" class="w-4 h-4 inline-block align-middle" />
-            </button>
-          </div>
+          <PasswordInput v-model="changePasswordForm.confirmPassword" placeholder="再次输入新密码" />
         </FormField>
       </div>
     </ModalDialog>

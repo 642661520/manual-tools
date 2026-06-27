@@ -14,7 +14,7 @@ export interface SidebarChapter {
   title: string
   chNum: number
   sections: SidebarSection[]
-  isLeaf: boolean  // 仅默认章节时无展开
+  isLeaf: boolean  // 仅默认小节时无展开
 }
 
 export interface SidebarPart {

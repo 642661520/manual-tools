@@ -26,10 +26,9 @@ export const Crossref = Node.create({
     return [{
       tag: 'crossref',
       getAttrs: (dom: HTMLElement) => {
-        // 优先读取 data-* 属性（新格式），回退到旧格式（兼容历史数据）
-        const featureId = dom.getAttribute('data-feature-id') || dom.getAttribute('featureid') || dom.getAttribute('featureId') || ''
-        const sectionKey = dom.getAttribute('data-section-key') || dom.getAttribute('sectionkey') || dom.getAttribute('sectionKey') || ''
-        const label = dom.getAttribute('data-label') || dom.getAttribute('label') || dom.textContent?.replace(/^→\s*参见：/, '')?.trim() || ''
+        const featureId = dom.getAttribute('data-feature-id') || ''
+        const sectionKey = dom.getAttribute('data-section-key') || ''
+        const label = dom.getAttribute('data-label') || dom.textContent?.replace(/^→\s*参见：/, '')?.trim() || ''
         return { featureId, label, sectionKey }
       },
     }]
