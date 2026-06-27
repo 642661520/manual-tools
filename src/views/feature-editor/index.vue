@@ -7,6 +7,8 @@ import { getFeature, updateSectionStatus, deleteOrphaned as apiDeleteOrphaned } 
 import { getUsers } from '@/api/endpoints/auth'
 import { getMembers } from '@/api/endpoints/projects'
 import type { FeatureDetail, UpdateSectionStatusBody } from '@shared/types'
+import { parseSections } from '@shared/utils/sections'
+import { getStoredUser } from '@/utils/storage'
 
 // API 响应已自动转为 camelCase
 interface DefaultSection {
@@ -45,8 +47,10 @@ const router = useRouter()
 
 type ComponentStatus = 'draft' | 'in_progress' | 'completed' | 'pending_review' | 'rejected' | 'approved'
 const { canManageProject, isGuest, canWriteContent } = useAuth()
+
 const { confirm, dangerConfirm, prompt } = useDialog()
 const featureId = computed(() => route.params.id as string)
+const searchText = computed(() => (route.query.find as string) || undefined)
 
 const feature = ref<FeatureDetail | null>(null)
 const loading = ref(true)
@@ -105,8 +109,8 @@ const isCurrentReviewer = computed(() => {
 })
 
 function currentUserId(): string {
-  const user = JSON.parse(localStorage.getItem('auth_user') || '{}')
-  return user.id || ''
+  const user = getStoredUser<{ id: string }>()
+  return user?.id || ''
 }
 
 async function loadFeature() {
@@ -133,6 +137,11 @@ async function loadFeature() {
 onMounted(() => {
   loadFeature().then(() => loadProjectMembers())
   loadUsers()
+})
+
+// 切换到其他 feature 时重新加载
+watch(featureId, () => {
+  loadFeature().then(() => loadProjectMembers())
 })
 
 function userDisplayName(u: ApiUser): string {
@@ -238,10 +247,10 @@ function statusIcon(status: string): string {
   return icons[status] || 'i-lucide-clock'
 }
 
-// 小节切换同步到 URL
+// 小节切换同步到 URL（保留 find 等已有参数）
 watch(currentSection, (val) => {
   if (val) {
-    router.replace({ query: { section: val } })
+    router.replace({ query: { ...route.query, section: val } })
   }
 })
 
@@ -510,6 +519,7 @@ async function deleteOrphaned(sectionKey: string) {
           :doc-id="docId"
           :editable="editable"
           :placeholder="editable ? `编写 ${currentSectionData?.title || ''} 的操作说明...` : '当前状态不可编辑'"
+          :find-text="searchText"
         />
       </main>
     </div>

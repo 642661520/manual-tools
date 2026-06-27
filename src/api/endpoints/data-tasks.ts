@@ -5,7 +5,7 @@
 import { api } from '../client'
 import type {
   ExportEstimate, ImportDiffReport, ImportApplyOptions,
-  ImportApplyResult, DataTaskInfo, OrphanFile,
+  ImportApplyResult, DataTaskInfo, OrphanFile, UploadFileInfo,
 } from '@shared/types'
 import type { OkResponse } from '@shared/types'
 
@@ -71,4 +71,14 @@ export function getOrphans(): Promise<{ orphans: OrphanFile[]; totalSize: number
 
 export function deleteOrphans(): Promise<{ deleted: number; freedBytes: number }> {
   return api.delete<{ deleted: number; freedBytes: number }>('/api/v1/uploads/orphans')
+}
+
+// ---- 上传资源管理 ----
+
+export function getUploads(): Promise<{ files: UploadFileInfo[]; totalSize: number; totalCount: number; referencedCount: number; orphanedCount: number }> {
+  return api.get<{ files: UploadFileInfo[]; totalSize: number; totalCount: number; referencedCount: number; orphanedCount: number }>('/api/v1/uploads')
+}
+
+export function deleteUpload(filePath: string): Promise<OkResponse> {
+  return api.delete<OkResponse>(`/api/v1/uploads?filePath=${encodeURIComponent(filePath)}`)
 }

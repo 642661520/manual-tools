@@ -90,7 +90,7 @@ watch(currentProjectId, loadTodos)
               <span
                 v-if="t.reviewNote"
                 class="text-xs text-gray-500 truncate max-w-[12rem] hidden sm:inline"
-                :title="t.reviewNote"
+                v-tooltip="t.reviewNote"
               >{{ t.reviewNote }}</span>
               <span class="i-lucide-arrow-right w-4 h-4 text-gray-300 flex-shrink-0" />
             </div>

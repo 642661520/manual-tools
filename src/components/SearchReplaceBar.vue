@@ -243,7 +243,7 @@ defineExpose({ focusSearch })
     <button
       class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded transition-colors"
       :class="caseSensitive ? 'bg-blue-100 text-blue-700' : 'text-gray-400 hover:text-gray-600'"
-      title="区分大小写"
+      v-tooltip="'区分大小写'"
       @click="caseSensitive = !caseSensitive"
     >
       <span class="i-lucide-case-sensitive w-4 h-4 inline-block align-middle" />
@@ -253,7 +253,7 @@ defineExpose({ focusSearch })
     <button
       class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500"
       :class="{ 'opacity-30': matches.length === 0 }"
-      title="上一个 (Shift+Enter)"
+      v-tooltip="'上一个 (Shift+Enter)'"
       @click="prev"
     >
       <span class="i-lucide-chevron-up w-4 h-4" />
@@ -261,7 +261,7 @@ defineExpose({ focusSearch })
     <button
       class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500"
       :class="{ 'opacity-30': matches.length === 0 }"
-      title="下一个 (Enter)"
+      v-tooltip="'下一个 (Enter)'"
       @click="next"
     >
       <span class="i-lucide-chevron-down w-4 h-4" />
@@ -271,7 +271,7 @@ defineExpose({ focusSearch })
     <button
       class="flex-shrink-0 px-1.5 py-0.5 rounded text-xs transition-colors"
       :class="showReplace ? 'bg-gray-200 text-gray-700' : 'text-gray-400 hover:text-gray-600'"
-      title="切换替换"
+      v-tooltip="'切换替换'"
       @click="showReplace = !showReplace"
     >
       <span class="i-lucide-chevrons-left-right w-3.5 h-3.5 inline-block align-middle" />
@@ -300,7 +300,7 @@ defineExpose({ focusSearch })
     <!-- 关闭 -->
     <button
       class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 text-gray-400"
-      title="关闭 (Esc)"
+      v-tooltip="'关闭 (Esc)'"
       @click="close"
     >
       <span class="i-lucide-x w-4 h-4" />

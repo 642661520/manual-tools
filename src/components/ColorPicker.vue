@@ -36,7 +36,7 @@ function onInput(e: Event) {
       type="button"
       class="h-[42px] w-[42px] rounded-lg border-2 border-gray-200 cursor-pointer shadow-sm transition-all hover:scale-105 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 flex-shrink-0 box-border"
       :style="{ backgroundColor: modelValue }"
-      :title="modelValue"
+      v-tooltip="modelValue"
       @click="openPicker"
     />
     <!-- 十六进制值 -->

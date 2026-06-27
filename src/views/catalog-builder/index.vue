@@ -9,6 +9,7 @@ import { getFeatures } from '@/api/endpoints/features'
 import { getCatalogs, getCatalog, createCatalog, updateCatalog, deleteCatalog as apiDeleteCatalog } from '@/api/endpoints/catalogs'
 import { getCategories } from '@/api/endpoints/categories'
 import type { FeatureSummary, CategoryInfo, CatalogInfo, CatalogEntry } from '@shared/types'
+import { parseSections } from '@shared/utils/sections'
 
 // 本地类型：目录中引用的功能
 interface CatFeature {
@@ -120,9 +121,7 @@ function openPoolMoveMenu(e: MouseEvent, f: FeatureSummary) {
 
 // 解析 sections JSON 用于展示
 function getSections(f: { sections?: string }): { key: string; title: string }[] {
-  if (Array.isArray(f.sections)) return f.sections as { key: string; title: string }[]
-  try { return JSON.parse(f.sections || '[]') }
-  catch { return [] }
+  return parseSections(f.sections || '[]')
 }
 
 // 获取当前排序后的 sections（按 sectionOrder）
@@ -132,6 +131,14 @@ function getOrderedSections(entry: CatEntry): { key: string; title: string }[] {
     return entry.sectionOrder.map((k: string) => raw.find(s => s.key === k)).filter(Boolean) as typeof raw
   }
   return raw
+}
+
+// 获取被移除的小节（sections 中存在但 sectionOrder 中不存在的）
+function getRemovedSections(entry: CatEntry): { key: string; title: string }[] {
+  const all = getSections(entry.feature)
+  if (!entry.sectionOrder) return []
+  const inOrder = new Set(entry.sectionOrder)
+  return all.filter(s => !inOrder.has(s.key))
 }
 
 const categoryInfo = computed(() => {
@@ -372,13 +379,45 @@ function updateSectionOrderInPart(partIndex: number, featIndex: number, newOrder
   if (!isSame) dirty.value = true
 }
 
-// 从编排中移除某个 section
+// 从编排中移除某个小节
 async function removeSection(entryIndex: number, sectionKey: string) {
   const entry = catalog.value.entries[entryIndex]
   if (isPart(entry)) return
   const current = getOrderedSections(entry).map(s => s.key)
+  if (current.length <= 1 && !await confirm('这是最后一个小节，确定移除？\n移除后该章节在目录中将没有可见内容。')) return
   const filtered = current.filter(k => k !== sectionKey)
   updateSectionOrder(entryIndex, filtered)
+  dirty.value = true
+}
+
+// 恢复被移除的小节（添加到 sectionOrder 末尾）
+function restoreSection(entryIndex: number, sectionKey: string) {
+  const entry = catalog.value.entries[entryIndex]
+  if (isPart(entry)) return
+  const current = entry.sectionOrder || getSections(entry.feature).map(s => s.key)
+  entry.sectionOrder = [...current, sectionKey]
+  dirty.value = true
+}
+
+// Part 内移除小节
+async function removeSectionInPart(partIndex: number, featIndex: number, sectionKey: string) {
+  const node = catalog.value.entries[partIndex]
+  if (!isPart(node)) return
+  const entry = node.features[featIndex]
+  const current = getOrderedSections(entry).map(s => s.key)
+  if (current.length <= 1 && !await confirm('这是最后一个小节，确定移除？\n移除后该章节在目录中将没有可见内容。')) return
+  const filtered = current.filter(k => k !== sectionKey)
+  updateSectionOrderInPart(partIndex, featIndex, filtered)
+  dirty.value = true
+}
+
+// Part 内恢复小���
+function restoreSectionInPart(partIndex: number, featIndex: number, sectionKey: string) {
+  const node = catalog.value.entries[partIndex]
+  if (!isPart(node)) return
+  const entry = node.features[featIndex]
+  const current = entry.sectionOrder || getSections(entry.feature).map(s => s.key)
+  entry.sectionOrder = [...current, sectionKey]
   dirty.value = true
 }
 
@@ -636,7 +675,7 @@ function initAllSorts() {
   initSectionSorts()
 }
 
-// ---- 章节排序 ----
+// ---- 小节排序 ----
 
 function initSectionSorts() {
   const areas = sortList.value?.querySelectorAll<HTMLElement>('.section-sort-area')
@@ -714,8 +753,8 @@ watch(currentProjectId, () => {
           @update:model-value="switchCatalog"
         />
         <span class="text-xs text-gray-400 flex-shrink-0">{{ catalogList.length }} 个目录</span>
-        <button v-if="canManageProject && !isNew" class="btn-secondary text-sm px-2 py-1.5" title="新建目录" @click="router.push('/catalogs/new')"><span class="i-lucide-plus w-4 h-4 inline-block align-middle" /></button>
-        <button v-if="canManageProject && !isNew" class="btn-secondary text-sm px-2 py-1.5 text-red-400 hover:text-red-600" title="删除目录" @click="deleteCatalog(catalogId)"><span class="i-lucide-trash-2 w-4 h-4 inline-block align-middle" /></button>
+        <button v-if="canManageProject && !isNew" class="btn-secondary text-sm px-2 py-1.5" v-tooltip="'新建目录'" @click="router.push('/catalogs/new')"><span class="i-lucide-plus w-4 h-4 inline-block align-middle" /></button>
+        <button v-if="canManageProject && !isNew" class="btn-secondary text-sm px-2 py-1.5 text-red-400 hover:text-red-600" v-tooltip="'删除目录'" @click="deleteCatalog(catalogId)"><span class="i-lucide-trash-2 w-4 h-4 inline-block align-middle" /></button>
         <div class="w-px h-5 bg-gray-200" />
         <input v-model="catalog.title" class="text-lg font-semibold bg-transparent border-none outline-none min-w-0" placeholder="目录名称" :readonly="!canManageProject" />
       </template>
@@ -769,7 +808,7 @@ watch(currentProjectId, () => {
               <div v-if="catalog.entries.some(e => isPart(e))" class="relative flex-shrink-0">
                 <button
                   class="text-gray-300 hover:text-indigo-500 px-1 py-2 transition-colors"
-                  title="添加到篇"
+                  v-tooltip="'添加到篇'"
                   @click.stop="openPoolMoveMenu($event, f)"
                 >
                   <span class="i-lucide-book-plus w-3.5 h-3.5 inline-block align-middle" />
@@ -829,8 +868,8 @@ watch(currentProjectId, () => {
                 <span class="text-xs text-gray-400 flex-shrink-0">{{ node.features.length }} 个章节</span>
                 <button
                   v-if="canManageProject"
-                  class="text-gray-300 hover:text-red-500 text-sm flex-shrink-0"
-                  title="删除此篇（章节将提升到顶层）"
+                  class="text-red-400 hover:text-red-600 text-sm flex-shrink-0"
+                  v-tooltip="'删除此篇（章节将提升到顶层）'"
                   @click="removePart(ni)"
                 >
                   <span class="i-lucide-trash-2 w-4 h-4 inline-block align-middle" />
@@ -860,7 +899,7 @@ watch(currentProjectId, () => {
                     <button
                       v-if="canManageProject"
                       class="text-gray-300 hover:text-red-500 text-xs"
-                      title="移出此篇"
+                      v-tooltip="'移出此篇'"
                       @click.stop="removeFeatureFromPart(ni, fi)"
                     >
                       <span class="i-lucide-log-out w-3.5 h-3.5 inline-block align-middle" />
@@ -869,7 +908,7 @@ watch(currentProjectId, () => {
 
                   <!-- 展开的 section 排序 -->
                   <div v-if="expandedIndex === ni * 10000 + fi" class="border-t border-gray-100 bg-gray-50 px-4 py-2">
-                    <div v-if="canManageProject" class="text-xs text-gray-400 mb-2">章节排序（拖拽调整）</div>
+                    <div v-if="canManageProject" class="text-xs text-gray-400 mb-2">小节排序（拖拽调整，点击 × 移除）</div>
                     <div
                       class="section-sort-area space-y-1"
                       :data-feature-id="fe.feature.id"
@@ -882,6 +921,35 @@ watch(currentProjectId, () => {
                         <div v-if="canManageProject" class="section-drag-handle cursor-grab text-gray-300 hover:text-gray-500"><span class="i-lucide-grip-vertical w-3.5 h-3.5 inline-block align-middle" /></div>
                         <span class="text-gray-400 font-mono text-xs">{{ getGlobalFeatNum(ni, fi) }}.{{ si + 1 }}</span>
                         <span class="text-gray-700 flex-1">{{ sec.title }}</span>
+                        <button
+                          v-if="canManageProject"
+                          class="text-red-400 hover:text-red-600"
+                          v-tooltip="'移除此小节'"
+                          @click.stop="removeSectionInPart(ni, fi, sec.key)"
+                        >
+                          <span class="i-lucide-x w-3.5 h-3.5 inline-block align-middle" />
+                        </button>
+                      </div>
+                    </div>
+                    <!-- 已移除的小节 -->
+                    <div v-if="getRemovedSections(fe).length > 0" class="mt-2">
+                      <div class="text-xs text-gray-400 mb-1">已移除的小节</div>
+                      <div class="space-y-1">
+                        <div
+                          v-for="sec in getRemovedSections(fe)"
+                          :key="sec.key"
+                          class="flex items-center gap-2 text-sm bg-gray-100 px-3 py-1.5 rounded border border-dashed border-gray-200"
+                        >
+                          <span class="text-gray-300 font-mono text-xs">—</span>
+                          <span class="text-gray-400 flex-1">{{ sec.title }}</span>
+                          <button
+                            class="text-green-500 hover:text-green-600"
+                            v-tooltip="'恢复此小节'"
+                            @click.stop="restoreSectionInPart(ni, fi, sec.key)"
+                          >
+                            <span class="i-lucide-undo-2 w-3.5 h-3.5 inline-block align-middle" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -920,7 +988,7 @@ watch(currentProjectId, () => {
                 <div class="relative" v-if="canManageProject && catalog.entries.some(e => isPart(e))">
                   <button
                     class="text-gray-300 hover:text-indigo-500 text-xs px-1.5 py-1 rounded"
-                    title="移至篇"
+                    v-tooltip="'移至篇'"
                     @click.stop="openMoveMenu($event, node.feature.id)"
                   >
                     <span class="i-lucide-log-in w-3.5 h-3.5 inline-block align-middle" />
@@ -947,14 +1015,14 @@ watch(currentProjectId, () => {
                     </div>
                   </Teleport>
                 </div>
-                <button v-if="canManageProject" class="text-gray-300 hover:text-red-500 text-sm" @click.stop="removeFeature(ni)">
+                <button v-if="canManageProject" class="text-red-400 hover:text-red-600 text-sm" @click.stop="removeFeature(ni)">
                   <span class="i-lucide-x w-4 h-4 inline-block align-middle" />
                 </button>
               </div>
 
               <!-- 展开的 section 排序 -->
               <div v-if="expandedIndex === ni" class="border-t border-gray-100 bg-gray-50 px-4 py-2">
-                <div v-if="canManageProject" class="text-xs text-gray-400 mb-2">章节排序（拖拽调整，点击 × 移除）</div>
+                <div v-if="canManageProject" class="text-xs text-gray-400 mb-2">小节排序（拖拽调整，点击 × 移除）</div>
                 <div
                   class="section-sort-area space-y-1"
                   :data-feature-id="node.feature.id"
@@ -969,12 +1037,33 @@ watch(currentProjectId, () => {
                     <span class="text-gray-700 flex-1">{{ sec.title }}</span>
                     <button
                       v-if="canManageProject"
-                      class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="移除此章节"
+                      class="text-red-400 hover:text-red-600"
+                      v-tooltip="'移除此小节'"
                       @click.stop="removeSection(ni, sec.key)"
                     >
                       <span class="i-lucide-x w-3.5 h-3.5 inline-block align-middle" />
                     </button>
+                  </div>
+                </div>
+                <!-- 已移除的小节 -->
+                <div v-if="getRemovedSections(node).length > 0" class="mt-2">
+                  <div class="text-xs text-gray-400 mb-1">已移除的小节</div>
+                  <div class="space-y-1">
+                    <div
+                      v-for="sec in getRemovedSections(node)"
+                      :key="sec.key"
+                      class="flex items-center gap-2 text-sm bg-gray-100 px-3 py-1.5 rounded border border-dashed border-gray-200"
+                    >
+                      <span class="text-gray-300 font-mono text-xs">—</span>
+                      <span class="text-gray-400 flex-1">{{ sec.title }}</span>
+                      <button
+                        class="text-green-500 hover:text-green-600"
+                        v-tooltip="'恢复此小节'"
+                        @click.stop="restoreSection(ni, sec.key)"
+                      >
+                        <span class="i-lucide-undo-2 w-3.5 h-3.5 inline-block align-middle" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

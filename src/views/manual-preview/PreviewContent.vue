@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import { getChapter, getVersionChapter } from '@/api/endpoints/catalogs'
 import type { ChapterResponse, CatalogEntry } from '@shared/types'
 import type { SidebarNode, SidebarChapter, SidebarPart } from '@/composables/useSidebarTree'
+import { renderMarkdown } from '@/utils/markdown'
 
 const props = defineProps<{
   catalogId: string | null
@@ -60,28 +61,9 @@ watch(() => props.chNum, () => {
   if (contentRef.value) contentRef.value.scrollTop = 0
 })
 
-// 渲染 markdown
+// 渲染 markdown（使用 markdown-it，支持表格/代码块/图片等）
 function renderHtml(md: string): string {
-  if (!md) return '<p class="text-gray-400">（暂未编写）</p>'
-  let html = md
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
-    .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    .replace(/^---$/gm, '<hr>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
-    .replace(/`(.+?)`/g, '<code>$1</code>')
-    .replace(/\n\n+/g, '</p><p>')
-    .replace(/\n/g, '<br>')
-  html = '<p>' + html + '</p>'
-  html = html.replace(/<p><h([1-4])>/g, '<h$1>').replace(/<\/h([1-4])><\/p>/g, '</h$1>')
-  html = html.replace(/<p><hr><\/p>/g, '<hr>')
-  html = html.replace(/<p><blockquote>/g, '<blockquote>').replace(/<\/blockquote><\/p>/g, '</blockquote>')
-  html = html.replace(/<p><(ul|ol|pre)\b/g, '<$1').replace(/<\/(ul|ol|pre)>\s*<\/p>/g, '</$1>')
-  return html
+  return renderMarkdown(md)
 }
 
 // 拦截交叉引用链接点击

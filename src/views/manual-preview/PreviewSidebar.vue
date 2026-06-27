@@ -129,14 +129,14 @@ const totalChapters = computed(() => {
                   <span class="truncate text-left">{{ ch.title }}</span>
                 </button>
                 <ul v-show="expandedChapters.has(ch.chNum)" class="ml-5 mt-0.5 space-y-0">
-                  <li v-for="sec in ch.sections" :key="sec.key">
+                  <li v-for="(sec, i) in ch.sections" :key="sec.key">
                     <button
                       class="w-full flex items-center gap-1.5 px-2 py-0.5 text-xs transition-colors rounded"
                       :class="activeChapter === ch.chNum ? 'text-gray-500 hover:text-gray-700 hover:bg-gray-50' : 'text-gray-400 hover:text-gray-600'"
                       @click="onSectionClick(ch.chNum, sec.anchorId)"
                     >
                       <span class="i-lucide-hash w-3 h-3 inline-block align-middle flex-shrink-0 text-gray-300" />
-                      <span class="truncate text-left">{{ ch.chNum }}.{{ ch.sections.indexOf(sec) + 1 }} {{ sec.title }}</span>
+                      <span class="truncate text-left">{{ ch.chNum }}.{{ i + 1 }} {{ sec.title }}</span>
                     </button>
                   </li>
                 </ul>

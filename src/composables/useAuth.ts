@@ -3,20 +3,12 @@ import { useRouter } from 'vue-router'
 import type { UserInfo } from '@shared/types'
 import { login as apiLogin, getCurrentUser, updateProfile as apiUpdateProfile, changeUsername as apiChangeUsername, logout as apiLogout } from '@/api/endpoints/auth'
 import { getMembers } from '@/api/endpoints/projects'
+import { getStoredUser } from '@/utils/storage'
 import { useProject } from './useProject'
 
-const currentUser = ref<UserInfo | null>(loadUser())
+const currentUser = ref<UserInfo | null>(getStoredUser())
 const token = ref<string | null>(localStorage.getItem('auth_token'))
 const currentProjectRole = ref<'pm' | 'writer' | 'viewer' | null>(null)
-
-function loadUser(): UserInfo | null {
-  try {
-    const stored = localStorage.getItem('auth_user')
-    return stored ? JSON.parse(stored) : null
-  } catch {
-    return null
-  }
-}
 
 export function useAuth() {
   const router = useRouter()

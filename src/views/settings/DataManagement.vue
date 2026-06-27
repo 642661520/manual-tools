@@ -32,7 +32,7 @@ const exportProgress = ref(0)
 const exportLabel = ref('')
 const exportHistory = ref<DataTaskInfo[]>([])
 
-let exportPollTimer: ReturnType<typeof setInterval> | null = null
+let exportPollTimer: ReturnType<typeof setTimeout> | null = null
 
 async function loadExportHistory() {
   if (!currentProjectId.value) return
@@ -52,9 +52,14 @@ async function startExport() {
   } catch { exporting.value = false }
 }
 
-function pollExportTask() {
+function pollExportTask(attempt = 0) {
   if (!exportTaskId.value) return
-  exportPollTimer = setInterval(async () => {
+  const BASE_INTERVAL = 1000
+  const MAX_INTERVAL = 30000
+  const MAX_ATTEMPTS = 120
+
+  const interval = Math.min(BASE_INTERVAL * Math.pow(1.5, attempt), MAX_INTERVAL)
+  exportPollTimer = setTimeout(async () => {
     try {
       const task = await dataApi.getTask(exportTaskId.value!)
       exportProgress.value = task.progress
@@ -71,13 +76,19 @@ function pollExportTask() {
         exportTaskId.value = null
         alert(`导出失败: ${task.errorMessage}`)
         await loadExportHistory()
+      } else if (attempt < MAX_ATTEMPTS) {
+        pollExportTask(attempt + 1)
+      } else {
+        stopPolling()
+        exporting.value = false
+        exportTaskId.value = null
       }
     } catch { stopPolling(); exporting.value = false }
-  }, 1000)
+  }, interval)
 }
 
 function stopPolling() {
-  if (exportPollTimer) { clearInterval(exportPollTimer); exportPollTimer = null }
+  if (exportPollTimer) { clearTimeout(exportPollTimer); exportPollTimer = null }
 }
 
 async function downloadTaskFile(taskId: string) {

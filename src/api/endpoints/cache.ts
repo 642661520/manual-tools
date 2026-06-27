@@ -86,6 +86,11 @@ export function deleteExportEntry(id: string): Promise<void> {
   return api.delete<void>(`${CACHE}/entries/export/${id}`)
 }
 
+/** 下载导出缓存文件 */
+export function downloadExportEntry(id: string, filename?: string): Promise<void> {
+  return api.download(`${CACHE}/entries/export/${id}/download`, filename)
+}
+
 // ---- 远程缓存列表 & 清除 ----
 
 /** 列出远程缓存条目（分页） */

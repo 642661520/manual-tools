@@ -138,7 +138,7 @@ onUnmounted(() => {
       ref="triggerRef"
       class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
       :class="{ 'bg-gray-200': isOpen }"
-      title="插入表格"
+      v-tooltip="'插入表格'"
       @click="toggle"
       @keydown="onTriggerKeydown"
     >

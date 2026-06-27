@@ -10,9 +10,10 @@ import { api } from '@/api/client'
 import type { CatalogInfo, CatalogVersionInfo, CatalogEntry } from '@shared/types'
 import SelectDropdown from '@/components/SelectDropdown.vue'
 import ModalDialog from '@/components/ModalDialog.vue'
-import LoadingState from '@/components/LoadingState.vue'
+import Paginator from '@/components/Paginator.vue'
 import PreviewSidebar from './PreviewSidebar.vue'
 import PreviewContent from './PreviewContent.vue'
+import VersionDiff from '@/components/VersionDiff.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -200,8 +201,30 @@ const visibilityLabels: Record<string, string> = {
 function openPublishDialog() {
   publishChangeNotes.value = ''
   publishVisibility.value = 'project_members'
+  publishApprovedOnly.value = true
   publishError.value = ''
+  loadReviewStats()
   publishDialogVisible.value = true
+}
+
+const publishApprovedOnly = ref(true)
+const diffVisible = ref(false)
+const reviewStats = ref<{ approved: number; total: number } | null>(null)
+
+async function loadReviewStats() {
+  if (!selectedCatalogId.value) return
+  try {
+    const data = await getPreview(selectedCatalogId.value, 'approved')
+    // 取 approval stats
+    const allData = await getPreview(selectedCatalogId.value)
+    const approvedSet = new Set(
+      data.features.flatMap(f => f.sections.map(s => `${f.id}/${s.key}`))
+    )
+    const allSet = new Set(
+      allData.features.flatMap(f => f.sections.map(s => `${f.id}/${s.key}`))
+    )
+    reviewStats.value = { approved: approvedSet.size, total: allSet.size }
+  } catch { reviewStats.value = null }
 }
 
 async function doPublish() {
@@ -212,10 +235,14 @@ async function doPublish() {
   publishing.value = true
   publishError.value = ''
   try {
-    const data = await publishCatalog(selectedCatalogId.value!, publishChangeNotes.value.trim(), publishVisibility.value)
+    const data = await publishCatalog(
+      selectedCatalogId.value!, publishChangeNotes.value.trim(),
+      publishVisibility.value, publishApprovedOnly.value,
+    )
     publishDialogVisible.value = false
     await loadVersions()
-    await alert(`版本 v${data.versionMajor}.${data.versionMinor} 已发布`)
+    const approvedMsg = data.total > 0 ? `（${data.approved}/${data.total} 已审核）` : ''
+    await alert(`版本 v${data.versionMajor}.${data.versionMinor} 已发布 ${approvedMsg}`)
   } catch (e: unknown) {
     publishError.value = e instanceof Error ? e.message : '网络错误'
   } finally { publishing.value = false }
@@ -280,17 +307,23 @@ const docUrl = computed(() => {
 
 // ====== 生命周期 ======
 async function reloadAll() { await loadCatalogs(); await loadVersions(); await loadPreview() }
-onMounted(reloadAll)
+
+function onHashChange() {
+  syncChapterFromHash()
+}
+
+onMounted(() => {
+  reloadAll()
+  window.addEventListener('hashchange', onHashChange)
+})
 
 watch(currentProjectId, () => { reloadAll() })
 watch(selectedCatalogId, () => { loadVersions().then(loadPreview) })
 watch([selectedVersionId, previewMode], () => { loadPreview() })
 watch(catalogTitle, (t) => { if (t) document.title = t })
-onUnmounted(() => { document.title = '操作手册编写平台' })
-
-// URL hash 变化 → 切换章节
-window.addEventListener('hashchange', () => {
-  syncChapterFromHash()
+onUnmounted(() => {
+  document.title = '操作手册编写平台'
+  window.removeEventListener('hashchange', onHashChange)
 })
 </script>
 
@@ -318,7 +351,7 @@ window.addEventListener('hashchange', () => {
             { value: '', label: '当前最新（实时内容）' },
             ...versions.map(v => {
               const vis = visibilityLabels[v.visibility] || '项目成员'
-              return { value: v.id, label: `v${v.versionMajor}.${v.versionMinor} · ${v.createdAt.slice(0, 10)} · ${vis}` }
+              return { value: v.id, label: `v${v.versionMajor}.${v.versionMinor} · ${new Date(v.createdAt).toLocaleDateString()} · ${vis}` }
             }),
           ]"
           @update:model-value="selectVersion"
@@ -344,6 +377,7 @@ window.addEventListener('hashchange', () => {
             <span v-if="exportingPdf" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />下载 PDF
           </button>
           <router-link :to="`/catalogs/${selectedCatalogId}`" class="btn-secondary text-sm">编排</router-link>
+          <button v-if="versions.length >= 2" class="btn-secondary text-sm" @click="diffVisible = true">对比</button>
         </template>
 
         <!-- PM：历史版本 → 下载 + 编排 -->
@@ -457,9 +491,30 @@ window.addEventListener('hashchange', () => {
             >{{ opt.label }}</button>
           </div>
         </div>
+        <!-- 审核状态 -->
+        <div v-if="reviewStats" class="flex items-center justify-between text-xs">
+          <span>
+            审核状态：
+            <span class="font-medium" :class="reviewStats.approved === reviewStats.total ? 'text-green-600' : 'text-yellow-600'">
+              {{ reviewStats.approved }} / {{ reviewStats.total }}
+            </span>
+            个章节已通过
+          </span>
+        </div>
+        <label class="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
+          <input type="checkbox" v-model="publishApprovedOnly" class="rounded" />
+          <span>仅发布已审核内容（未审核的章节将不包含在文档中）</span>
+        </label>
       </div>
     </ModalDialog>
   </div>
+
+  <VersionDiff
+    :visible="diffVisible"
+    :catalog-id="selectedCatalogId || ''"
+    :versions="versions"
+    @close="diffVisible = false"
+  />
 </template>
 
 <style scoped>

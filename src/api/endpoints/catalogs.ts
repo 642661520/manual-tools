@@ -69,8 +69,8 @@ export function getVersionChapter(id: string, versionId: string, chNum: number, 
 
 // ---- 发布 ----
 
-export function publishCatalog(id: string, changeNotes: string, visibility?: string): Promise<PublishResponse> {
-  return api.post<PublishResponse>(`${BASE}/${id}/publish`, { changeNotes, visibility })
+export function publishCatalog(id: string, changeNotes: string, visibility?: string, approvedOnly?: boolean): Promise<PublishResponse> {
+  return api.post<PublishResponse>(`${BASE}/${id}/publish`, { changeNotes, visibility, approvedOnly })
 }
 
 // ---- 可见性 ----

@@ -56,14 +56,14 @@ function deleteTable() {
       <!-- 行操作 -->
       <button
         class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
-        title="上方插入行"
+        v-tooltip="'上方插入行'"
         @click="addRowBefore"
       >
         <span class="i-lucide-arrow-up-to-line w-3.5 h-3.5 inline-block align-middle" />
       </button>
       <button
         class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
-        title="下方插入行"
+        v-tooltip="'下方插入行'"
         @click="addRowAfter"
       >
         <span class="i-lucide-arrow-down-to-line w-3.5 h-3.5 inline-block align-middle" />
@@ -72,7 +72,7 @@ function deleteTable() {
         class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'opacity-40 cursor-not-allowed': !canDeleteRow }"
         :disabled="!canDeleteRow"
-        title="删除行"
+        v-tooltip="'删除行'"
         @click="deleteRow"
       >
         <span class="i-lucide-trash-2 w-3.5 h-3.5 inline-block align-middle" />
@@ -83,14 +83,14 @@ function deleteTable() {
       <!-- 列操作 -->
       <button
         class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
-        title="左侧插入列"
+        v-tooltip="'左侧插入列'"
         @click="addColumnBefore"
       >
         <span class="i-lucide-arrow-left-to-line w-3.5 h-3.5 inline-block align-middle" />
       </button>
       <button
         class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
-        title="右侧插入列"
+        v-tooltip="'右侧插入列'"
         @click="addColumnAfter"
       >
         <span class="i-lucide-arrow-right-to-line w-3.5 h-3.5 inline-block align-middle" />
@@ -99,7 +99,7 @@ function deleteTable() {
         class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'opacity-40 cursor-not-allowed': !canDeleteColumn }"
         :disabled="!canDeleteColumn"
-        title="删除列"
+        v-tooltip="'删除列'"
         @click="deleteColumn"
       >
         <span class="i-lucide-trash-2 w-3.5 h-3.5 inline-block align-middle" />
@@ -112,7 +112,7 @@ function deleteTable() {
         class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'opacity-40 cursor-not-allowed': !canMergeCells }"
         :disabled="!canMergeCells"
-        title="合并单元格"
+        v-tooltip="'合并单元格'"
         @click="mergeCells"
       >
         <span class="i-lucide-table-cells-merge w-3.5 h-3.5 inline-block align-middle" />
@@ -121,7 +121,7 @@ function deleteTable() {
         class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'opacity-40 cursor-not-allowed': !canSplitCell }"
         :disabled="!canSplitCell"
-        title="拆分单元格"
+        v-tooltip="'拆分单元格'"
         @click="splitCell"
       >
         <span class="i-lucide-table-cells-split w-3.5 h-3.5 inline-block align-middle" />
@@ -132,7 +132,7 @@ function deleteTable() {
       <!-- 删除表格 -->
       <button
         class="w-7 h-7 flex items-center justify-center rounded hover:bg-red-50 text-sm text-red-600"
-        title="删除表格"
+        v-tooltip="'删除表格'"
         @click="deleteTable"
       >
         <span class="i-lucide-table-2 w-3.5 h-3.5 inline-block align-middle" />

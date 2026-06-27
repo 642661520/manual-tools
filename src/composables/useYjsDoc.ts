@@ -2,6 +2,7 @@ import { ref, onUnmounted } from 'vue'
 import * as Y from 'yjs'
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from 'y-protocols/awareness'
 import { encoding, decoding } from 'lib0'
+import { getStoredUser } from '@/utils/storage'
 
 const messageSync = 0
 const messageAwareness = 1
@@ -12,12 +13,12 @@ export function useYjsDoc(docId: string) {
 
   // 设置当前用户信息
   try {
-    const user = JSON.parse(localStorage.getItem('auth_user') || '{}')
+    const user = getStoredUser()
     const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4']
     awareness.setLocalStateField('user', {
-      name: user.displayName || '未知用户',
+      name: user?.displayName || '未知用户',
       color: colors[Math.floor(Math.random() * colors.length)],
-      avatar: user.avatarUrl || user.feishu_avatar_url || null,
+      avatar: user?.avatarUrl || null,
     })
   } catch { /* ignore */ }
   const token = localStorage.getItem('auth_token')

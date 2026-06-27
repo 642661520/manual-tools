@@ -15,6 +15,7 @@ import ColorPicker from '@/components/ColorPicker.vue'
 import { getFeatures, createFeature, updateFeature, deleteFeature, getFeature } from '@/api/endpoints/features'
 import { getCategories, createCategory as apiCreateCategory, updateCategory, deleteCategory as apiDeleteCategory } from '@/api/endpoints/categories'
 import type { FeatureSummary, CategoryInfo, SectionDef } from '@shared/types'
+import { parseSections } from '@shared/utils/sections'
 
 // API 响应已自动转为 camelCase
 type FeatureRow = FeatureSummary & {
@@ -34,11 +35,6 @@ const { confirm, dangerConfirm } = useDialog()
 const features = ref<FeatureRow[]>([])
 const loading = ref(true)
 const expandedFeatureId = ref<string | null>(null)
-
-function parseSections(sections: string | SectionDef[]): SectionDef[] {
-  if (Array.isArray(sections)) return sections
-  try { return JSON.parse(sections || '[]') } catch { return [] }
-}
 
 function toggleExpand(featureId: string) {
   expandedFeatureId.value = expandedFeatureId.value === featureId ? null : featureId
@@ -364,7 +360,7 @@ watch(currentProjectId, loadFeatures)
                   <div class="flex items-center gap-2">
                     <span class="font-medium text-gray-900">{{ f.title }}</span>
                     <span class="text-xs text-gray-400 font-mono">{{ f.id }}</span>
-                    <span v-if="f.orphanedCount > 0" class="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5" :title="`${f.orphanedCount} 个游离文档`"><span class="i-lucide-alert-triangle w-3 h-3 inline-block align-middle" />{{ f.orphanedCount }}</span>
+                    <span v-if="f.orphanedCount > 0" class="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5" v-tooltip="`${f.orphanedCount} 个游离文档`"><span class="i-lucide-alert-triangle w-3 h-3 inline-block align-middle" />{{ f.orphanedCount }}</span>
                   </div>
                   <p class="text-sm text-gray-500 mt-0.5 truncate">{{ f.description }}</p>
                 </div>

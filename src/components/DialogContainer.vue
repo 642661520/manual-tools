@@ -11,6 +11,10 @@ const confirmDisabled = computed(() => {
   }
   return false
 })
+
+function fillDangerPhrase() {
+  dialogState.inputValue = dialogState.dangerPhrase
+}
 </script>
 
 <template>
@@ -28,12 +32,23 @@ const confirmDisabled = computed(() => {
       <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ dialogState.message }}</p>
       <div v-if="dialogState.type === 'danger'">
         <p class="text-xs text-red-500 mb-1">请输入「{{ dialogState.dangerPhrase }}」以确认</p>
-        <input
-          v-model="dialogState.inputValue"
-          class="input text-sm"
-          :placeholder="`请输入 ${dialogState.dangerPhrase}`"
-          @keyup.enter="!confirmDisabled && dialogConfirm()"
-        />
+        <div class="flex gap-2">
+          <input
+            v-model="dialogState.inputValue"
+            class="input text-sm flex-1"
+            :placeholder="`请输入 ${dialogState.dangerPhrase}`"
+            @keyup.enter="!confirmDisabled && dialogConfirm()"
+          />
+          <button
+            class="btn-secondary text-xs whitespace-nowrap flex items-center gap-1"
+            :disabled="dialogState.inputValue === dialogState.dangerPhrase"
+            title="一键填入确认短语"
+            @click="fillDangerPhrase"
+          >
+            <span class="i-lucide-sparkles w-3.5 h-3.5 inline-block align-middle" />
+            一键填充
+          </button>
+        </div>
       </div>
       <input
         v-if="dialogState.type === 'prompt'"
