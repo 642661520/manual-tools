@@ -25,7 +25,7 @@ interface ExportData {
     }>
     documents: Record<string, {
       row: { id: string; feature_id: string; section_key: string; status: string
-        assignees: string; review_note: string; review_step: number; review_log: string }
+        assignees: string; review_note: string; review_step: number; status_log: string }
       snapshot: string | null
       updates: string[]
     }>
@@ -275,7 +275,7 @@ export async function applyImport(
 
     // ---- 文档 ----
     const insertDoc = db.prepare(`
-      INSERT OR REPLACE INTO documents (id, feature_id, section_key, status, assignees, review_note, review_step, review_log, updated_at)
+      INSERT OR REPLACE INTO documents (id, feature_id, section_key, status, assignees, review_note, review_step, status_log, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `)
     const insertUpdate = db.prepare(
@@ -297,7 +297,7 @@ export async function applyImport(
       } else {
         result.documents.inserted++
       }
-      insertDoc.run(r.id, r.feature_id, r.section_key, r.status, r.assignees, r.review_note, r.review_step, r.review_log)
+      insertDoc.run(r.id, r.feature_id, r.section_key, r.status, r.assignees, r.review_note, r.review_step, r.status_log)
 
       // 先清理旧的 updates/snapshots（覆盖模式下）
       if (existing) {

@@ -64,6 +64,12 @@ export function queryAuditLogs(q: AuditLogQuery): { rows: AuditLogRow[]; total: 
     `SELECT * FROM audit_log${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
   ).all(...params, limit, offset) as AuditLogRow[]
 
+  for (const row of rows) {
+    if (row.created_at && !row.created_at.endsWith('Z')) {
+      row.created_at += 'Z'
+    }
+  }
+
   const totalRow = db.prepare(
     `SELECT COUNT(*) as cnt FROM audit_log${where}`,
   ).get(...params) as { cnt: number }

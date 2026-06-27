@@ -6,8 +6,9 @@
  * 复用 manual-assembler.ts 的 assembleManual() 输出，
  * 遵循 markdown-export.ts 的服务层模式。
  */
-import { readFileSync, existsSync, mkdirSync, createWriteStream } from 'fs'
+import { existsSync, mkdirSync, createWriteStream, writeFileSync, unlinkSync } from 'fs'
 import { join } from 'path'
+import { tmpdir } from 'os'
 import { config } from '../config.js'
 import MarkdownIt from 'markdown-it'
 import { getOrFetch } from './remote-cache.js'
@@ -58,8 +59,10 @@ const md = new MarkdownIt({
 /** 将 ManualResult.markdown 转换为完整的 A4 排版 HTML 页面 */
 async function generateHtml(manual: ManualResult, fontCss: string): Promise<string> {
   let bodyHtml = md.render(manual.markdown)
-  bodyHtml = embedLocalImages(bodyHtml)
-  bodyHtml = await embedRemoteImages(bodyHtml)
+  bodyHtml = rewriteLocalImageSrc(bodyHtml)
+  // 远程图片：先通过缓存层下载到本地磁盘，再替换为 file:// URL
+  // Chromium 从本地读取，比从网络加载 110 张图快得多
+  bodyHtml = await rewriteRemoteImageSrc(bodyHtml)
   bodyHtml = replaceVideosForPdf(bodyHtml)
 
   return `<!DOCTYPE html>
@@ -105,92 +108,71 @@ async function generateHtml(manual: ManualResult, fontCss: string): Promise<stri
 
 // ================ 图片处理 ====================================================
 
-/** 将本地 /uploads/ 图片转换为 base64 data URI */
-function embedLocalImages(html: string): string {
+/** 将本地 /uploads/ 图片 src 改写为 file:// 绝对路径（Chromium 直接读取，避免 base64 OOM） */
+function rewriteLocalImageSrc(html: string): string {
   const uploadDir = config.uploadDir
-  return html.replace(/<img[^>]+src="(\/uploads\/images\/[^"]+)"[^>]*>/g, (match, src: string) => {
-    const filename = src.replace(/^\/uploads\/images\//, '')
-    // 也尝试 videos 目录
+  return html.replace(/<img[^>]+src="(\/uploads\/[^"]+)"[^>]*>/g, (match, src: string) => {
+    const rel = src.replace(/^\/uploads\//, '')
     const candidates = [
-      join(uploadDir, 'images', filename),
-      join(uploadDir, filename),
+      join(uploadDir, 'images', rel),
+      join(uploadDir, rel),
     ]
     for (const filepath of candidates) {
       if (existsSync(filepath)) {
-        try {
-          const data = readFileSync(filepath)
-          const base64 = data.toString('base64')
-          const mime = getMime(filename)
-          return match.replace(src, `data:${mime};base64,${base64}`)
-        } catch { /* 读取失败，继续尝试下一个路径 */ }
+        return match.replace(src, `file:///${filepath.replace(/\\/g, '/')}`)
       }
     }
     return match
   })
 }
 
-/** 将远程 http(s):// 图片通过缓存层下载并转换为 base64 data URI */
-async function embedRemoteImages(html: string): Promise<string> {
-  // 收集所有远程图片 URL
+/** 将远程 https:// 图片通过缓存层下载到本地磁盘，替换为 file:// URL
+ *  使用批量并发（限 8 个）避免内存爆炸，失败时保留原始 URL 降级 */
+async function rewriteRemoteImageSrc(html: string): Promise<string> {
   const remoteRe = /<img[^>]+src="(https?:\/\/[^"]+)"[^>]*>/gi
-  const urls = new Set<string>()
+  const urls: string[] = []
   let m: RegExpExecArray | null
   while ((m = remoteRe.exec(html)) !== null) {
-    urls.add(m[1])
+    urls.push(m[1])
+  }
+  if (urls.length === 0) return html
+
+  // 去重
+  const unique = [...new Set(urls)]
+  const cacheMap = new Map<string, string | null>()
+
+  // 限并发批量下载到本地缓存（每次最多 8 个）
+  const limit = 8
+  for (let i = 0; i < unique.length; i += limit) {
+    const batch = unique.slice(i, i + limit)
+    const results = await Promise.all(
+      batch.map(async (url) => {
+        try {
+          const cached = await getOrFetch(url)
+          if (cached) {
+            return { url, filepath: cached.filepath }
+          }
+        } catch { /* 单个失败不阻塞 */ }
+        return { url, filepath: null }
+      }),
+    )
+    for (const { url, filepath } of results) {
+      cacheMap.set(url, filepath)
+    }
   }
 
-  if (urls.size === 0) return html
-
-  // 并行获取所有远程图片（通过缓存层）
-  const cacheMap = new Map<string, string | null>()
-  const fetches = [...urls].map(async (url) => {
-    try {
-      const cached = await getOrFetch(url)
-      if (cached) {
-        const data = readFileSync(cached.filepath)
-        const base64 = data.toString('base64')
-        cacheMap.set(url, `data:${cached.mimeType};base64,${base64}`)
-      } else {
-        // 缓存层失败，尝试直接 fetch 降级
-        try {
-          const res = await fetch(url, { signal: AbortSignal.timeout(15000) })
-          if (res.ok) {
-            const buf = Buffer.from(await res.arrayBuffer())
-            const base64 = buf.toString('base64')
-            const mime = res.headers.get('content-type') || 'image/png'
-            cacheMap.set(url, `data:${mime};base64,${base64}`)
-          } else {
-            cacheMap.set(url, null)
-          }
-        } catch {
-          cacheMap.set(url, null)
-        }
-      }
-    } catch {
-      cacheMap.set(url, null)
-    }
-  })
-  await Promise.all(fetches)
-
-  // 替换 URL 为 base64
+  // 替换：有本地缓存的用 file://，没有的保留原 URL（Chromium 网络加载）
   let result = html
-  for (const [url, dataUri] of cacheMap) {
-    if (!dataUri) continue
+  for (const [url, filepath] of cacheMap) {
+    if (!filepath) continue
     const escaped = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    result = result.replace(new RegExp(`src="${escaped}"`, 'g'), `src="${dataUri}"`)
+    result = result.replace(
+      new RegExp(`src="${escaped}"`, 'g'),
+      `src="file:///${filepath.replace(/\\/g, '/')}"`,
+    )
   }
 
   return result
-}
-
-function getMime(filename: string): string {
-  const ext = filename.split('.').pop()?.toLowerCase()
-  const map: Record<string, string> = {
-    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-    gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
-    bmp: 'image/bmp',
-  }
-  return map[ext || ''] || 'image/png'
 }
 
 // ================ 视频处理 ===================================================
@@ -248,7 +230,13 @@ export async function buildPdf(manual: ManualResult, opts: PdfOptions = {}): Pro
   const launchOpts: Record<string, unknown> = {
     headless: true,
     args: process.platform === 'linux'
-      ? ['--no-sandbox', '--disable-setuid-sandbox', '--font-render-hinting=none']
+      ? [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',   // Docker /dev/shm 默认仅 64MB，用 /tmp 代替
+          '--disable-gpu',             // 无 GPU 环境，禁用减少内存
+          '--font-render-hinting=none',
+        ]
       : [],
   }
   if (config.puppeteerExecutablePath) {
@@ -259,7 +247,12 @@ export async function buildPdf(manual: ManualResult, opts: PdfOptions = {}): Pro
   try {
     const page = await browser.newPage()
     await page.setViewport({ width: PDF_CONTENT_WIDTH, height: 50000, deviceScaleFactor: 1 })
-    await page.setContent(html, { waitUntil: 'load' })
+
+    // 将 HTML 写入临时文件，用 file:// 协议加载——这样本地图片可直读、远程图片原生加载
+    const htmlPath = join(tmpdir(), `manual-${manual.catalog.id}.html`)
+    writeFileSync(htmlPath, html, 'utf-8')
+    await page.goto(`file:///${htmlPath.replace(/\\/g, '/')}`, { waitUntil: 'load', timeout: 60000 })
+    try { unlinkSync(htmlPath) } catch { /* 清理临时文件 */ }
     await page.waitForNetworkIdle({ idleTime: 500, timeout: 30000 }).catch(() => {})
     // 等待所有图片加载完成
     await page.evaluate(`new Promise(resolve => {
