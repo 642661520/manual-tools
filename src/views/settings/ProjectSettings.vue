@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useProject } from '@/composables/useProject'
 import { useDialog } from '@/composables/useDialog'
@@ -8,16 +9,26 @@ import type { MemberInfo, ReviewChainMember, UserDetail } from '@shared/types'
 import ModalDialog from '@/components/ModalDialog.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import SelectDropdown from '@/components/SelectDropdown.vue'
+import SettingsSidebar from '@/components/SettingsSidebar.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 import { getUsers } from '@/api/endpoints/auth'
-import * as dataApi from '@/api/endpoints/data-tasks'
-import type { ExportEstimate, ImportDiffReport, ImportApplyOptions, DataTaskInfo } from '@shared/types'
+import DataManagement from './DataManagement.vue'
 
+const route = useRoute()
+const router = useRouter()
 const { canManageProject, user } = useAuth()
 const { currentProjectId, currentProject, loadProjects } = useProject()
 const { dangerConfirm } = useDialog()
 
 type Tab = 'members' | 'review-chain' | 'data'
-const activeTab = ref<Tab>('members')
+const validTabs: Tab[] = ['members', 'review-chain', 'data']
+const activeTab = ref<Tab>(validTabs.includes(route.query.tab as Tab) ? (route.query.tab as Tab) : 'members')
+
+const projectSettingsTabs = [
+  { key: 'members', label: '成员管理', icon: 'i-lucide-users' },
+  { key: 'review-chain', label: '审核链', icon: 'i-lucide-git-branch' },
+  { key: 'data', label: '导入导出', icon: 'i-lucide-database' },
+]
 
 // ===== 成员管理 =====
 const members = ref<MemberInfo[]>([])
@@ -104,28 +115,6 @@ async function changeMemberRole(targetUserId: string, newRole: string) {
   } catch (e: unknown) {
     membersError.value = e instanceof Error ? e.message : '更新失败'
   }
-}
-
-// 下载导出文件（带认证）
-async function downloadExport(taskId: string) {
-  const token = localStorage.getItem('auth_token')
-  const resp = await fetch(`/api/v1/data-tasks/${taskId}/download`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  if (!resp.ok) return
-  const blob = await resp.blob()
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `export-${taskId}.zip`
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
-// 触发文件选择
-const fileInputRef = ref<HTMLInputElement | null>(null)
-function triggerFileInput() {
-  fileInputRef.value?.click()
 }
 
 // ===== 审核链 =====
@@ -226,102 +215,19 @@ const availablePMsFiltered = computed(() =>
   availablePMs.value.filter(p => !reviewChain.value.some(c => c.id === p.id))
 )
 
-// ===== 数据管理（项目导入导出） =====
-const estimate = ref<ExportEstimate | null>(null)
-const estimateLoading = ref(false)
-const exportTasks = ref<DataTaskInfo[]>([])
-const importTasks = ref<DataTaskInfo[]>([])
-const importFile = ref<File | null>(null)
-const uploadTaskId = ref('')
-const uploadError = ref('')
-const diffReport = ref<ImportDiffReport | null>(null)
-const importOptions = ref<ImportApplyOptions>({ strategies: { categories: {}, features: {}, catalogs: {}, documents: {} }, includeMembers: false })
-const importError = ref('')
-const importResult = ref<any>(null)
-
-async function loadEstimate() {
-  if (!currentProjectId.value) return
-  estimateLoading.value = true
-  try {
-    estimate.value = await dataApi.getExportEstimate(currentProjectId.value)
-  } catch { /* ignore */ }
-  finally { estimateLoading.value = false }
-}
-
-async function startExport() {
-  if (!currentProjectId.value) return
-  try {
-    const { taskId } = await dataApi.startExport(currentProjectId.value)
-    await pollExportTasks()
-  } catch { /* ignore */ }
-}
-
-async function pollExportTasks() {
-  try {
-    const tasks = await dataApi.listTasks(`project:${currentProjectId.value}`)
-    exportTasks.value = (tasks as unknown as DataTaskInfo[]).filter(t => t.type === 'export')
-  } catch { /* ignore */ }
-}
-
-async function handleUploadImport(e: Event) {
-  const input = e.target as HTMLInputElement
-  if (!input.files?.length) return
-  importFile.value = input.files[0]
-  uploadError.value = ''
-  try {
-    const { taskId } = await dataApi.uploadImport(currentProjectId.value!, importFile.value)
-    uploadTaskId.value = taskId
-    await pollImportTasks()
-  } catch (err: unknown) {
-    uploadError.value = err instanceof Error ? err.message : '上传失败'
-  }
-}
-
-async function pollImportTasks() {
-  try {
-    const tasks = await dataApi.listTasks(`project:${currentProjectId.value}`)
-    importTasks.value = (tasks as unknown as DataTaskInfo[]).filter(t => t.type === 'import')
-  } catch { /* ignore */ }
-}
-
-async function handleAnalyze(taskId: string) {
-  try {
-    diffReport.value = await dataApi.analyzeImport(taskId)
-    uploadTaskId.value = taskId
-  } catch (e: unknown) {
-    importError.value = e instanceof Error ? e.message : '分析失败'
-  }
-}
-
-async function handleApplyImport() {
-  importError.value = ''
-  importResult.value = null
-  try {
-    importResult.value = await dataApi.applyImport(uploadTaskId.value, importOptions.value)
-    await pollImportTasks()
-  } catch (e: unknown) {
-    importError.value = e instanceof Error ? e.message : '导入失败'
-  }
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
 // ===== 生命周期 =====
 onMounted(async () => {
   await loadProjects()
+})
+
+watch(activeTab, (tab) => {
+  router.replace({ query: { tab } })
 })
 
 watch([currentProjectId], () => {
   if (currentProjectId.value) {
     loadMembers()
     loadReviewChain()
-    loadEstimate()
-    pollExportTasks()
-    pollImportTasks()
   }
 }, { immediate: true })
 
@@ -334,29 +240,11 @@ const projectRoleLabel: Record<string, string> = { pm: '项目管理员', writer
   </div>
 
   <div v-else class="flex h-full">
-    <!-- 左侧子导航 -->
-    <aside class="w-48 bg-gray-50 border-r border-gray-200 flex-shrink-0 flex flex-col">
-      <div class="px-4 py-3 text-xs text-gray-400 font-medium">
-        项目设置 / {{ currentProject?.name || '未选择' }}
-      </div>
-      <nav class="flex-1">
-        <button
-          v-for="tab in ([
-            { key: 'members', label: '成员管理', icon: 'i-lucide-users' },
-            { key: 'review-chain', label: '审核链', icon: 'i-lucide-git-branch' },
-            { key: 'data', label: '导入导出', icon: 'i-lucide-database' },
-          ] as const)"
-          :key="tab.key"
-          class="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 transition-colors"
-          :class="activeTab === tab.key
-            ? 'bg-white text-blue-700 border-r-2 border-blue-500'
-            : 'text-gray-600 hover:bg-gray-100'"
-          @click="activeTab = tab.key"
-        >
-          <span :class="tab.icon" class="w-4 h-4" />{{ tab.label }}
-        </button>
-      </nav>
-    </aside>
+    <SettingsSidebar
+      :title="`项目设置 / ${currentProject?.name || '未选择'}`"
+      :tabs="projectSettingsTabs"
+      v-model="activeTab"
+    />
 
     <!-- 右侧内容区 -->
     <main class="flex-1 overflow-auto p-6">
@@ -377,8 +265,7 @@ const projectRoleLabel: Record<string, string> = { pm: '项目管理员', writer
             class="flex items-center justify-between px-4 py-2.5 bg-white border border-gray-200 rounded-lg"
           >
             <div class="flex items-center gap-3">
-              <img v-if="(m as any).feishuAvatarUrl" :src="(m as any).feishuAvatarUrl" class="w-7 h-7 rounded-full" alt="" />
-              <span v-else class="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 text-xs font-semibold">{{ (m.displayName || m.username || '?')[0] }}</span>
+              <UserAvatar :avatar-url="(m as any).feishuAvatarUrl" :name="m.displayName || m.username" size="sm" />
               <div>
                 <div class="text-sm">{{ (m as any).feishuName || m.displayName }}</div>
                 <div class="text-xs text-gray-400">{{ m.username }}{{ (m as any).feishuName ? ` · ${(m as any).feishuName}` : '' }}</div>
@@ -423,7 +310,7 @@ const projectRoleLabel: Record<string, string> = { pm: '项目管理员', writer
                   value: u.id,
                   label: `${name} (${u.username})`,
                   avatar: u.feishuAvatarUrl || undefined,
-                  initial: u.feishuAvatarUrl ? undefined : (name || '?')[0],
+                  name: u.feishuAvatarUrl ? undefined : name,
                 }
               })"
               @update:model-value="(val: string | number | null) => selectedUserId = (val as string) || ''"
@@ -465,8 +352,7 @@ const projectRoleLabel: Record<string, string> = { pm: '项目管理员', writer
                 :key="pm.id"
                 class="flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-50"
               >
-                <img v-if="(pm as any).feishuAvatarUrl" :src="(pm as any).feishuAvatarUrl" class="w-7 h-7 rounded-full flex-shrink-0" alt="" />
-                <span v-else class="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 text-xs font-semibold flex-shrink-0">{{ ((pm as any).feishuName || pm.displayName || '?')[0] }}</span>
+                <UserAvatar :avatar-url="(pm as any).feishuAvatarUrl" :name="(pm as any).feishuName || pm.displayName" size="sm" />
                 <div class="flex-1 min-w-0">
                   <div class="text-sm font-medium">{{ (pm as any).feishuName || pm.displayName }}</div>
                   <div class="text-xs text-gray-400">{{ pm.username }}</div>
@@ -504,9 +390,7 @@ const projectRoleLabel: Record<string, string> = { pm: '项目管理员', writer
               <!-- 序号 -->
               <span class="text-xs text-gray-400 w-5 text-right flex-shrink-0">{{ index + 1 }}.</span>
 
-              <!-- 头像 -->
-              <img v-if="(pm as any).feishuAvatarUrl" :src="(pm as any).feishuAvatarUrl" class="w-7 h-7 rounded-full flex-shrink-0" alt="" />
-              <span v-else class="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 text-xs font-semibold flex-shrink-0">{{ ((pm as any).feishuName || pm.displayName || '?')[0] }}</span>
+              <UserAvatar :avatar-url="(pm as any).feishuAvatarUrl" :name="(pm as any).feishuName || pm.displayName" size="sm" />
 
               <!-- 信息 -->
               <div class="flex-1 min-w-0">
@@ -555,8 +439,7 @@ const projectRoleLabel: Record<string, string> = { pm: '项目管理员', writer
               :key="pm.id"
               class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 transition-colors"
             >
-              <img v-if="(pm as any).feishuAvatarUrl" :src="(pm as any).feishuAvatarUrl" class="w-8 h-8 rounded-full flex-shrink-0" alt="" />
-              <span v-else class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 text-sm font-semibold flex-shrink-0">{{ ((pm as any).feishuName || pm.displayName || '?')[0] }}</span>
+              <UserAvatar :avatar-url="(pm as any).feishuAvatarUrl" :name="(pm as any).feishuName || pm.displayName" size="md" />
               <div class="flex-1 min-w-0">
                 <div class="text-sm font-medium">{{ (pm as any).feishuName || pm.displayName }}</div>
                 <div class="text-xs text-gray-400">{{ pm.username }}</div>
@@ -574,81 +457,7 @@ const projectRoleLabel: Record<string, string> = { pm: '项目管理员', writer
       <!-- 导入导出 -->
       <div v-if="activeTab === 'data'">
         <h2 class="text-lg font-semibold mb-4">项目导入导出</h2>
-
-        <!-- 项目导出 -->
-        <div class="card mb-6">
-          <h3 class="text-sm font-semibold text-gray-500 mb-3">项目导出</h3>
-          <div v-if="estimate" class="text-xs text-gray-500 mb-2 space-y-0.5">
-            <div>{{ estimate.features }} 个主题 · {{ estimate.catalogs }} 个目录 · {{ estimate.documents }} 个文档</div>
-            <div v-if="estimate.uploads > 0">{{ estimate.uploads }} 个附件 ({{ formatSize(estimate.uploadsSize) }})</div>
-            <div>预估大小：{{ formatSize(estimate.totalSize) }}</div>
-          </div>
-          <button class="btn-primary text-sm" :disabled="estimateLoading" @click="startExport">
-            {{ estimateLoading ? '估算中...' : '导出项目 ZIP' }}
-          </button>
-
-          <div v-if="exportTasks.length > 0" class="mt-3 space-y-1">
-            <div v-for="t in exportTasks" :key="t.id" class="flex items-center gap-2 text-xs text-gray-500">
-              <span
-                :class="t.status === 'completed' ? 'i-lucide-circle-check text-green-500' : t.status === 'failed' ? 'i-lucide-circle-x text-red-400' : 'i-lucide-loader-2 animate-spin text-blue-400'"
-                class="w-4 h-4 inline-block align-middle flex-shrink-0"
-              />
-              <span>{{ t.createdAt.slice(0, 16) }}</span>
-              <span v-if="t.progressLabel">{{ t.progressLabel }}</span>
-              <button
-                v-if="t.status === 'completed'"
-                class="text-blue-500 hover:underline ml-auto"
-                @click="downloadExport(t.id)"
-              >下载</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- 项目导入 -->
-        <div class="card mb-6">
-          <h3 class="text-sm font-semibold text-gray-500 mb-3">项目导入</h3>
-          <ErrorMessage :message="uploadError" />
-          <div class="mb-3">
-            <input ref="fileInputRef" type="file" accept=".zip" class="hidden" @change="handleUploadImport" />
-            <button class="btn-secondary text-sm" @click="triggerFileInput">
-              <span class="i-lucide-upload w-4 h-4 inline-block align-middle mr-1" />选择 ZIP 文件
-            </button>
-            <span v-if="importFile" class="text-xs text-gray-500 ml-2">{{ importFile.name }}</span>
-          </div>
-
-          <div v-if="importTasks.length > 0" class="space-y-2">
-            <div v-for="t in importTasks" :key="t.id" class="border border-gray-200 rounded p-2 text-sm">
-              <div class="flex items-center gap-2">
-                <span
-                  :class="t.status === 'completed' ? 'i-lucide-circle-check text-green-500' : 'i-lucide-loader-2 animate-spin text-blue-400'"
-                  class="w-4 h-4 inline-block align-middle flex-shrink-0"
-                />
-                <span>{{ t.createdAt.slice(0, 16) }}</span>
-                <span class="text-gray-400">{{ t.status }}</span>
-                <button
-                  v-if="t.status === 'uploaded' || t.status === 'analyzed'"
-                  class="text-blue-500 hover:underline ml-auto text-xs"
-                  @click="handleAnalyze(t.id)"
-                >分析差异</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- 差异报告 -->
-          <div v-if="diffReport" class="mt-3 border-t pt-3">
-            <h4 class="text-sm font-semibold mb-2">差异分析</h4>
-            <div class="text-xs text-gray-500 space-y-1">
-              <div>分类：新增 {{ diffReport.categories.added.length }}，冲突 {{ diffReport.categories.conflicted.length }}</div>
-              <div>主题：新增 {{ diffReport.features.added.length }}，冲突 {{ diffReport.features.conflicted.length }}</div>
-              <div>目录：新增 {{ diffReport.catalogs.added.length }}，冲突 {{ diffReport.catalogs.conflicted.length }}</div>
-              <div>文档：新增 {{ diffReport.documents.added }}，冲突 {{ diffReport.documents.conflicted }}</div>
-              <div>附件：{{ diffReport.uploads.total }} 个 ({{ formatSize(diffReport.uploads.totalSize) }})</div>
-            </div>
-            <ErrorMessage :message="importError" />
-            <button class="btn-primary text-sm mt-3" @click="handleApplyImport">确认导入</button>
-            <div v-if="importResult" class="mt-2 text-xs text-green-600">导入完成</div>
-          </div>
-        </div>
+        <DataManagement />
       </div>
     </main>
   </div>

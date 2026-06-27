@@ -7,7 +7,7 @@ import type {
   ExportEstimate, ImportDiffReport, ImportApplyOptions, DataTaskInfo,
 } from '@shared/types'
 
-const { canManageProject } = useAuth()
+const { isAdmin } = useAuth()
 const { currentProjectId } = useProject()
 
 // ---- 导出预估 ----
@@ -202,56 +202,6 @@ function cancelImport() {
   importDiff.value = null
 }
 
-// ---- 孤儿文件 ----
-const orphans = ref<{ path: string; size: number; mtime: string }[]>([])
-const orphansTotalSize = ref(0)
-const orphansLoading = ref(false)
-const clearingOrphans = ref(false)
-
-async function loadOrphans() {
-  orphansLoading.value = true
-  try {
-    const data = await dataApi.getOrphans()
-    orphans.value = data.orphans
-    orphansTotalSize.value = data.totalSize
-  } catch { orphans.value = []; orphansTotalSize.value = 0 }
-  finally { orphansLoading.value = false }
-}
-
-async function clearOrphans() {
-  if (orphans.value.length === 0) return
-  if (!confirm(`确定删除 ${orphans.value.length} 个未引用文件？\n释放空间: ${formatSize(orphansTotalSize.value)}`)) return
-  clearingOrphans.value = true
-  try {
-    await dataApi.deleteOrphans()
-    await loadOrphans()
-  } catch { /* ignore */ }
-  finally { clearingOrphans.value = false }
-}
-
-// ---- 系统备份 ----
-const systemExporting = ref(false)
-
-async function startSystemExport() {
-  systemExporting.value = true
-  try {
-    const { taskId } = await dataApi.startSystemExport()
-    // 简单轮询
-    const timer = setInterval(async () => {
-      const task = await dataApi.getTask(taskId)
-      if (task.status === 'completed') {
-        clearInterval(timer)
-        systemExporting.value = false
-        await dataApi.downloadExport(taskId)
-      } else if (task.status === 'failed') {
-        clearInterval(timer)
-        systemExporting.value = false
-        alert(`备份失败: ${task.errorMessage}`)
-      }
-    }, 1000)
-  } catch { systemExporting.value = false }
-}
-
 // ---- 工具 ----
 function formatSize(bytes: number): string {
   if (bytes === 0) return '0 B'
@@ -276,7 +226,6 @@ function timeLabel(dt: string | null): string {
 
 onMounted(() => {
   loadEstimate()
-  loadOrphans()
   loadExportHistory()
   loadImportHistory()
 })
@@ -287,21 +236,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="canManageProject" class="card mb-6">
+  <div v-if="isAdmin" class="card mb-6">
     <h2 class="text-sm font-semibold text-gray-500 mb-4">数据管理</h2>
-
-    <!-- 系统备份 -->
-    <div class="border-t border-gray-100 pt-4 mb-4">
-      <h3 class="text-sm font-medium mb-2">系统备份</h3>
-      <p class="text-xs text-gray-400 mb-2">导出完整数据库文件，用于整实例灾难恢复。</p>
-      <button
-        class="btn-secondary text-sm"
-        :disabled="systemExporting"
-        @click="startSystemExport"
-      >
-        {{ systemExporting ? '正在备份...' : '导出完整数据库' }}
-      </button>
-    </div>
 
     <!-- 项目导出 -->
     <div class="border-t border-gray-100 pt-4 mb-4">
@@ -470,25 +406,6 @@ onUnmounted(() => {
           >删</button>
         </div>
       </div>
-    </div>
-
-    <!-- 存储清理 -->
-    <div class="border-t border-gray-100 pt-4">
-      <h3 class="text-sm font-medium mb-2">存储清理</h3>
-      <div v-if="orphans.length > 0" class="text-xs text-gray-400 mb-2">
-        发现 {{ orphans.length }} 个未被引用的文件，占用 {{ formatSize(orphansTotalSize) }}
-        <div v-for="o in orphans.slice(0, 5)" :key="o.path" class="ml-2 text-gray-300">{{ o.path }} ({{ formatSize(o.size) }})</div>
-        <div v-if="orphans.length > 5" class="ml-2 text-gray-300">...还有 {{ orphans.length - 5 }} 个</div>
-      </div>
-      <div v-else-if="!orphansLoading" class="text-xs text-green-500 mb-2">没有孤儿文件，存储整洁。</div>
-      <button
-        v-if="orphans.length > 0"
-        class="btn-danger text-sm"
-        :disabled="clearingOrphans"
-        @click="clearOrphans"
-      >
-        {{ clearingOrphans ? '正在清理...' : `清理孤儿文件 (${formatSize(orphansTotalSize)})` }}
-      </button>
     </div>
   </div>
 </template>
