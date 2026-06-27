@@ -18,13 +18,6 @@ function envInt(key: string, fallback: number): number {
   return fallback
 }
 
-function envBool(key: string, fallback: boolean): boolean {
-  const raw = process.env[key]
-  if (raw === 'true' || raw === '1') return true
-  if (raw === 'false' || raw === '0') return false
-  return fallback
-}
-
 export const config = {
   // 服务
   port: envInt('PORT', 3000),
@@ -63,4 +56,15 @@ export const config = {
   feishuAppSecret: env('FEISHU_APP_SECRET', ''),
   feishuRedirectUri: env('FEISHU_REDIRECT_URI', ''),
   adminOpenIds: env('ADMIN_OPEN_IDS', env('PM_OPEN_IDS', '')),
+
+  // PDF 导出
+  pdfFontRegular: env('PDF_FONT_REGULAR', ''),
+  pdfFontBold: env('PDF_FONT_BOLD', ''),
+  puppeteerExecutablePath: env('PUPPETEER_EXECUTABLE_PATH', ''),
+
+  // 缓存
+  cacheDir: env('CACHE_DIR', join(process.cwd(), 'data/cache')),
+  remoteCacheTtlDays: envInt('REMOTE_CACHE_TTL_DAYS', 7),
+  exportCacheTtlDays: envInt('EXPORT_CACHE_TTL_DAYS', 30),
+  remoteCacheMaxFileMb: envInt('REMOTE_CACHE_MAX_FILE_MB', 50),
 } as const

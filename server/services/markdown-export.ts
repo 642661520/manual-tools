@@ -3,36 +3,37 @@ import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { v4 as uuid } from 'uuid'
 import { config } from '../config.js'
+import { getOrFetch } from './remote-cache.js'
 import type { ManualResult } from '../types.js'
 
-interface ImageEntry {
+interface ResourceEntry {
   /** Markdown 中的原始 URL */
   original: string
   /** zip 中的本地文件名 */
   filename: string
-  /** 图片数据 */
+  /** 文件数据 */
   buffer: Buffer | null
 }
 
 /**
- * 从 Markdown 内容中提取所有图片引用，
- * 下载/读取图片数据，替换为本地路径，
+ * 从 Markdown 内容中提取所有远程资源引用（图片/视频/音频），
+ * 下载/读取文件数据，替换为本地路径，
  * 最后打包为 zip 的 ReadableStream。
  */
 export async function buildMarkdownZip(manual: ManualResult): Promise<{ stream: NodeJS.ReadableStream; filename: string }> {
-  const imageMap = await collectImages(manual.markdown)
-  const mdWithLocalImages = replaceImageUrls(manual.markdown, imageMap)
+  const resourceMap = await collectResources(manual.markdown)
+  const mdWithLocalUrls = replaceResourceUrls(manual.markdown, resourceMap)
 
   const archive = new ZipArchive({ zlib: { level: 6 } })
   const safeTitle = manual.catalog.title.replace(/[\\/:*?"<>|]/g, '_').slice(0, 50)
 
   // 写入 Markdown 文件
-  archive.append(mdWithLocalImages, { name: `${safeTitle}.md` })
+  archive.append(mdWithLocalUrls, { name: `${safeTitle}.md` })
 
-  // 写入图片文件
-  for (const img of imageMap) {
-    if (img.buffer) {
-      archive.append(img.buffer, { name: `images/${img.filename}` })
+  // 写入资源文件（图片、视频等）
+  for (const res of resourceMap) {
+    if (res.buffer) {
+      archive.append(res.buffer, { name: `resources/${res.filename}` })
     }
   }
 
@@ -42,10 +43,10 @@ export async function buildMarkdownZip(manual: ManualResult): Promise<{ stream: 
   return { stream: archive, filename }
 }
 
-/** 收集所有图片：外链下载、本地文件读取 */
-async function collectImages(md: string): Promise<ImageEntry[]> {
-  const urls = extractImageUrls(md)
-  const entries: ImageEntry[] = []
+/** 收集所有远程资源：外链下载、本地文件读取 */
+async function collectResources(md: string): Promise<ResourceEntry[]> {
+  const urls = extractRemoteUrls(md)
+  const entries: ResourceEntry[] = []
   const seen = new Set<string>()
 
   for (const url of urls) {
@@ -54,15 +55,15 @@ async function collectImages(md: string): Promise<ImageEntry[]> {
     seen.add(url)
 
     const filename = `${uuid().slice(0, 8)}${extFromUrl(url)}`
-    const buffer = await fetchImage(url)
+    const buffer = await fetchRemote(url)
     entries.push({ original: url, filename, buffer })
   }
 
   return entries
 }
 
-/** 正则提取 Markdown/HTML 中的图片 URL */
-function extractImageUrls(md: string): string[] {
+/** 正则提取 Markdown/HTML 中的远程资源 URL（图片、视频、音频等） */
+function extractRemoteUrls(md: string): string[] {
   const urls: string[] = []
   // Markdown 图片: ![alt](url)
   const mdRe = /!\[.*?\]\(([^)]+)\)/g
@@ -71,28 +72,42 @@ function extractImageUrls(md: string): string[] {
     urls.push(m[1])
   }
   // HTML 图片: <img src="url">
-  const htmlRe = /<img[^>]+src="([^"]+)"/gi
-  while ((m = htmlRe.exec(md)) !== null) {
+  const imgRe = /<img[^>]+src="([^"]+)"/gi
+  while ((m = imgRe.exec(md)) !== null) {
+    urls.push(m[1])
+  }
+  // HTML 视频: <video src="url">
+  const videoRe = /<video[^>]+src="([^"]+)"/gi
+  while ((m = videoRe.exec(md)) !== null) {
+    urls.push(m[1])
+  }
+  // HTML 视频源: <source src="url">
+  const sourceRe = /<source[^>]+src="([^"]+)"/gi
+  while ((m = sourceRe.exec(md)) !== null) {
     urls.push(m[1])
   }
   return urls
 }
 
-/** 获取图片数据：外链下载、本地读取 */
-async function fetchImage(url: string): Promise<Buffer | null> {
+/** 获取远程资源数据：优先从缓存获取，缓存未命中则下载并存缓存 */
+async function fetchRemote(url: string): Promise<Buffer | null> {
   try {
     // 补全协议相对 URL
     const fullUrl = url.startsWith('//') ? `https:${url}` : url
 
     if (fullUrl.startsWith('http://') || fullUrl.startsWith('https://')) {
-      // 外链：fetch 下载
+      // 外链：使用缓存层获取
+      const cached = await getOrFetch(fullUrl)
+      if (cached) {
+        return readFileSync(cached.filepath)
+      }
+      // 缓存失败，尝试直接下载（不缓存超大文件场景的降级）
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 15000)
       try {
         const res = await fetch(fullUrl, { signal: controller.signal })
         if (res.ok) {
-          const buf = Buffer.from(await res.arrayBuffer())
-          return buf
+          return Buffer.from(await res.arrayBuffer())
         }
       } finally {
         clearTimeout(timeout)
@@ -102,7 +117,7 @@ async function fetchImage(url: string): Promise<Buffer | null> {
     if (fullUrl.startsWith('/uploads/')) {
       // 本地上传文件
       const uploadDir = config.uploadDir
-      const filepath = join(uploadDir, fullUrl.replace(/^\/uploads\/images\//, ''))
+      const filepath = join(uploadDir, fullUrl.replace(/^\/uploads\/(images|videos)\//, ''))
       if (existsSync(filepath)) {
         return readFileSync(filepath)
       }
@@ -114,13 +129,13 @@ async function fetchImage(url: string): Promise<Buffer | null> {
   }
 }
 
-/** 将 Markdown 中的图片 URL 替换为本地相对路径 */
-function replaceImageUrls(md: string, images: ImageEntry[]): string {
+/** 将 Markdown 中的远程资源 URL 替换为本地相对路径 */
+function replaceResourceUrls(md: string, resources: ResourceEntry[]): string {
   let result = md
-  for (const img of images) {
-    if (!img.buffer) continue
-    const escaped = escapeRegex(img.original)
-    result = result.replace(new RegExp(escaped, 'g'), `images/${img.filename}`)
+  for (const res of resources) {
+    if (!res.buffer) continue
+    const escaped = escapeRegex(res.original)
+    result = result.replace(new RegExp(escaped, 'g'), `resources/${res.filename}`)
   }
   return result
 }

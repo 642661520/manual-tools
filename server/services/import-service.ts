@@ -34,7 +34,7 @@ interface ExportData {
       versions: Array<{
         id: string; catalog_id: string; version_major: number; version_minor: number; title: string
         features_snapshot: string; change_notes: string; markdown: string
-        status_snapshot: string; visibility: string; created_at: string
+        status_snapshot: string; visibility: string; features_json: string; headings_json: string; created_at: string
       }>
     }>
     projectMembers: string[]
@@ -43,31 +43,30 @@ interface ExportData {
 }
 
 /** 从 ZIP 中读取并解析 data.json */
-function parseDataJson(zipPath: string): ExportData {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const directory: any = unzipper.Open.file(zipPath)
+async function parseDataJson(zipPath: string): Promise<ExportData> {
+  const directory = await unzipper.Open.file(zipPath)
   const dataFile = directory.files.find(
-    (f: { path: string }) => f.path === 'data.json',
+    (f: unzipper.File) => f.path === 'data.json',
   )
   if (!dataFile) throw new Error('ZIP 文件中缺少 data.json')
 
-  const content: string = dataFile.buffer().toString('utf-8')
+  const buf = await dataFile.buffer()
+  const content: string = buf.toString('utf-8')
   return JSON.parse(content)
 }
 
 /** 列出 ZIP 中的上传文件路径 */
-function listZipUploads(zipPath: string): string[] {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const directory: any = unzipper.Open.file(zipPath)
+async function listZipUploads(zipPath: string): Promise<string[]> {
+  const directory = await unzipper.Open.file(zipPath)
   return directory.files
-    .filter((f: { path: string; type: string }) => f.path.startsWith('uploads/') && f.type === 'File')
-    .map((f: { path: string }) => f.path.replace(/^uploads\//, ''))
+    .filter((f: unzipper.File) => f.path.startsWith('uploads/') && f.type === 'File')
+    .map((f: unzipper.File) => f.path.replace(/^uploads\//, ''))
 }
 
 /** 差异分析 */
-export function analyzeImport(zipPath: string, targetProjectId: string): ImportDiffReport {
+export async function analyzeImport(zipPath: string, targetProjectId: string): Promise<ImportDiffReport> {
   const db = getDb()
-  const data = parseDataJson(zipPath)
+  const data = await parseDataJson(zipPath)
 
   const sourceProject = data.data.project
   const targetProject = db.prepare('SELECT id, name FROM projects WHERE id = ?').get(
@@ -164,7 +163,7 @@ export function analyzeImport(zipPath: string, targetProjectId: string): ImportD
   }
 
   // ---- 上传文件 ----
-  const zipUploads = listZipUploads(zipPath)
+  const zipUploads = await listZipUploads(zipPath)
   let uploadsTotalSize = 0
   let uploadDuplicates = 0
   for (const ref of zipUploads) {
@@ -188,13 +187,13 @@ export function analyzeImport(zipPath: string, targetProjectId: string): ImportD
 }
 
 /** 执行导入 */
-export function applyImport(
+export async function applyImport(
   zipPath: string,
   targetProjectId: string,
   options: ImportApplyOptions,
-): ImportApplyResult {
+): Promise<ImportApplyResult> {
   const db = getDb()
-  const data = parseDataJson(zipPath)
+  const data = await parseDataJson(zipPath)
 
   const result: ImportApplyResult = {
     categories: { inserted: 0, updated: 0, skipped: 0 },
@@ -214,7 +213,8 @@ export function applyImport(
     for (const c of data.data.categories) {
       const existing = db.prepare('SELECT id FROM categories WHERE id = ? AND project_id = ?').get(c.id, targetProjectId)
       if (existing) {
-        if (options.strategies.categories[c.id] === 'skip') {
+        // 安全默认：只有用户明确选择 'overwrite' 才覆盖，否则跳过
+        if (options.strategies.categories[c.id] !== 'overwrite') {
           result.categories.skipped++
           continue
         }
@@ -233,7 +233,7 @@ export function applyImport(
     for (const f of data.data.features) {
       const existing = db.prepare('SELECT id FROM features WHERE id = ? AND project_id = ?').get(f.id, targetProjectId)
       if (existing) {
-        if (options.strategies.features[f.id] === 'skip') {
+        if (options.strategies.features[f.id] !== 'overwrite') {
           result.features.skipped++
           continue
         }
@@ -251,13 +251,13 @@ export function applyImport(
     `)
     const insertVer = db.prepare(`
       INSERT OR REPLACE INTO catalog_versions
-      (id, catalog_id, version_major, version_minor, title, features_snapshot, change_notes, markdown, status_snapshot, visibility, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, catalog_id, version_major, version_minor, title, features_snapshot, change_notes, markdown, status_snapshot, visibility, features_json, headings_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     for (const c of data.data.catalogs) {
       const existing = db.prepare('SELECT id FROM catalogs WHERE id = ? AND project_id = ?').get(c.row.id, targetProjectId)
       if (existing) {
-        if (options.strategies.catalogs[c.row.id] === 'skip') {
+        if (options.strategies.catalogs[c.row.id] !== 'overwrite') {
           result.catalogs.skipped++
           continue
         }
@@ -268,7 +268,8 @@ export function applyImport(
       insertCatl.run(c.row.id, c.row.title, c.row.targets, c.row.features, c.row.cover_info, targetProjectId)
       for (const v of c.versions) {
         insertVer.run(v.id, v.catalog_id, v.version_major, v.version_minor, v.title,
-          v.features_snapshot, v.change_notes, v.markdown, v.status_snapshot, v.visibility, v.created_at)
+          v.features_snapshot, v.change_notes, v.markdown, v.status_snapshot, v.visibility,
+          v.features_json || '[]', v.headings_json || '[]', v.created_at)
       }
     }
 
@@ -288,7 +289,7 @@ export function applyImport(
       const r = docData.row
       const existing = db.prepare('SELECT id FROM documents WHERE id = ?').get(docId)
       if (existing) {
-        if (options.strategies.documents[docId] === 'skip') {
+        if (options.strategies.documents[docId] !== 'overwrite') {
           result.documents.skipped++
           continue
         }
@@ -329,8 +330,7 @@ export function applyImport(
   transaction()
 
   // ---- 上传文件（在事务外，从 ZIP 流式解压） ----
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const directory: any = unzipper.Open.file(zipPath)
+  const directory = await unzipper.Open.file(zipPath)
   for (const file of directory.files) {
     if (!file.path.startsWith('uploads/') || file.type !== 'File') continue
     const ref: string = file.path.replace(/^uploads\//, '')
@@ -338,7 +338,7 @@ export function applyImport(
 
     // SHA-256 去重
     if (fs.existsSync(destPath)) {
-      const content: Buffer = file.buffer()
+      const content = await file.buffer()
       const hash = createHash('sha256').update(content).digest('hex')
       const fileName = path.basename(destPath)
       const expectedHash = fileName.replace(/\.[^.]+$/, '')
@@ -352,7 +352,7 @@ export function applyImport(
     if (!fs.existsSync(destDir)) {
       fs.mkdirSync(destDir, { recursive: true })
     }
-    fs.writeFileSync(destPath, file.buffer())
+    fs.writeFileSync(destPath, await file.buffer())
     result.uploads.copied++
   }
 
