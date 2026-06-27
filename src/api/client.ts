@@ -23,6 +23,12 @@ function getToken(): string | null {
   return localStorage.getItem('auth_token')
 }
 
+/** 从 cookie 读取 CSRF token */
+function getCsrfToken(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/)
+  return match ? match[1] : null
+}
+
 async function request<T>(
   method: HttpMethod,
   path: string,
@@ -30,8 +36,10 @@ async function request<T>(
   options?: RequestOptions,
 ): Promise<T> {
   const token = getToken()
+  const csrfToken = getCsrfToken()
   const headers: Record<string, string> = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
     ...options?.headers,
   }
 

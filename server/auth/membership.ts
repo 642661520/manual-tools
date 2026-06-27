@@ -22,6 +22,23 @@ export function isProjectMember(userId: string, role: string, projectId: string)
 }
 
 /**
+ * 检查 catalog 是否存在且用户有权访问。
+ * 统一 catalog 路由中重复的 fetch + member check 模式。
+ * @returns { projectId } 或 null（不存在/无权限）
+ */
+export function assertCatalogMember(
+  db: ReturnType<typeof getDb>,
+  catalogId: string,
+  userId: string,
+  role: string,
+): { projectId: string } | null {
+  const meta = db.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(catalogId) as { project_id: string } | undefined
+  if (!meta) return null
+  if (!isProjectMember(userId, role, meta.project_id)) return null
+  return { projectId: meta.project_id }
+}
+
+/**
  * 检查用户在项目中的角色是否满足最低要求。
  * admin 自动满足所有项目角色。
  * @param minRole 最低要求的项目角色 (viewer < writer < pm)

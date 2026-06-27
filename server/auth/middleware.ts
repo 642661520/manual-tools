@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { verifyToken, JwtPayload } from './jwt.js'
+import { extractToken } from './token.js'
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -8,12 +9,11 @@ declare module 'fastify' {
 }
 
 export async function authMiddleware(req: FastifyRequest, reply: FastifyReply) {
-  const auth = req.headers.authorization
-  if (!auth || !auth.startsWith('Bearer ')) {
+  const token = extractToken(req)
+  if (!token) {
     return reply.status(401).send({ ok: false, error: '未登录' })
   }
 
-  const token = auth.slice(7)
   let payload: JwtPayload
   try {
     payload = verifyToken(token)

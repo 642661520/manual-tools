@@ -10,6 +10,18 @@ import { determineRole } from '../auth/feishu.js'
 import { notifyNewGuest } from '../services/notifications.js'
 import { success, fail } from '../lib/response.js'
 import { authMiddleware } from '../auth/middleware.js'
+import { generateState } from '../lib/crypto.js'
+import { generateCsrfToken } from '../lib/csrf.js'
+import { config } from '../config.js'
+
+/** 同时设置 auth_token + csrf_token，避免 Set-Cookie 被覆盖 */
+function setLoginCookies(reply: { header: (name: string, value: string | string[]) => void }, token: string, csrfToken: string) {
+  const secure = config.isProduction ? '; Secure' : ''
+  reply.header('Set-Cookie', [
+    `auth_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400${secure}`,
+    `csrf_token=${csrfToken}; Path=/; SameSite=Strict; Max-Age=86400`,
+  ])
+}
 
 export async function authRoutes(app: FastifyInstance) {
   // 密码登录（严格限速：1分钟最多5次）
@@ -41,8 +53,8 @@ export async function authRoutes(app: FastifyInstance) {
       avatarUrl: user.feishu_avatar_url || undefined,
       feishuName: user.feishu_name || undefined,
     })
-    // 设置 cookie，供文档站点页面导航鉴权
-    reply.header('Set-Cookie', `auth_token=${token}; Path=/; SameSite=Lax; Max-Age=86400`)
+    // 设置 cookie，供文档站点页面导航鉴权 + CSRF 保护
+    setLoginCookies(reply, token, generateCsrfToken())
     return success({
       token,
       user: {
@@ -66,8 +78,7 @@ export async function authRoutes(app: FastifyInstance) {
 
   // 飞书登录 URL
   app.get('/api/v1/auth/feishu/login-url', async (_req, reply) => {
-    const random = Math.random().toString(36).slice(2, 8)
-    const state = `login:${random}`
+    const state = `login:${generateState()}`
     try {
       const url = getFeishuAuthUrl(state)
       return success({ url })
@@ -131,9 +142,8 @@ export async function authRoutes(app: FastifyInstance) {
         feishuName: user.feishu_name || undefined,
       })
 
-      reply.header('Set-Cookie', `auth_token=${token}; Path=/; SameSite=Lax; Max-Age=86400`)
+      setLoginCookies(reply, token, generateCsrfToken())
       return success({
-        token,
         user: {
           id: user.id,
           username: user.username,
