@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import Sortable from 'sortablejs'
 import { useProject } from '@/composables/useProject'
 import { useAuth } from '@/composables/useAuth'
@@ -95,6 +95,7 @@ const saveError = ref('')
 const expandedIndex = ref<number | null>(null)
 const highlightedId = ref<string | null>(null)
 const dirty = ref(false)
+const loading = ref(false)
 const saveSuccess = ref(false)
 const movingFeatureId = ref<string | null>(null)
 const movingPoolFeature = ref<FeatureSummary | null>(null)
@@ -197,6 +198,7 @@ const grouped = computed(() => {
 })
 
 async function loadData() {
+  loading.value = true
   const catalogIdVal = catalogId.value
   const pid = currentProjectId.value
 
@@ -256,6 +258,8 @@ async function loadData() {
     catalog.value = { title: '', targets: [], entries: [] }
   }
   dirty.value = false
+  await nextTick()
+  loading.value = false
 }
 
 function addFeature(f: FeatureSummary) {
@@ -487,7 +491,7 @@ watch(catalogId, () => {
 
 async function switchCatalog(id: string | number | null) {
   if (!id || id === catalogId.value) return
-  if (dirty.value && !window.confirm('有未保存的更改，确定切换？')) return
+  if (dirty.value && !await confirm('有未保存的更改，确定切换？')) return
   router.push(`/catalogs/${id}`)
 }
 
@@ -497,7 +501,11 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
   }
 }
 
-watch(() => catalog.value.title, () => { dirty.value = true })
+watch(() => catalog.value.title, () => { if (!loading.value) dirty.value = true })
+
+onBeforeRouteLeave(async () => {
+  if (dirty.value && !await confirm('有未保存的更改，确定离开？')) return false
+})
 
 onMounted(() => {
   window.addEventListener('beforeunload', handleBeforeUnload)

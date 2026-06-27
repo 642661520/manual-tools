@@ -302,7 +302,7 @@ const projectRoleLabel: Record<string, string> = { pm: '项目管理员', writer
             <label class="label">选择用户</label>
             <SelectDropdown
               width-class="w-full"
-              placeholder="搜索用户..."
+              placeholder="选择用户"
               :model-value="selectedUserId"
               :options="nonMemberUsers.map(u => {
                 const name = u.feishuName || u.displayName

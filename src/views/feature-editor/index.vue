@@ -19,7 +19,7 @@ interface DefaultSection {
   assignees: string
   reviewNote: string
   reviewStep: number
-  reviewLog: string
+  statusLog: string
 }
 interface FeatureDetailExt extends FeatureDetail {
   reviewChain?: string
@@ -91,10 +91,10 @@ const reviewChain = computed(() => {
 
 const currentReviewStep = computed(() => currentSectionData.value?.reviewStep || 0)
 
-// 当前小节的审核日志
-const sectionReviewLog = computed(() => {
+// 当前小节的状态变更记录
+const sectionStatusLog = computed(() => {
   try {
-    return JSON.parse((currentSectionData.value as { reviewLog?: string })?.reviewLog || '[]') as { action: string; reviewerId: string; note: string; step: number; createdAt: string }[]
+    return JSON.parse((currentSectionData.value as { statusLog?: string })?.statusLog || '[]') as { action: string; userId: string; note: string; step: number; createdAt: string }[]
   }
   catch { return [] }
 })
@@ -214,7 +214,7 @@ async function updateAssignees(sectionKey: string, assignees: string[]) {
         assignees: '[]',
         reviewNote: '',
         reviewStep: 0,
-        reviewLog: '[]',
+        statusLog: '[]',
       };
       (feature.value as FeatureDetailExt).defaultSection = newDs
       target = newDs
@@ -245,6 +245,30 @@ function statusIcon(status: string): string {
     approved: 'i-lucide-check-circle',
   }
   return icons[status] || 'i-lucide-clock'
+}
+
+function statusLogIcon(action: string): string {
+  const icons: Record<string, string> = {
+    submitted: 'i-lucide-send text-blue-400',
+    approved: 'i-lucide-check-circle text-green-500',
+    rejected: 'i-lucide-x-circle text-red-500',
+    direct_approved: 'i-lucide-zap text-yellow-500',
+    reset_to_draft: 'i-lucide-rotate-ccw text-gray-400',
+    reset_to_in_progress: 'i-lucide-rotate-ccw text-orange-400',
+  }
+  return icons[action] || 'i-lucide-circle text-gray-400'
+}
+
+function statusLogLabel(action: string): string {
+  const labels: Record<string, string> = {
+    submitted: '提交审核',
+    approved: '审核通过',
+    rejected: '退回修改',
+    direct_approved: '直接通过',
+    reset_to_draft: '重置为未开始',
+    reset_to_in_progress: '退回编写中',
+  }
+  return labels[action] || action
 }
 
 // 小节切换同步到 URL（保留 find 等已有参数）
@@ -285,24 +309,7 @@ async function handleStatusTransition(sectionKey: string, payload: { target: str
   try {
     await updateSectionStatus(featureId.value, sectionKey, body as UpdateSectionStatusBody)
     showStatusModal.value = false
-    if (['pending_review', 'approved', 'rejected'].includes(payload.target)) {
-      await loadFeature()
-    } else if (feature.value) {
-      // 更新本地状态（含 _default / 普通 section / 游离文档）
-      let target: { status?: string; reviewNote?: string } | undefined
-      if (sectionKey === '_default') {
-        target = (feature.value as FeatureDetailExt)?.defaultSection || undefined
-      } else {
-        target = feature.value.sections.find(s => s.key === sectionKey)
-        if (!target) {
-          target = feature.value.orphaned?.find(o => o.key === sectionKey)
-        }
-      }
-      if (target) {
-        target.status = payload.target
-        target.reviewNote = payload.note || ''
-      }
-    }
+    await loadFeature()
   } catch { /* ignore */ }
 }
 
@@ -493,20 +500,22 @@ async function deleteOrphaned(sectionKey: string) {
             </div>
           </div>
 
-          <!-- 审核历史 -->
-          <div v-if="sectionReviewLog.length > 0" class="mt-3">
-            <div class="text-xs font-semibold text-gray-400 uppercase mb-1">审核记录</div>
-            <div v-for="(entry, i) in sectionReviewLog.slice().reverse()" :key="i" class="text-sm py-1.5 border-b border-gray-50">
-              <div class="flex items-center gap-1">
-                <span :class="entry.action === 'approved' ? 'text-green-500' : 'text-red-500'">
-                  {{ entry.action === 'approved' ? '✓' : '✗' }}
-                </span>
-                <UserAvatar :avatar-url="getUserAvatar(entry.reviewerId)" :name="getUserName(entry.reviewerId)" size="xs" />
-                <span class="font-medium">{{ getUserName(entry.reviewerId) }}</span>
-                <span class="text-gray-400">{{ entry.action === 'approved' ? '通过审核' : '退回修改' }}</span>
+          <!-- 状态变更记录 -->
+          <div v-if="sectionStatusLog.length > 0" class="mt-3">
+            <div class="text-xs font-semibold text-gray-400 uppercase mb-1">状态变更记录</div>
+            <div v-for="(entry, i) in sectionStatusLog.slice().reverse()" :key="i" class="py-2 border-b border-gray-50">
+              <!-- 第一行：图标 + 操作类型 + 时间 -->
+              <div class="flex items-center gap-1.5">
+                <span :class="statusLogIcon(entry.action)" class="w-4 h-4 inline-block flex-shrink-0" />
+                <span class="text-sm text-gray-700">{{ statusLogLabel(entry.action) }}</span>
                 <span class="text-xs text-gray-400 ml-auto">{{ entry.createdAt.slice(0, 16).replace('T', ' ') }}</span>
               </div>
-              <div v-if="entry.note" class="text-gray-500 ml-5 text-xs mt-0.5">{{ entry.note }}</div>
+              <!-- 第二行：用户 + 备注 -->
+              <div class="flex items-center gap-1.5 mt-1 ml-5.5">
+                <UserAvatar :avatar-url="getUserAvatar(entry.userId)" :name="getUserName(entry.userId)" size="xs" />
+                <span class="text-xs text-gray-500">{{ getUserName(entry.userId) }}</span>
+                <span v-if="entry.note" class="text-xs text-gray-400">· {{ entry.note }}</span>
+              </div>
             </div>
           </div>
         </div>

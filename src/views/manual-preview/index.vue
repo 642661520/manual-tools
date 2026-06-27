@@ -90,6 +90,8 @@ const previewData = ref<{
   title: string
   features: FeatureMeta[]
   entries: CatalogEntry[]
+  publishScope?: string
+  statusSnapshot?: Record<string, string>
 }>({
   title: '',
   features: [],
@@ -158,6 +160,8 @@ async function loadPreview() {
         title: data.title,
         features: data.features || [],
         entries: data.entries || [],
+        publishScope: data.publishScope,
+        statusSnapshot: data.statusSnapshot,
       }
     } else {
       const data = await getPreview(selectedCatalogId.value, previewMode.value)
@@ -299,6 +303,11 @@ const currentVersionVis = computed(() => {
   return v?.visibility || 'project_members'
 })
 
+const currentVersionPublishScope = computed(() => {
+  const v = versions.value.find((v: CatalogVersionInfo) => v.id === selectedVersionId.value)
+  return v?.publishScope || 'all'
+})
+
 const docUrl = computed(() => {
   const v = versions.value.find((v: CatalogVersionInfo) => v.id === selectedVersionId.value)
   if (!v) return ''
@@ -351,7 +360,8 @@ onUnmounted(() => {
             { value: '', label: '当前最新（实时内容）' },
             ...versions.map(v => {
               const vis = visibilityLabels[v.visibility] || '项目成员'
-              return { value: v.id, label: `v${v.versionMajor}.${v.versionMinor} · ${new Date(v.createdAt).toLocaleDateString()} · ${vis}` }
+              const scope = v.publishScope === 'approved_only' ? ' · 仅已审核' : ' · 含未审核'
+              return { value: v.id, label: `v${v.versionMajor}.${v.versionMinor} · ${new Date(v.createdAt).toLocaleDateString()} · ${vis}${scope}` }
             }),
           ]"
           @update:model-value="selectVersion"
@@ -388,6 +398,9 @@ onUnmounted(() => {
             :options="visibilityOptions"
             @update:model-value="(val: string | number | null) => updateVisibility(selectedVersionId!, val as string)"
           />
+          <span v-if="currentVersionPublishScope === 'all'" class="text-xs px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 flex-shrink-0" title="此版本发布时包含了未审核内容">
+            含未审核
+          </span>
           <div class="w-px h-5 bg-gray-300 mx-1" />
           <a v-if="selectedVersionId" :href="docUrl" target="_blank" class="btn-secondary text-sm">在线文档</a>
           <button class="btn-secondary text-sm" :disabled="exportingMd" @click="exportMarkdown">
@@ -404,6 +417,9 @@ onUnmounted(() => {
           <span v-if="selectedVersionId" class="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0"
             :class="currentVersionVis === 'public' ? 'bg-green-100 text-green-700' : currentVersionVis === 'login_required' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'">
             {{ visibilityLabels[currentVersionVis] || '项目成员' }}
+          </span>
+          <span v-if="selectedVersionId && currentVersionPublishScope === 'all'" class="text-xs px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 flex-shrink-0" title="此版本发布时包含了未审核内容">
+            含未审核
           </span>
           <div v-if="selectedVersionId" class="w-px h-5 bg-gray-300 mx-1" />
           <a v-if="selectedVersionId" :href="docUrl" target="_blank" class="btn-secondary text-sm">在线文档</a>

@@ -15,7 +15,7 @@ const props = defineProps<{
   catalogTitle: string
   tree: SidebarNode[]
   hasParts: boolean
-  changelog: Array<{ id: string; versionMajor: number; versionMinor: number; createdAt: string; changeNotes: string }>
+  changelog: Array<{ id: string; versionMajor: number; versionMinor: number; createdAt: string; changeNotes: string; publishScope?: string }>
   selectedVersionId: string | null
   onSelectVersion: (id: string | null) => void
 }>()
@@ -107,6 +107,7 @@ function isCoverPart(node: SidebarNode): node is SidebarPart {
                 <span class="font-mono text-gray-400 flex-shrink-0">v{{ v.versionMajor }}.{{ v.versionMinor }}</span>
                 <span class="text-gray-300 flex-shrink-0">{{ v.createdAt.slice(0, 10) }}</span>
                 <span>{{ v.changeNotes || '（无变更说明）' }}</span>
+                <span v-if="v.publishScope === 'all'" class="text-xs px-1 py-0 rounded bg-yellow-100 text-yellow-700 flex-shrink-0" title="此版本发布时包含了未审核内容">含未审核</span>
               </div>
             </div>
           </div>

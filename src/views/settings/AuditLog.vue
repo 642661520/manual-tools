@@ -82,7 +82,7 @@ onMounted(load)
       </thead>
       <tbody>
         <tr v-for="r in rows" :key="r.id" class="border-b border-gray-100 hover:bg-gray-50">
-          <td class="py-2 pr-4 text-gray-500 whitespace-nowrap">{{ r.createdAt.replace('T', ' ').slice(0, 19) }}</td>
+          <td class="py-2 pr-4 text-gray-500 whitespace-nowrap">{{ new Date(r.createdAt).toLocaleString() }}</td>
           <td class="py-2 pr-4">{{ r.username }}</td>
           <td class="py-2 pr-4">
             <span class="px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-700">

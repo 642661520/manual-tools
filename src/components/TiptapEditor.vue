@@ -144,20 +144,26 @@ function toggleFullscreen() {
 
 // 颜色选择器
 const showColorPicker = ref<'text' | 'highlight' | null>(null)
-const textColors = ['#000000', '#374151', '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#ffffff']
+const textColors = ['#000000', '#374151', '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899']
 const highlightColors = ['#fef08a', '#fde68a', '#fca5a5', '#fdba74', '#86efac', '#93c5fd', '#c4b5fd', '#f9a8d4', '#d1d5db', '#e5e7eb']
 
 function applyTextColor(color: string) {
-  if (color === '#ffffff') {
-    editor.value?.chain().focus().unsetColor().run()
-  } else {
-    editor.value?.chain().focus().setColor(color).run()
-  }
+  editor.value?.chain().focus().setColor(color).run()
+  showColorPicker.value = null
+}
+
+function unsetTextColor() {
+  editor.value?.chain().focus().unsetColor().run()
   showColorPicker.value = null
 }
 
 function applyHighlight(color: string) {
   editor.value?.chain().focus().toggleHighlight({ color }).run()
+  showColorPicker.value = null
+}
+
+function unsetHighlight() {
+  editor.value?.chain().focus().unsetHighlight().run()
   showColorPicker.value = null
 }
 
@@ -624,20 +630,25 @@ defineExpose({ connected, synced, initialSyncDone, editor })
     <div v-if="showColorPicker" class="flex items-center gap-1 px-4 py-1.5 border-b border-gray-200 bg-white flex-wrap">
       <template v-if="showColorPicker === 'text'">
         <button
+          class="px-2 py-0.5 rounded border text-xs transition-colors border-gray-300 hover:bg-gray-100"
+          @click="unsetTextColor"
+        >默认</button>
+        <button
           v-for="c in textColors" :key="c"
           class="w-6 h-6 rounded-full border border-gray-300 flex-shrink-0 hover:scale-110 transition-transform"
-          :class="{ 'ring-2 ring-blue-500 ring-offset-1': c === '#ffffff' }"
           :style="{ backgroundColor: c }"
-          v-tooltip="c === '#ffffff' ? '默认颜色' : c"
           @click="applyTextColor(c)"
         />
       </template>
       <template v-else>
         <button
+          class="px-2 py-0.5 rounded border text-xs transition-colors border-gray-300 hover:bg-gray-100"
+          @click="unsetHighlight"
+        >默认</button>
+        <button
           v-for="c in highlightColors" :key="c"
           class="w-6 h-6 rounded-full border border-gray-300 flex-shrink-0 hover:scale-110 transition-transform"
           :style="{ backgroundColor: c }"
-          v-tooltip="c"
           @click="applyHighlight(c)"
         />
       </template>

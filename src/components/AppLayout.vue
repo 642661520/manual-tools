@@ -35,6 +35,7 @@ function roleLabel(role: string) {
 }
 
 async function handleProjectSwitch(id: string) {
+  if (id === currentProjectId.value) return
   const targetProject = projects.value.find(p => p.id === id)
   const targetName = targetProject?.name || '新项目'
   const ok = await confirm(`切换到「${targetName}」？当前页面的数据将切换为该项目的对应内容。`)
@@ -162,6 +163,14 @@ onMounted(loadProjects)
             >
               <span class="i-lucide-user w-4 h-4" />个人中心
             </button>
+            <a
+              href="/docs/api"
+              target="_blank"
+              class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 no-underline"
+              @click="closeUserMenu()"
+            >
+              <span class="i-lucide-file-code w-4 h-4" />API 文档
+            </a>
             <button
               v-if="isAdmin"
               class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"

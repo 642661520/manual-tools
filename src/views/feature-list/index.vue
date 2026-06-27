@@ -365,7 +365,7 @@ watch(currentProjectId, loadFeatures)
                   <p class="text-sm text-gray-500 mt-0.5 truncate">{{ f.description }}</p>
                 </div>
                 <div class="flex items-center gap-4 text-sm flex-shrink-0">
-                  <span class="text-xs text-gray-400">{{ f.approvedSections }}/{{ f.totalSections || 0 }} 已审核</span>
+                  <span class="text-xs text-gray-400">{{ f.approvedSections ?? 0 }}/{{ f.totalSections ?? 0 }} 已审核</span>
                   <StatusBadge :status="getOverallStatus(f)" variant="badge" />
                   <button v-if="canManageProject" class="text-blue-400 hover:text-blue-600 text-sm" @click.stop="openEditDialog(f.id)">设置</button>
                   <button v-if="canManageProject" class="text-red-400 hover:text-red-600 text-sm" @click.stop="deleteCustomFeature(f.id)"><span class="i-lucide-x w-4 h-4 inline-block align-middle" /></button>

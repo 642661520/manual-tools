@@ -61,9 +61,6 @@ watch(() => props.editor, (ed) => {
       <button class="w-8 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-600" title="删除线" @mousedown.prevent="editor.chain().focus().toggleStrike().run()">
         <span class="i-lucide-strikethrough w-4 h-4" />
       </button>
-      <button class="w-8 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-600" title="链接" @mousedown.prevent="editor.chain().focus().toggleLink({ href: '' }).run()">
-        <span class="i-lucide-link w-4 h-4" />
-      </button>
       <div class="w-px h-4 bg-gray-200 mx-0.5" />
       <button
         class="flex items-center gap-1 h-7 px-2 rounded text-xs font-medium transition-colors"
