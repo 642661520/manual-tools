@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import { config } from '../config.js'
 import path from 'path'
 import fs from 'fs'
+import { getLogger } from '../lib/logger.js'
 
 const DB_PATH = config.databasePath
 
@@ -19,6 +20,14 @@ export function getDb(): Database.Database {
     db.pragma('foreign_keys = ON')
   }
   return db
+}
+
+const log = getLogger()
+
+/** 检查列是否存在（用于幂等迁移） */
+function columnExists(conn: ReturnType<typeof getDb>, table: string, column: string): boolean {
+  const rows = conn.pragma(`table_info(${table})`) as { name: string }[]
+  return rows.some(r => r.name === column)
 }
 
 export function initDatabase() {
@@ -133,9 +142,9 @@ export function initDatabase() {
       visibility TEXT NOT NULL DEFAULT 'project_members',
       features_json TEXT DEFAULT '[]',
       headings_json TEXT DEFAULT '[]',
+      publish_scope TEXT NOT NULL DEFAULT 'all',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
-
     CREATE TABLE IF NOT EXISTS data_tasks (
       id TEXT PRIMARY KEY,
       type TEXT NOT NULL,
@@ -193,7 +202,41 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_catalogs_project_id ON catalogs(project_id);
     CREATE INDEX IF NOT EXISTS idx_remote_cache_accessed ON remote_cache(accessed_at);
     CREATE INDEX IF NOT EXISTS idx_export_cache_lookup ON export_cache(catalog_id, type, fingerprint, options_hash);
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      username TEXT NOT NULL DEFAULT '',
+      action TEXT NOT NULL,
+      target_type TEXT NOT NULL,
+      target_id TEXT NOT NULL DEFAULT '',
+      detail TEXT NOT NULL DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at);
+    CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
+      title,
+      content,
+      doc_id,
+      project_id UNINDEXED,
+      section_key UNINDEXED,
+      tokenize='unicode61'
+    );
+    CREATE TABLE IF NOT EXISTS search_docs (
+      doc_id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      project_id TEXT NOT NULL,
+      section_key TEXT NOT NULL DEFAULT '_default'
+    );
+    CREATE INDEX IF NOT EXISTS idx_search_docs_project ON search_docs(project_id);
   `)
+
+  // 幂等迁移：为旧版本数据库添加 publish_scope 列
+  if (!columnExists(conn, 'catalog_versions', 'publish_scope')) {
+    conn.exec("ALTER TABLE catalog_versions ADD COLUMN publish_scope TEXT NOT NULL DEFAULT 'all'")
+  }
 
   // 种子系统管理员账号
   const admin = conn.prepare('SELECT id FROM users WHERE username = ?').get(
@@ -214,7 +257,7 @@ export function initDatabase() {
     conn.prepare(
       "INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)"
     ).run('default', 'seed-admin-001', 'pm')
-    console.log('Admin user seeded.')
+    log.info('admin user seeded')
   }
 
   // 清理过期的导出/导入任务文件
@@ -226,8 +269,8 @@ export function initDatabase() {
     conn.prepare('DELETE FROM data_tasks WHERE id = ?').run(task.id)
   }
   if (expiredTasks.length > 0) {
-    console.log(`Cleaned up ${expiredTasks.length} expired data task(s).`)
+    log.info({ count: expiredTasks.length }, 'expired data tasks cleaned')
   }
 
-  console.log('Database initialized.')
+  log.info('database initialized')
 }

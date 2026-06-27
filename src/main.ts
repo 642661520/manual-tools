@@ -3,6 +3,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
 import { routes } from './router'
 import { getCurrentUser } from '@/api/endpoints/auth'
+import { getStoredUser } from '@/utils/storage'
+import { vTooltip } from './directives/tooltip'
 import '@unocss/reset/tailwind.css'
 import 'virtual:uno.css'
 
@@ -60,19 +62,75 @@ router.beforeEach(async (to, _from, next) => {
     const valid = await validateToken()
     if (!valid) return next('/login')
 
-    const user = JSON.parse(localStorage.getItem('auth_user') || '{}')
+    const user = getStoredUser()
     // 游客只能访问个人中心
-    if (user.role === 'guest' && to.name !== 'profile') {
+    if (user?.role === 'guest' && to.name !== 'profile') {
       return next('/profile')
     }
     // 系统设置仅 admin 可访问
-    if (to.meta.requiresAdmin && user.role !== 'admin') {
+    if (to.meta.requiresAdmin && user?.role !== 'admin') {
       return next('/features')
     }
   }
   next()
 })
 
+// ---- 全局前端错误上报 ----
+
+function getCsrfToken(): string {
+  const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+  return token || ''
+}
+
+function reportFrontendError(payload: { message: string; stack?: string }) {
+  const token = localStorage.getItem('auth_token')
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  const csrf = getCsrfToken()
+  if (csrf) headers['X-CSRF-Token'] = csrf
+
+  fetch('/api/v1/log/frontend', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      ...payload,
+      url: window.location.href,
+      userAgent: navigator.userAgent,
+    }),
+  }).catch(() => { /* 上报失败不影响用户 */ })
+}
+
+// JS 运行时错误
+window.addEventListener('error', (event) => {
+  if (event.error) {
+    reportFrontendError({
+      message: event.message || '未知运行时错误',
+      stack: event.error?.stack,
+    })
+  }
+})
+
+// 未处理的 Promise 拒绝
+window.addEventListener('unhandledrejection', (event) => {
+  const reason = event.reason
+  reportFrontendError({
+    message: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+  })
+})
+
 const app = createApp(App)
+
+// Vue 应用级错误
+app.config.errorHandler = (err, _instance, info) => {
+  reportFrontendError({
+    message: `[Vue ${info}]: ${err instanceof Error ? err.message : String(err)}`,
+    stack: err instanceof Error ? err.stack : undefined,
+  })
+}
+
 app.use(router)
+app.directive('tooltip', vTooltip)
 app.mount('#app')
