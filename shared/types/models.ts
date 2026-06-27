@@ -127,6 +127,7 @@ export interface CatalogVersionInfo {
   title: string
   changeNotes: string
   visibility: string
+  publishScope: string
   createdAt: string
 }
 
@@ -248,4 +249,12 @@ export interface OrphanFile {
   path: string
   size: number
   mtime: string
+}
+
+export interface UploadFileInfo {
+  path: string
+  size: number
+  mtime: string
+  /** 是否被文档引用 */
+  referenced: boolean
 }

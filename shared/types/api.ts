@@ -36,7 +36,7 @@ export class ApiRequestError extends Error {
 import type {
   UserInfo, UserDetail,
   CatalogEntry,
-  ExportEstimate, ImportDiffReport, ImportApplyResult, OrphanFile, DataTaskInfo,
+  ExportEstimate, ImportDiffReport, ImportApplyResult, OrphanFile, UploadFileInfo, DataTaskInfo,
 } from './models'
 
 /** POST /api/auth/login */
@@ -86,6 +86,8 @@ export interface FeishuBindingStatus {
 export interface PublishResponse {
   versionMajor: number
   versionMinor: number
+  approved: number
+  total: number
 }
 
 /** POST /api/upload/image */
@@ -180,6 +182,15 @@ export type DataTaskResponse = DataTaskInfo
 export interface OrphansResponse {
   orphans: OrphanFile[]
   totalSize: number
+}
+
+/** GET /api/v1/uploads */
+export interface UploadsResponse {
+  files: UploadFileInfo[]
+  totalSize: number
+  totalCount: number
+  referencedCount: number
+  orphanedCount: number
 }
 
 /** DELETE /api/v1/uploads/orphans */
