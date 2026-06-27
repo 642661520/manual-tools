@@ -20,17 +20,18 @@ export function buildSidebarHtml(
       const filename = `ch${pad(chNum)}.html`
       const isActive = currentChapter === chNum
       const isLeaf = isLeafChapter(f)
-      html += `<li class="nav-chapter${isActive ? ' active' : ''}">`
+
+      html += `<li class="vp-nav-chapter${isActive ? ' active' : ''}">`
       if (isLeaf) {
-        html += `<a href="${filename}" class="nav-chapter-btn">${chNum}. ${escHtml(f.title)}</a>`
+        html += `<a href="${filename}" class="vp-nav-chapter-btn">${chNum}. ${escHtml(f.title)}</a>`
       } else {
-        html += `<button class="nav-chapter-btn" onclick="toggleChapter(this)">${chNum}. ${escHtml(f.title)}</button>
-      <ul class="nav-sections">`
+        html += `<button class="vp-nav-chapter-btn" onclick="toggleChapter(this)" aria-expanded="${isActive}">${chNum}. ${escHtml(f.title)}</button>`
+        html += `<ul class="vp-nav-sections"${isActive ? '' : ' style="display:none"'}>`
         for (let i = 0; i < f.sections.length; i++) {
           const sec = f.sections[i]
           const anchorId = `ch${chNum}-s${i + 1}`
           const href = isActive ? `#${anchorId}` : `${filename}#${anchorId}`
-          html += `<li><a href="${href}" class="nav-section-link" data-id="${anchorId}">${chNum}.${i + 1} ${escHtml(sec.title)}</a></li>`
+          html += `<li><a href="${href}" class="vp-nav-section-link" data-id="${anchorId}">${chNum}.${i + 1} ${escHtml(sec.title)}</a></li>`
         }
         html += `</ul>`
       }
@@ -57,9 +58,14 @@ export function buildSidebarHtml(
         html += `</ul></li>` // 关闭上一个 Part
       }
       if (partInfo) {
-        html += `<li class="nav-part">
-      <button class="nav-part-btn" onclick="togglePart(this)">${escHtml(partInfo.title)}</button>
-      <ul class="nav-chapters">`
+        // 检查当前 Part 是否包含当前激活的章节
+        const isActivePart = partInfo.featureIds.some(fid => {
+          const idx = features.findIndex(ff => ff.id === fid)
+          return idx >= 0 && (idx + 1) === currentChapter
+        })
+        html += `<li class="vp-nav-part${isActivePart ? '' : ' collapsed'}">`
+        html += `<button class="vp-nav-part-btn" onclick="togglePart(this)" aria-expanded="${isActivePart}">${escHtml(partInfo.title)}</button>`
+        html += `<ul class="vp-nav-chapters"${isActivePart ? '' : ' style="display:none"'}>`
       }
       lastPartIdx = currentPartIdx
     }
@@ -67,17 +73,18 @@ export function buildSidebarHtml(
     const filename = `ch${pad(chNum)}.html`
     const isActive = currentChapter === chNum
     const isLeaf = isLeafChapter(f)
-    html += `<li class="nav-chapter${isActive ? ' active' : ''}">`
+
+    html += `<li class="vp-nav-chapter${isActive ? ' active' : ''}">`
     if (isLeaf) {
-      html += `<a href="${filename}" class="nav-chapter-btn">${chNum}. ${escHtml(f.title)}</a>`
+      html += `<a href="${filename}" class="vp-nav-chapter-btn">${chNum}. ${escHtml(f.title)}</a>`
     } else {
-      html += `<button class="nav-chapter-btn" onclick="toggleChapter(this)">${chNum}. ${escHtml(f.title)}</button>
-      <ul class="nav-sections">`
+      html += `<button class="vp-nav-chapter-btn" onclick="toggleChapter(this)" aria-expanded="${isActive}">${chNum}. ${escHtml(f.title)}</button>`
+      html += `<ul class="vp-nav-sections"${isActive ? '' : ' style="display:none"'}>`
       for (let i = 0; i < f.sections.length; i++) {
         const sec = f.sections[i]
         const anchorId = `ch${chNum}-s${i + 1}`
         const href = isActive ? `#${anchorId}` : `${filename}#${anchorId}`
-        html += `<li><a href="${href}" class="nav-section-link" data-id="${anchorId}">${chNum}.${i + 1} ${escHtml(sec.title)}</a></li>`
+        html += `<li><a href="${href}" class="vp-nav-section-link" data-id="${anchorId}">${chNum}.${i + 1} ${escHtml(sec.title)}</a></li>`
       }
       html += `</ul>`
     }

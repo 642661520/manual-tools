@@ -12,29 +12,52 @@ export interface PartMeta {
   featureIds: string[]
 }
 
+export interface TocItem {
+  level: number    // 1=chapter, 2=section, 3=h2 sub-heading, 4=h3 sub-heading
+  id: string       // anchor id
+  title: string
+}
+
 export function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-/** 中文数字（1-20），超出返回数字字符串 */
-export function toChineseNumber(n: number): string {
-  const map = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十',
-    '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十']
-  return map[n - 1] || String(n)
+/** 剥离 HTML 标签，返回纯文本 */
+export function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
-function pad(n: number): string {
+/** 生成 URL 友好的 slug（支持中文） */
+export function slugify(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/[^\w一-鿿\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 64) || 'heading'
+}
+
+export function pad(n: number): string {
   return String(n).padStart(2, '0')
 }
 
-export { pad }
-
 /** 构建 featureId → part 映射 */
-export function buildFeaturePartMap(parts: PartMeta[]): Map<string, { title: string; idx: number } | null> {
-  const map = new Map<string, { title: string; idx: number } | null>()
+export function buildFeaturePartMap(parts: PartMeta[]): Map<string, { title: string; idx: number; featureIds: string[] }> {
+  const map = new Map<string, { title: string; idx: number; featureIds: string[] }>()
   for (const part of parts) {
     for (const fid of part.featureIds) {
-      map.set(fid, { title: part.title, idx: part.idx })
+      map.set(fid, { title: part.title, idx: part.idx, featureIds: part.featureIds })
     }
   }
   return map

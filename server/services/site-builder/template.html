@@ -4,34 +4,94 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{PAGE_TITLE}}</title>
-<style>
-{{STYLES}}
-</style>
+<style>{{STYLES}}</style>
 </head>
-<body>
-<aside class="sidebar">
-  <div class="sidebar-header">
-    <h1><a href="./">{{TITLE}}</a></h1>
-    <div class="version-switcher" id="versionSwitcher">
-      <button class="vs-btn" id="vsBtn" onclick="toggleVersionMenu()">
-        <span class="vs-label">{{VERSION_LABEL}}</span>
-        <span class="vs-arrow">&#9662;</span>
+<body class="vp-doc">
+<!-- ====== Top Navigation Bar ====== -->
+<header class="vp-nav" id="vpNav">
+  <div class="vp-nav-container">
+    <button class="vp-nav-hamburger" id="navHamburger" aria-label="切换菜单" onclick="toggleMobileSidebar()">
+      <span class="vp-nav-hamburger-line"></span>
+      <span class="vp-nav-hamburger-line"></span>
+      <span class="vp-nav-hamburger-line"></span>
+    </button>
+    <a href="./" class="vp-nav-title" title="{{TITLE}}">
+      <svg class="vp-nav-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      </svg>
+      <span>{{TITLE}}</span>
+    </a>
+    <nav class="vp-nav-actions">
+      <button class="vp-nav-search" onclick="openSearch()" title="搜索 (Ctrl+K)">
+        <svg class="vp-nav-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <span class="vp-nav-search-text">搜索</span>
+        <kbd class="vp-nav-search-kbd">Ctrl K</kbd>
       </button>
-      <div class="vs-menu" id="vsMenu"></div>
-    </div>
+      <div class="vp-version-switcher" id="versionSwitcher">
+        <button class="vp-vs-btn" id="vsBtn" onclick="toggleVersionMenu()" title="切换版本">
+          <span class="vp-vs-label">{{VERSION_LABEL}}</span>
+          <svg class="vp-vs-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m6 9 6 6 6-6"/>
+          </svg>
+        </button>
+        <div class="vp-vs-menu" id="vsMenu"></div>
+      </div>
+    </nav>
   </div>
-  <nav class="sidebar-nav">
-    <ul style="list-style:none">
-      <li class="nav-cover"><a href="./">📖 目录</a></li>
-      {{SIDEBAR}}
-    </ul>
-  </nav>
-</aside>
-<main class="main" id="mainContent">
-  {{CONTENT}}
-</main>
-<script>
-{{SCRIPTS}}
-</script>
+</header>
+
+<!-- ====== Layout: Sidebar + Main + TOC ====== -->
+<div class="vp-layout">
+  <!-- Backdrop for mobile sidebar -->
+  <div class="vp-sidebar-backdrop" id="sidebarBackdrop" onclick="closeMobileSidebar()"></div>
+
+  <!-- Left Sidebar -->
+  <aside class="vp-sidebar" id="vpSidebar">
+    <nav class="vp-sidebar-nav">
+      <div class="vp-sidebar-group">
+        <ul>
+          <li class="vp-nav-cover">
+            <a href="./">
+              <svg class="vp-nav-cover-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+              </svg>
+              <span>目录</span>
+            </a>
+          </li>
+          {{SIDEBAR}}
+        </ul>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- Main Content Area -->
+  <div class="vp-content-area">
+    <main class="vp-main" id="mainContent">
+      {{CONTENT}}
+    </main>
+
+    <!-- Right-side On This Page TOC -->
+    {{TOC}}
+  </div>
+</div>
+
+<!-- ====== Search Overlay ====== -->
+<div class="vp-search-overlay" id="searchOverlay" style="display:none">
+  <div class="vp-search-dialog" role="dialog" aria-label="搜索">
+    <div class="vp-search-input-wrap">
+      <svg class="vp-search-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input id="searchInput" type="text" class="vp-search-input" placeholder="搜索手册内容..." autocomplete="off">
+      <kbd class="vp-search-kbd">Esc</kbd>
+    </div>
+    <div class="vp-search-results" id="searchResults"></div>
+    <div class="vp-search-footer" id="searchFooter"></div>
+  </div>
+</div>
+
+<script>{{SCRIPTS}}</script>
 </body>
 </html>
