@@ -14,6 +14,7 @@ import type {
   UpdateSectionStatusBody,
   UpdateSectionsBody,
 } from '../types.js'
+import { featureSchema } from '../lib/swagger.js'
 
 type Section = { key: string; title: string; description?: string }
 
@@ -45,7 +46,26 @@ function getEffectiveReviewChain(projectId: string): string[] {
 
 export async function featureRoutes(app: FastifyInstance) {
   // 获取所有章节（含状态摘要），支持按项目过滤
-  app.get('/api/v1/features', { preHandler: authMiddleware }, async (req) => {
+  app.get('/api/v1/features', {
+    preHandler: authMiddleware,
+    schema: {
+      tags: ['features'],
+      description: '获取功能列表（含文档状态统计），支持 ?projectId= 过滤',
+      querystring: {
+        type: 'object',
+        properties: { projectId: { type: 'string', description: '项目 ID（可选）' } },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            ok: { type: 'boolean', const: true },
+            data: { type: 'array', items: featureSchema },
+          },
+        },
+      },
+    },
+  }, async (req) => {
     const { projectId } = req.query as { projectId?: string }
     const db = getDb()
 
@@ -114,7 +134,7 @@ export async function featureRoutes(app: FastifyInstance) {
         assignees: d.assignees || '[]',
         reviewNote: d.review_note || '',
         reviewStep: d.review_step || 0,
-        reviewLog: d.review_log || '[]',
+        statusLog: d.status_log || '[]',
         updated_at: d.updated_at,
       }))
 
@@ -128,7 +148,7 @@ export async function featureRoutes(app: FastifyInstance) {
       assignees: defaultDoc.assignees || '[]',
       reviewNote: defaultDoc.review_note || '',
       reviewStep: defaultDoc.review_step || 0,
-      reviewLog: defaultDoc.review_log || '[]',
+      statusLog: defaultDoc.status_log || '[]',
     } : null
 
     return success({
@@ -141,7 +161,7 @@ export async function featureRoutes(app: FastifyInstance) {
           assignees: doc?.assignees || '[]',
           reviewNote: doc?.review_note || '',
           reviewStep: doc?.review_step || 0,
-          reviewLog: doc?.review_log || '[]',
+          statusLog: doc?.status_log || '[]',
         }
       }),
       orphaned,
@@ -225,69 +245,26 @@ export async function featureRoutes(app: FastifyInstance) {
     const userId = req.user!.userId
     const userRole = req.user!.role
 
-    // 预加载：合并 projectId 查询 + 成员检查
+    // 1) 基础校验（事务外）
     const projectId = getFeatureProjectId(featureId)
     if (!projectId) return fail(reply, 404, '章节不存在')
     if (!isProjectMember(userId, userRole, projectId)) return fail(reply, 403, '你不是该项目的成员')
 
     const reviewChain = getEffectiveReviewChain(projectId)
     const docId = `${featureId}/${sectionKey}`
-    const dbUser = db.prepare('SELECT display_name FROM users WHERE id = ?').get(userId) as { display_name: string } | undefined
-    const reviewerName = dbUser?.display_name || req.user?.displayName || '未知用户'
 
-    // 事务包裹所有写操作，减少 N+1 开销
-    db.transaction(() => {
-      const existingDoc = db.prepare('SELECT * FROM documents WHERE id = ?').get(docId) as DocumentRow | undefined
+    // 预读当前文档状态（用于权限校验和后续通知）
+    const existingDoc = db.prepare('SELECT * FROM documents WHERE id = ?').get(docId) as DocumentRow | undefined
+    const currentStep = existingDoc?.review_step ?? 0
+    const oldAssignees: string[] = JSON.parse(existingDoc?.assignees || '[]')
 
-    // 确保 document 存在
-    if (!existingDoc) {
-      db.prepare(
-        'INSERT INTO documents (id, feature_id, section_key, status, assignees, review_note, review_step, review_log) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      ).run(docId, featureId, sectionKey, 'draft', '[]', '', 0, '[]')
+    // 2) 所有权限校验（事务外，提前 fail，避免部分提交）
+    if (assignees !== undefined && !hasProjectRole(userId, userRole, projectId, 'pm')) {
+      return fail(reply, 403, '项目内权限不足，只有项目管理员可以指派编写人')
     }
-
-      const currentStep = existingDoc?.review_step ?? 0
-      const reviewLog = JSON.parse(existingDoc?.review_log || '[]') as { action: string; reviewerId: string; note: string; step: number; createdAt: string }[]
-
-    // ====== 分支处理 ======
-
-    // 指派更新（需要 pm 权限）
-    if (assignees !== undefined) {
-      if (!hasProjectRole(userId, userRole, projectId, 'pm')) {
-        return fail(reply, 403, '项目内权限不足，只有项目管理员可以指派编写人')
-      }
-      const oldAssignees: string[] = JSON.parse(existingDoc?.assignees || '[]')
-      db.prepare('UPDATE documents SET assignees = ? WHERE id = ?').run(JSON.stringify(assignees), docId)
-      // 通知新增的被指派人
-      const added = assignees.filter(a => !oldAssignees.includes(a))
-      if (added.length > 0) {
-        notifyAssignees(featureId, sectionKey, added, reviewerName)
-          .catch((e: unknown) => app.log.error(`飞书通知失败(指派) ${e instanceof Error ? e.message : e}`))
-      }
-      // 通知被移除的编写人
-      const removed = oldAssignees.filter(a => !assignees.includes(a))
-      for (const uid of removed) {
-        notifyRemoveAssignee(featureId, sectionKey, uid, reviewerName)
-          .catch((e: unknown) => app.log.error(`飞书通知失败(移除指派) ${e instanceof Error ? e.message : e}`))
-      }
+    if (status === 'pending_review' && reviewChain.length === 0) {
+      return fail(reply, 400, '该项目没有可审核的 PM，请先添加 PM 成员')
     }
-
-    // 审核批注更新（不改变状态）
-    if (reviewNote !== undefined && !status) {
-      db.prepare("UPDATE documents SET review_note = ?, updated_at = datetime('now') WHERE id = ?").run(reviewNote || '', docId)
-    }
-
-    // 提交审核（writer+ 可操作）
-    if (status === 'pending_review') {
-      if (reviewChain.length === 0) {
-        return fail(reply, 400, '该项目没有可审核的 PM，请先添加 PM 成员')
-      }
-      db.prepare("UPDATE documents SET status = 'pending_review', review_step = 0, updated_at = datetime('now') WHERE id = ?").run(docId)
-      notifyNextReviewer(featureId, sectionKey, reviewChain[0], 1, reviewChain.length, reviewerName)
-        .catch((e: unknown) => app.log.error(`飞书通知失败(提交) ${e instanceof Error ? e.message : e}`))
-    }
-
-    // 审核通过（pm only）
     if (status === 'approved') {
       if (!hasProjectRole(userId, userRole, projectId, 'pm')) {
         return fail(reply, 403, '项目内权限不足，只有项目管理员可以审核')
@@ -298,44 +275,7 @@ export async function featureRoutes(app: FastifyInstance) {
           return fail(reply, 403, '当前不是你审核')
         }
       }
-
-      const logEntry = {
-        action: 'approved' as const,
-        reviewerId: userId,
-        note: direct ? '直接通过（跳过审核流程）' : (reviewNote || ''),
-        step: direct ? -1 : currentStep,
-        createdAt: new Date().toISOString(),
-      }
-      reviewLog.push(logEntry)
-
-      if (direct) {
-        db.prepare("UPDATE documents SET status = 'approved', review_log = ?, review_note = ?, updated_at = datetime('now') WHERE id = ?")
-          .run(JSON.stringify(reviewLog), '', docId)
-        const docAssignees = JSON.parse(existingDoc?.assignees || '[]') as string[]
-        if (docAssignees.length > 0) {
-          notifyDirectApprove(featureId, sectionKey, reviewerName, docAssignees, userId)
-            .catch((e: unknown) => app.log.error(`飞书通知失败(直接通过) ${e instanceof Error ? e.message : e}`))
-        }
-      } else {
-        const newStep = currentStep + 1
-        if (newStep >= reviewChain.length) {
-          db.prepare("UPDATE documents SET status = 'approved', review_step = ?, review_log = ?, review_note = ?, updated_at = datetime('now') WHERE id = ?")
-            .run(newStep, JSON.stringify(reviewLog), reviewNote || '', docId)
-          const docAssignees = JSON.parse(existingDoc?.assignees || '[]') as string[]
-          if (docAssignees.length > 0) {
-            notifyWriterReviewResult(featureId, sectionKey, 'approved', reviewNote || '', reviewerName, docAssignees, userId)
-              .catch((e: unknown) => app.log.error(`飞书通知失败(通过) ${e instanceof Error ? e.message : e}`))
-          }
-        } else {
-          db.prepare("UPDATE documents SET review_step = ?, review_log = ?, review_note = ?, updated_at = datetime('now') WHERE id = ?")
-            .run(newStep, JSON.stringify(reviewLog), reviewNote || '', docId)
-          notifyNextReviewer(featureId, sectionKey, reviewChain[newStep], newStep + 1, reviewChain.length, reviewerName)
-            .catch((e: unknown) => app.log.error(`飞书通知失败(推进) ${e instanceof Error ? e.message : e}`))
-        }
-      }
     }
-
-    // 退回修改（pm only）
     if (status === 'rejected') {
       if (!hasProjectRole(userId, userRole, projectId, 'pm')) {
         return fail(reply, 403, '项目内权限不足，只有项目管理员可以审核')
@@ -347,41 +287,132 @@ export async function featureRoutes(app: FastifyInstance) {
       if (!reviewNote?.trim()) {
         return fail(reply, 400, '退回必须填写理由')
       }
-
-      const logEntry = {
-        action: 'rejected' as const,
-        reviewerId: userId,
-        note: reviewNote,
-        step: currentStep,
-        createdAt: new Date().toISOString(),
-      }
-      reviewLog.push(logEntry)
-
-      db.prepare("UPDATE documents SET status = 'rejected', review_log = ?, review_note = ?, updated_at = datetime('now') WHERE id = ?")
-        .run(JSON.stringify(reviewLog), reviewNote, docId)
-
-      const docAssignees = JSON.parse(existingDoc?.assignees || '[]') as string[]
-      if (docAssignees.length > 0) {
-        notifyWriterReviewResult(featureId, sectionKey, 'rejected', reviewNote, reviewerName, docAssignees, userId)
-          .catch((e: unknown) => app.log.error(`飞书通知失败(退回) ${e instanceof Error ? e.message : e}`))
-      }
+    }
+    if ((status === 'draft' || status === 'in_progress') && !hasProjectRole(userId, userRole, projectId, 'pm')) {
+      return fail(reply, 403, '项目内权限不足，只有项目管理员可以重置状态')
     }
 
-    // 状态重置（pm only）
-    if (status === 'draft' || status === 'in_progress') {
-      if (!hasProjectRole(userId, userRole, projectId, 'pm')) {
-        return fail(reply, 403, '项目内权限不足，只有项目管理员可以重置状态')
-      }
-      db.prepare("UPDATE documents SET status = ?, review_step = 0, updated_at = datetime('now') WHERE id = ?").run(status, docId)
-      const docAssignees = JSON.parse(existingDoc?.assignees || '[]') as string[]
-      if (docAssignees.length > 0) {
-        notifyStatusReset(featureId, sectionKey, status, reviewerName, docAssignees, userId)
-          .catch((e: unknown) => app.log.error(`飞书通知失败(重置) ${e instanceof Error ? e.message : e}`))
-      }
-    }
+    // 3) 事务：纯 DB 写入（不再含 fail() 调用）
+    const dbUser = db.prepare('SELECT display_name FROM users WHERE id = ?').get(userId) as { display_name: string } | undefined
+    const operatorName = dbUser?.display_name || req.user?.displayName || '未知用户'
 
-    return ok()
-    }) // db.transaction
+    interface NotificationJob { (): Promise<void> }
+    const jobs: NotificationJob[] = []
+
+    const result = db.transaction(() => {
+      // 确保 document 存在
+      const doc = db.prepare('SELECT id, status_log, assignees FROM documents WHERE id = ?').get(docId) as { id: string; status_log: string; assignees: string } | undefined
+      if (!doc) {
+        db.prepare(
+          'INSERT INTO documents (id, feature_id, section_key, status, assignees, review_note, review_step, status_log) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        ).run(docId, featureId, sectionKey, 'draft', '[]', '', 0, '[]')
+      }
+
+      const statusLog = JSON.parse(doc?.status_log || '[]') as { action: string; userId: string; note: string; step: number; createdAt: string }[]
+
+      /** 追加一条状态变更记录 */
+      function addLog(action: string, note: string, step: number) {
+        statusLog.push({
+          action,
+          userId,
+          note,
+          step,
+          createdAt: new Date().toISOString(),
+        })
+      }
+
+      // 指派更新
+      if (assignees !== undefined) {
+        db.prepare('UPDATE documents SET assignees = ? WHERE id = ?').run(JSON.stringify(assignees), docId)
+        const added = assignees.filter((a: string) => !oldAssignees.includes(a))
+        if (added.length > 0) {
+          jobs.push(() => notifyAssignees(featureId, sectionKey, added, operatorName).catch(
+            (e: unknown) => app.log.error(`飞书通知失败(指派) ${e instanceof Error ? e.message : e}`)))
+        }
+        const removed = oldAssignees.filter((a: string) => !assignees.includes(a))
+        for (const uid of removed) {
+          jobs.push(() => notifyRemoveAssignee(featureId, sectionKey, uid, operatorName).catch(
+            (e: unknown) => app.log.error(`飞书通知失败(移除指派) ${e instanceof Error ? e.message : e}`)))
+        }
+      }
+
+      // 审核批注更新（不改变状态）
+      if (reviewNote !== undefined && !status) {
+        db.prepare("UPDATE documents SET review_note = ?, updated_at = datetime('now') WHERE id = ?").run(reviewNote || '', docId)
+        return ok()
+      }
+
+      // 提交审核
+      if (status === 'pending_review') {
+        addLog('submitted', '', 0)
+        db.prepare("UPDATE documents SET status = 'pending_review', review_step = 0, status_log = ?, updated_at = datetime('now') WHERE id = ?")
+          .run(JSON.stringify(statusLog), docId)
+        jobs.push(() => notifyNextReviewer(featureId, sectionKey, reviewChain[0], 1, reviewChain.length, operatorName).catch(
+          (e: unknown) => app.log.error(`飞书通知失败(提交) ${e instanceof Error ? e.message : e}`)))
+        return ok()
+      }
+
+      // 审核通过
+      if (status === 'approved') {
+        if (direct) {
+          addLog('direct_approved', '直接通过（跳过审核流程）', -1)
+          db.prepare("UPDATE documents SET status = 'approved', status_log = ?, review_note = ?, updated_at = datetime('now') WHERE id = ?")
+            .run(JSON.stringify(statusLog), '', docId)
+          if (oldAssignees.length > 0) {
+            jobs.push(() => notifyDirectApprove(featureId, sectionKey, operatorName, oldAssignees, userId).catch(
+              (e: unknown) => app.log.error(`飞书通知失败(直接通过) ${e instanceof Error ? e.message : e}`)))
+          }
+        } else {
+          const newStep = currentStep + 1
+          addLog('approved', reviewNote || '', currentStep)
+          if (newStep >= reviewChain.length) {
+            db.prepare("UPDATE documents SET status = 'approved', review_step = ?, status_log = ?, review_note = ?, updated_at = datetime('now') WHERE id = ?")
+              .run(newStep, JSON.stringify(statusLog), reviewNote || '', docId)
+            if (oldAssignees.length > 0) {
+              jobs.push(() => notifyWriterReviewResult(featureId, sectionKey, 'approved', reviewNote || '', operatorName, oldAssignees, userId).catch(
+                (e: unknown) => app.log.error(`飞书通知失败(通过) ${e instanceof Error ? e.message : e}`)))
+            }
+          } else {
+            db.prepare("UPDATE documents SET review_step = ?, status_log = ?, review_note = ?, updated_at = datetime('now') WHERE id = ?")
+              .run(newStep, JSON.stringify(statusLog), reviewNote || '', docId)
+            jobs.push(() => notifyNextReviewer(featureId, sectionKey, reviewChain[newStep], newStep + 1, reviewChain.length, operatorName).catch(
+              (e: unknown) => app.log.error(`飞书通知失败(推进) ${e instanceof Error ? e.message : e}`)))
+          }
+        }
+        return ok()
+      }
+
+      // 退回修改
+      if (status === 'rejected') {
+        addLog('rejected', reviewNote!, currentStep)
+        db.prepare("UPDATE documents SET status = 'rejected', status_log = ?, review_note = ?, updated_at = datetime('now') WHERE id = ?")
+          .run(JSON.stringify(statusLog), reviewNote!, docId)
+        if (oldAssignees.length > 0) {
+          jobs.push(() => notifyWriterReviewResult(featureId, sectionKey, 'rejected', reviewNote!, operatorName, oldAssignees, userId).catch(
+            (e: unknown) => app.log.error(`飞书通知失败(退回) ${e instanceof Error ? e.message : e}`)))
+        }
+        return ok()
+      }
+
+      // 状态重置
+      if (status === 'draft' || status === 'in_progress') {
+        addLog(status === 'draft' ? 'reset_to_draft' : 'reset_to_in_progress', '', 0)
+        db.prepare("UPDATE documents SET status = ?, review_step = 0, status_log = ?, updated_at = datetime('now') WHERE id = ?")
+          .run(status, JSON.stringify(statusLog), docId)
+        if (oldAssignees.length > 0) {
+          jobs.push(() => notifyStatusReset(featureId, sectionKey, status, operatorName, oldAssignees, userId).catch(
+            (e: unknown) => app.log.error(`飞书通知失败(重置) ${e instanceof Error ? e.message : e}`)))
+        }
+        return ok()
+      }
+
+      return ok()
+    })() // db.transaction() 立即执行
+
+    // 4) 异步通知（事务外 fire-and-forget，避免阻塞响应）
+    jobs.forEach(job => job())
+
+    return result
   })
 
   // 删除游离文档（pm only）

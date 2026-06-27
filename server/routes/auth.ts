@@ -13,6 +13,7 @@ import { authMiddleware } from '../auth/middleware.js'
 import { generateState } from '../lib/crypto.js'
 import { generateCsrfToken } from '../lib/csrf.js'
 import { config } from '../config.js'
+import { loginRequestSchema, loginResponseSchema, errorResponseSchema } from '../lib/swagger.js'
 
 /** 同时设置 auth_token + csrf_token，避免 Set-Cookie 被覆盖 */
 function setLoginCookies(reply: { header: (name: string, value: string | string[]) => void }, token: string, csrfToken: string) {
@@ -25,7 +26,18 @@ function setLoginCookies(reply: { header: (name: string, value: string | string[
 
 export async function authRoutes(app: FastifyInstance) {
   // 密码登录（严格限速：1分钟最多5次）
-  app.post('/api/v1/auth/login', { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } }, async (req, reply) => {
+  app.post('/api/v1/auth/login', {
+    config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+    schema: {
+      tags: ['auth'],
+      description: '用户名密码登录，返回 JWT token',
+      body: loginRequestSchema,
+      response: {
+        200: loginResponseSchema,
+        401: errorResponseSchema,
+      },
+    },
+  }, async (req, reply) => {
     const { username, password } = req.body as { username: string; password: string }
 
     if (!username || !password) {

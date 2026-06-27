@@ -83,7 +83,7 @@ export async function catalogRoutes(app: FastifyInstance) {
     if (!member) return fail(reply, 404, 'Catalog not found')
     const rows = db.prepare(
       'SELECT id, version_major, version_minor, title, change_notes, visibility, publish_scope, created_at FROM catalog_versions WHERE catalog_id = ? ORDER BY version_major DESC, version_minor DESC',
-    ).all(id) as (Pick<CatalogVersionRow, 'id' | 'version_major' | 'version_minor' | 'title' | 'change_notes' | 'visibility' | 'created_at'>)[]
+    ).all(id) as (Pick<CatalogVersionRow, 'id' | 'version_major' | 'version_minor' | 'title' | 'change_notes' | 'visibility' | 'publish_scope' | 'created_at'>)[]
     return success(rows)
   })
 
@@ -114,6 +114,8 @@ export async function catalogRoutes(app: FastifyInstance) {
         entries: manual.catalog.entries,
         changeNotes: ver.change_notes,
         createdAt: ver.created_at,
+        publishScope: ver.publish_scope,
+        statusSnapshot: JSON.parse(ver.status_snapshot || '{}'),
       })
     }
 
@@ -126,6 +128,8 @@ export async function catalogRoutes(app: FastifyInstance) {
       entries: JSON.parse(ver.features_snapshot || '[]'),
       changeNotes: ver.change_notes,
       createdAt: ver.created_at,
+      publishScope: ver.publish_scope,
+      statusSnapshot: JSON.parse(ver.status_snapshot || '{}'),
     })
   })
 

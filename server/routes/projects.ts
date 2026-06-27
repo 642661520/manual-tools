@@ -8,10 +8,26 @@ import { isProjectMember, hasProjectRole } from '../auth/membership.js'
 import { notifyJoinProject, notifyLeaveProject, notifyProjectRoleChange } from '../services/notifications.js'
 import { v4 as uuid } from 'uuid'
 import type { ProjectRow, CreateProjectBody, UpdateProjectBody, UserRow } from '../types.js'
+import { projectSchema, errorResponseSchema, okResponseSchema } from '../lib/swagger.js'
 
 export async function projectRoutes(app: FastifyInstance) {
   // 获取项目列表（admin/guest 看全部，member 只看自己加入的）
-  app.get('/api/v1/projects', { preHandler: authMiddleware }, async (req) => {
+  app.get('/api/v1/projects', {
+    preHandler: authMiddleware,
+    schema: {
+      tags: ['projects'],
+      description: '获取项目列表。admin/guest 看全部，member 只看自己加入的项目',
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            ok: { type: 'boolean', const: true },
+            data: { type: 'array', items: projectSchema },
+          },
+        },
+      },
+    },
+  }, async (req) => {
     const db = getDb()
     const userId = req.user!.userId
     const role = req.user!.role
@@ -42,7 +58,25 @@ export async function projectRoutes(app: FastifyInstance) {
   })
 
   // 创建项目（admin only，自动加入成员）
-  app.post('/api/v1/projects', { preHandler: [authMiddleware, requireRole('admin')] }, async (req, reply) => {
+  app.post('/api/v1/projects', {
+    preHandler: [authMiddleware, requireRole('admin')],
+    schema: {
+      tags: ['projects'],
+      description: '创建新项目（仅 admin），创建者自动成为项目 PM',
+      body: {
+        type: 'object',
+        required: ['name'],
+        properties: {
+          name: { type: 'string', description: '项目名称' },
+          description: { type: 'string', description: '项目描述' },
+        },
+      },
+      response: {
+        200: { type: 'object', properties: { ok: { type: 'boolean' }, data: projectSchema } },
+        400: errorResponseSchema,
+      },
+    },
+  }, async (req, reply) => {
     const body = req.body as CreateProjectBody
     if (!body.name?.trim()) return fail(reply, 400, '项目名称不能为空')
 
@@ -85,7 +119,23 @@ export async function projectRoutes(app: FastifyInstance) {
   })
 
   // 删除项目（admin only，不允许删除 default）
-  app.delete('/api/v1/projects/:id', { preHandler: [authMiddleware, requireRole('admin')] }, async (req, reply) => {
+  app.delete('/api/v1/projects/:id', {
+    preHandler: [authMiddleware, requireRole('admin')],
+    schema: {
+      tags: ['projects'],
+      description: '删除项目（不允许删除 default 项目），级联清理 features、catalogs、文档站点文件',
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: { id: { type: 'string' } },
+      },
+      response: {
+        200: okResponseSchema,
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+      },
+    },
+  }, async (req, reply) => {
     const { id } = req.params as { id: string }
     if (id === 'default') return fail(reply, 403, '不能删除默认项目')
 

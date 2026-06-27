@@ -33,10 +33,13 @@ import { cleanExpiredRemoteCache } from './services/remote-cache.js'
 import { cleanExpiredExportCache } from './services/export-cache.js'
 import { rebuildProjectIndex } from './services/search.js'
 import { verifyToken } from './auth/jwt.js'
+import { authMiddleware } from './auth/middleware.js'
 import { getDb } from './db/index.js'
 import { isProjectMember } from './auth/membership.js'
 import { csrfMiddleware } from './lib/csrf.js'
 import { extractToken } from './auth/token.js'
+import fastifySwagger from '@fastify/swagger'
+import fastifySwaggerUi from '@fastify/swagger-ui'
 
 const PORT = config.port
 
@@ -78,6 +81,7 @@ async function main() {
     origin: (origin, cb) => {
       const allowed = [
         'http://localhost:5173',
+        `http://localhost:${config.port}`,
         ...config.corsOrigin.split(',').map(s => s.trim()).filter(Boolean),
       ]
       if (!origin || allowed.includes(origin)) {
@@ -168,6 +172,103 @@ async function main() {
     root: join(__dirname, '../data/docs'),
     prefix: '/docs/',
     decorateReply: false,
+  })
+
+  // 自动为路由分配 Swagger tag（按 URL 前缀），避免大量 "default" 分组
+  app.addHook('onRoute', (routeOptions) => {
+    const schema = (routeOptions.schema as Record<string, unknown> | undefined) || {}
+    if (schema.tags) return // 已有显式 tag，不覆盖
+
+    const url = routeOptions.url
+    const tagMap: Record<string, string> = {
+      '/api/v1/projects': 'projects',
+      '/api/v1/categories': 'categories',
+      '/api/v1/features': 'features',
+      '/api/v1/catalogs': 'catalogs',
+      '/api/v1/auth': 'auth',
+      '/api/v1/users': 'users',
+      '/api/v1/profile': 'profile',
+      '/api/v1/todos': 'todos',
+      '/api/v1/upload': 'upload',
+      '/api/v1/data-tasks': 'data-tasks',
+      '/api/v1/search': 'search',
+      '/api/v1/ai': 'ai',
+      '/api/v1/diff': 'diff',
+      '/api/v1/audit': 'audit',
+      '/api/v1/logs': 'log',
+      '/api/v1/cache': 'cache',
+      '/ws': 'yjs',
+      '/docs': 'docs',
+    }
+
+    for (const [prefix, tag] of Object.entries(tagMap)) {
+      if (url.startsWith(prefix)) {
+        ;(routeOptions.schema as Record<string, unknown>) = { ...schema, tags: [tag] }
+        return
+      }
+    }
+  })
+
+  // 健康检查
+  app.get('/api/health', {
+    schema: {
+      tags: ['health'],
+      description: '服务健康检查',
+      response: { 200: { type: 'object', properties: { status: { type: 'string' } } } },
+    },
+  }, async () => ({ status: 'ok' }))
+
+  // Swagger / OpenAPI 文档 — 必须在路由之前注册，否则收集不到 schema
+  await app.register(fastifySwagger, {
+    openapi: {
+      info: {
+        title: '操作手册编写平台 API',
+        description: '多项目操作手册编写与发布平台 RESTful API 文档',
+        version: '0.1.0',
+      },
+      servers: [
+        { url: `http://localhost:${config.port}`, description: '本地开发服务器' },
+      ],
+      components: {
+        securitySchemes: {
+          bearerAuth: {
+            type: 'http',
+            scheme: 'bearer',
+            bearerFormat: 'JWT',
+          },
+        },
+      },
+      tags: [
+        { name: 'auth', description: '认证 — 登录 / 注册' },
+        { name: 'projects', description: '项目管理' },
+        { name: 'categories', description: '分类管理' },
+        { name: 'features', description: '功能骨架管理' },
+        { name: 'catalogs', description: '目录编排 + 发布' },
+        { name: 'users', description: '用户管理' },
+        { name: 'profile', description: '个人资料' },
+        { name: 'todos', description: '待办汇总' },
+        { name: 'upload', description: '文件上传' },
+        { name: 'data-tasks', description: '数据导入导出' },
+        { name: 'search', description: '全文搜索' },
+        { name: 'ai', description: 'AI 写作助手' },
+        { name: 'diff', description: '版本对比' },
+        { name: 'audit', description: '审计日志' },
+      ],
+    },
+  })
+
+  // Swagger UI — 需登录才能访问，避免 API 文档公开暴露
+  await app.register(async (scoped) => {
+    scoped.addHook('preHandler', authMiddleware)
+
+    await scoped.register(fastifySwaggerUi, {
+      routePrefix: '/docs/api',
+      uiConfig: {
+        docExpansion: 'list',
+        deepLinking: true,
+        persistAuthorization: true,
+      },
+    })
   })
 
   // 项目路由
@@ -331,9 +432,6 @@ async function main() {
   }
   app.get('/docs/:catalogId/latest', latestHandler)
   app.get('/docs/:catalogId/latest/', latestHandler)
-
-  // 健康检查
-  app.get('/api/health', async () => ({ status: 'ok' }))
 
   // 全局错误处理
   app.setErrorHandler((error, request, reply) => {
