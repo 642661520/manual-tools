@@ -8,15 +8,19 @@ import type {
 
 // ================ 手册组装 =================================================
 
+type SectionDef = { key: string; title: string; description?: string }
+
 function resolveSections(
-  sectionsJson: string,
+  sectionsJson: string | SectionDef[],
   featureTitle: string,
   sectionOrder?: string[],
-): { key: string; title: string; description?: string }[] {
-  const raw = JSON.parse(sectionsJson || '[]') as { key: string; title: string; description?: string }[]
+): SectionDef[] {
+  const raw: SectionDef[] = Array.isArray(sectionsJson)
+    ? sectionsJson
+    : JSON.parse(sectionsJson || '[]') as SectionDef[]
   const source = raw.length > 0 ? raw : [{ key: '_default', title: featureTitle }]
   if (sectionOrder) {
-    return sectionOrder.map(k => source.find(s => s.key === k)).filter(Boolean) as typeof source
+    return sectionOrder.map(k => source.find(s => s.key === k)).filter(Boolean) as SectionDef[]
   }
   return source
 }
@@ -27,10 +31,12 @@ export function assembleManual(
     approvedOnly?: boolean
     featureOverride?: string
     statusOverride?: Record<string, string>
+    featuresData?: FeatureData[]
   },
 ): ManualResult | null {
   const approvedOnly = opts?.approvedOnly ?? false
   const statusOverride = opts?.statusOverride
+  const featuresData = opts?.featuresData
   const db = getDb()
   const catalog = db.prepare('SELECT * FROM catalogs WHERE id = ?').get(catalogId) as CatalogRow | undefined
   if (!catalog) return null
@@ -50,14 +56,19 @@ export function assembleManual(
     }
   }
 
-  // 批量查询所有 feature（避免 N+1）
-  const featureIds = flatFeatureEntries.map(e => e.featureId)
-  const featureRows = featureIds.length > 0
-    ? db.prepare(
-      `SELECT * FROM features WHERE id IN (${featureIds.map(() => '?').join(',')})`,
-    ).all(...featureIds) as FeatureRow[]
-    : []
-  const featureMap = new Map(featureRows.map(f => [f.id, f]))
+  // 构建 featureMap：优先使用传入的快照数据，否则查询 DB
+  let featureMap: Map<string, FeatureRow | FeatureData>
+  if (featuresData) {
+    featureMap = new Map(featuresData.map(f => [f.id, f]))
+  } else {
+    const featureIds = flatFeatureEntries.map(e => e.featureId)
+    const featureRows = featureIds.length > 0
+      ? db.prepare(
+        `SELECT * FROM features WHERE id IN (${featureIds.map(() => '?').join(',')})`,
+      ).all(...featureIds) as FeatureRow[]
+      : []
+    featureMap = new Map<string, FeatureRow | FeatureData>(featureRows.map(f => [f.id, f]))
+  }
 
   // 收集所有待查的 document ID
   const allDocIds: string[] = []
@@ -189,7 +200,7 @@ export function assembleManual(
       chapterNum++
     }
   }
-  md += tocLines.join('\n')
+  md += tocLines.map(l => l + '  ').join('\n')
   md += `\n\n---\n\n`
 
   // 正文
@@ -297,10 +308,12 @@ export function assembleChapter(
     approvedOnly?: boolean
     featureOverride?: string
     statusOverride?: Record<string, string>
+    featuresData?: FeatureData[]
   },
 ): ChapterResult | null {
   const approvedOnly = opts?.approvedOnly ?? false
   const statusOverride = opts?.statusOverride
+  const featuresData = opts?.featuresData
   const db = getDb()
   const catalog = db.prepare('SELECT * FROM catalogs WHERE id = ?').get(catalogId) as CatalogRow | undefined
   if (!catalog) return null
@@ -325,12 +338,17 @@ export function assembleChapter(
   if (chNum < 1 || chNum > totalChapters) return null
   const target = flat[chNum - 1]
 
-  // 批量查询所有 feature（构建 chapterMap 用于交叉引用）
-  const allFeatureIds = flat.map(e => e.featureId)
-  const featureRows = db.prepare(
-    `SELECT * FROM features WHERE id IN (${allFeatureIds.map(() => '?').join(',')})`,
-  ).all(...allFeatureIds) as FeatureRow[]
-  const featureMap = new Map(featureRows.map(f => [f.id, f]))
+  // 构建 featureMap：优先使用传入的快照数据，否则查询 DB
+  let featureMap: Map<string, FeatureRow | FeatureData>
+  if (featuresData) {
+    featureMap = new Map(featuresData.map(f => [f.id, f]))
+  } else {
+    const allFeatureIds = flat.map(e => e.featureId)
+    const featureRows = db.prepare(
+      `SELECT * FROM features WHERE id IN (${allFeatureIds.map(() => '?').join(',')})`,
+    ).all(...allFeatureIds) as FeatureRow[]
+    featureMap = new Map<string, FeatureRow | FeatureData>(featureRows.map(f => [f.id, f]))
+  }
 
   // 构建 chapterMap
   const chapterMap = buildChapterMap(flat, featureMap)
@@ -425,7 +443,7 @@ export function assembleChapter(
 /** 构建 featureId → 章节信息映射 */
 function buildChapterMap(
   flat: { featureId: string }[],
-  featureMap: Map<string, FeatureRow>,
+  featureMap: Map<string, FeatureRow | FeatureData>,
 ): Map<string, { num: number; anchorId: string; title: string; sections: Record<string, { anchorId: string; title: string }> }> {
   const map = new Map<string, { num: number; anchorId: string; title: string; sections: Record<string, { anchorId: string; title: string }> }>()
   let chNum = 1
@@ -449,6 +467,36 @@ function buildChapterMap(
     chNum++
   }
   return map
+}
+
+// ================ 从存储 Markdown 提取章节 ====================================
+
+/** 从完整 markdown 中提取指定章节的内容（用于历史版本预览，避免重组装） */
+export function extractChapterMarkdown(
+  fullMarkdown: string,
+  chNum: number,
+): string | null {
+  const chAnchor = `<a id="ch${chNum}"></a>`
+  const startIdx = fullMarkdown.indexOf(chAnchor)
+  if (startIdx === -1) return null
+
+  // 找到此行开头
+  const lineStart = fullMarkdown.lastIndexOf('\n', startIdx)
+  const contentStart = lineStart === -1 ? 0 : lineStart + 1
+
+  // 找下一个结构性元素作为结束位置
+  let contentEnd = fullMarkdown.length
+  // 使用 regex 从当前锚点之后搜索下一个 ch 或 part- 锚点
+  const searchFrom = startIdx + chAnchor.length
+  const nextAnchorRe = /<a id="(ch\d+|part-\d+)"><\/a>/g
+  nextAnchorRe.lastIndex = searchFrom
+  const match = nextAnchorRe.exec(fullMarkdown)
+  if (match) {
+    const prevNewline = fullMarkdown.lastIndexOf('\n', match.index)
+    contentEnd = prevNewline === -1 ? 0 : prevNewline
+  }
+
+  return fullMarkdown.slice(contentStart, contentEnd).trim()
 }
 
 // ================ 批量文档内容读取 =========================================

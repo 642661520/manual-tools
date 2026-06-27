@@ -9,7 +9,6 @@ import type {
   FeatureRow,
   FeatureWithStats,
   DocumentRow,
-  HasContentRow,
   CreateFeatureBody,
   UpdateFeatureBody,
   UpdateSectionStatusBody,
@@ -45,7 +44,7 @@ function getEffectiveReviewChain(projectId: string): string[] {
 }
 
 export async function featureRoutes(app: FastifyInstance) {
-  // 获取所有主题（含状态摘要），支持按项目过滤
+  // 获取所有章节（含状态摘要），支持按项目过滤
   app.get('/api/v1/features', { preHandler: authMiddleware }, async (req) => {
     const { projectId } = req.query as { projectId?: string }
     const db = getDb()
@@ -89,7 +88,7 @@ export async function featureRoutes(app: FastifyInstance) {
     return success(features)
   })
 
-  // 获取单个主题
+  // 获取单个章节
   app.get('/api/v1/features/:id', { preHandler: authMiddleware }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const db = getDb()
@@ -101,7 +100,7 @@ export async function featureRoutes(app: FastifyInstance) {
       return fail(reply, 403, '你不是该项目的成员')
     }
 
-    let sections = JSON.parse(feature.sections || '[]') as Section[]
+    const sections = JSON.parse(feature.sections || '[]') as Section[]
 
     const docs = db.prepare('SELECT * FROM documents WHERE feature_id = ?').all(id) as DocumentRow[]
 
@@ -119,6 +118,19 @@ export async function featureRoutes(app: FastifyInstance) {
         updated_at: d.updated_at,
       }))
 
+    // _default 节数据（当 feature 无显式 section 时的默认小节）
+    const defaultDoc = docs.find((d: DocumentRow) => d.section_key === '_default')
+    const defaultSection = defaultDoc ? {
+      key: '_default',
+      title: feature.title || '正文',
+      description: '',
+      status: defaultDoc.status || 'draft',
+      assignees: defaultDoc.assignees || '[]',
+      reviewNote: defaultDoc.review_note || '',
+      reviewStep: defaultDoc.review_step || 0,
+      reviewLog: defaultDoc.review_log || '[]',
+    } : null
+
     return success({
       ...feature,
       sections: sections.map((s: Section) => {
@@ -133,15 +145,16 @@ export async function featureRoutes(app: FastifyInstance) {
         }
       }),
       orphaned,
+      defaultSection,
       is_custom: !!feature.is_custom,
     })
   })
 
-  // 创建自定义主题（项目 pm 可操作）
+  // 创建自定义章节（项目 pm 可操作）
   app.post('/api/v1/features', { preHandler: [authMiddleware, requireRole('admin', 'member')] }, async (req, reply) => {
     const body = req.body as CreateFeatureBody
     const sections = body.sections || []
-    if (!body.title?.trim()) return fail(reply, 400, '主题名称不能为空')
+    if (!body.title?.trim()) return fail(reply, 400, '章节名称不能为空')
 
     const projectId = body.projectId || 'default'
     const userId = req.user!.userId
@@ -161,7 +174,7 @@ export async function featureRoutes(app: FastifyInstance) {
     return created(id)
   })
 
-  // 更新主题（项目 pm 可操作）
+  // 更新章节（项目 pm 可操作）
   app.put('/api/v1/features/:id', { preHandler: [authMiddleware, requireRole('admin', 'member')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const body = req.body as UpdateFeatureBody
@@ -170,7 +183,7 @@ export async function featureRoutes(app: FastifyInstance) {
 
     const feature = db.prepare('SELECT * FROM features WHERE id = ?').get(id) as FeatureRow | undefined
     if (!feature) return fail(reply, 404, 'Not found')
-    if (!body.title?.trim()) return fail(reply, 400, '主题名称不能为空')
+    if (!body.title?.trim()) return fail(reply, 400, '章节名称不能为空')
 
     const userId = req.user!.userId
     const role = req.user!.role
@@ -186,7 +199,7 @@ export async function featureRoutes(app: FastifyInstance) {
     return ok()
   })
 
-  // 删除主题（项目 pm 可操作）
+  // 删除章节（项目 pm 可操作）
   app.delete('/api/v1/features/:id', { preHandler: [authMiddleware, requireRole('admin', 'member')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const db = getDb()
@@ -216,7 +229,7 @@ export async function featureRoutes(app: FastifyInstance) {
 
     const projectId = getFeatureProjectId(featureId)
     if (!projectId) {
-      return fail(reply, 404, '主题不存在')
+      return fail(reply, 404, '章节不存在')
     }
     if (!isProjectMember(userId, userRole, projectId)) {
       return fail(reply, 403, '你不是该项目的成员')

@@ -3,10 +3,8 @@
 // ============================================================
 
 // ---- 统一响应 wrapper ----
-// 在后端完全迁移前，前端 client 兼容两种格式：
-//   新：{ ok: true, data: T }
-//   旧：直接返回 T（裸对象/数组）
-// 错误统一为：{ ok: false, error: string }
+// 成功：{ ok: true, data: T }
+// 失败：{ ok: false, error: string }
 
 export interface ApiSuccess<T = undefined> {
   ok: true

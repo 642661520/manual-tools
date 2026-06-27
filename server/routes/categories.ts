@@ -92,7 +92,7 @@ export async function categoryRoutes(app: FastifyInstance) {
       return fail(reply, 403, '项目内权限不足')
     }
 
-    // ON DELETE SET NULL 自动将关联主题的 category_id 置空
+    // ON DELETE SET NULL 自动将关联章节的 category_id 置空
     db.prepare('DELETE FROM categories WHERE id = ?').run(id)
     return ok()
   })

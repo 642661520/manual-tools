@@ -252,7 +252,7 @@ export async function dataTaskRoutes(app: FastifyInstance) {
     const targetProjectId = task.scope.replace(/^project:/, '')
 
     try {
-      const diff = analyzeImport(task.file_path, targetProjectId)
+      const diff = await analyzeImport(task.file_path, targetProjectId)
       db.prepare(
         "UPDATE data_tasks SET status = 'analyzed', diff_report = ? WHERE id = ?",
       ).run(JSON.stringify(diff), id)
@@ -293,7 +293,7 @@ export async function dataTaskRoutes(app: FastifyInstance) {
     try {
       db.prepare("UPDATE data_tasks SET status = 'applying' WHERE id = ?").run(id)
 
-      const result = applyImport(task.file_path, targetProjectId, body.options)
+      const result = await applyImport(task.file_path, targetProjectId, body.options)
 
       db.prepare(
         "UPDATE data_tasks SET status = 'completed', progress = 100, file_size = ?, completed_at = datetime('now') WHERE id = ?",
@@ -335,7 +335,7 @@ export async function dataTaskRoutes(app: FastifyInstance) {
 
   app.post('/api/v1/system/export', {
     preHandler: [authMiddleware, requireRole('admin')],
-  }, async (_req, _reply) => {
+  }, async () => {
     const db = getDb()
     const taskId = uuid().slice(0, 12)
 

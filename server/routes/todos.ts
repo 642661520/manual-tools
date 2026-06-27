@@ -48,6 +48,7 @@ export async function todoRoutes(app: FastifyInstance) {
     const sectionCache = new Map<string, { key: string; title: string }[]>()
 
     function getSectionTitle(featureId: string, sectionKey: string): string {
+      if (sectionKey === '_default') return '正文'
       if (!sectionCache.has(featureId)) {
         const f = db.prepare('SELECT sections FROM features WHERE id = ?').get(featureId) as { sections: string } | undefined
         sectionCache.set(featureId, f ? (JSON.parse(f.sections || '[]') as { key: string; title: string }[]) : [])

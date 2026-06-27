@@ -1,15 +1,18 @@
 import { FastifyInstance } from 'fastify'
 import { rm } from 'fs/promises'
+import { readFileSync } from 'fs'
 import { join } from 'path'
 import { getDb } from '../db/index.js'
 import { authMiddleware, requireRole } from '../auth/middleware.js'
 import { isProjectMember, hasProjectRole } from '../auth/membership.js'
 import { success, created, ok, fail } from '../lib/response.js'
 import { v4 as uuid } from 'uuid'
-import { assembleManual, assembleChapter } from '../services/manual-assembler.js'
+import { assembleManual, assembleChapter, extractChapterMarkdown } from '../services/manual-assembler.js'
 import { buildMarkdownZip } from '../services/markdown-export.js'
+import { buildPdf } from '../services/pdf-export.js'
 import { buildStaticSite } from '../services/site-builder/index.js'
-import type { CatalogRow, FeatureRow, CatalogFeatureEntry, CatalogEntry, CatalogVersionRow, CreateCatalogBody, UpdateCatalogBody } from '../types.js'
+import { computeFingerprint, computeOptionsHash, getCachedExport, saveCachedExport } from '../services/export-cache.js'
+import type { CatalogRow, FeatureRow, CatalogFeatureEntry, CatalogEntry, CatalogVersionRow, CreateCatalogBody, UpdateCatalogBody, FeatureData } from '../types.js'
 import { isCatalogPart } from '../types.js'
 
 export async function catalogRoutes(app: FastifyInstance) {
@@ -110,7 +113,8 @@ export async function catalogRoutes(app: FastifyInstance) {
     // 模式筛选时重新组装，使用快照的审核状态
     if (mode === 'approved') {
       const statusOv = JSON.parse(ver.status_snapshot || '{}') as Record<string, string>
-      const manual = assembleManual(ver.catalog_id, { approvedOnly: true, featureOverride: ver.features_snapshot, statusOverride: statusOv })
+      const featuresData = JSON.parse(ver.features_json || '[]') as FeatureData[]
+      const manual = assembleManual(ver.catalog_id, { approvedOnly: true, featureOverride: ver.features_snapshot, statusOverride: statusOv, featuresData })
       if (!manual) return fail(reply, 404, 'Catalog not found')
       return success({
         versionMajor: ver.version_major,
@@ -153,25 +157,110 @@ export async function catalogRoutes(app: FastifyInstance) {
     }
 
     const approvedOnly = mode === 'approved'
-    const statusOv = approvedOnly ? JSON.parse(ver.status_snapshot || '{}') as Record<string, string> : undefined
-    const chapter = assembleChapter(ver.catalog_id, chNum, {
-      approvedOnly,
-      featureOverride: ver.features_snapshot,
-      statusOverride: statusOv,
+    const entries: CatalogEntry[] = JSON.parse(ver.features_snapshot || '[]')
+    const hasParts = entries.some(isCatalogPart)
+
+    // 展平 entries 获取章节总数与当前章节元信息
+    const flat: { featureId: string; sectionOrder?: string[]; partTitle?: string; partIdx?: number }[] = []
+    let partIdx = 0
+    for (const entry of entries) {
+      if (isCatalogPart(entry)) {
+        partIdx++
+        for (const fe of entry.features) {
+          flat.push({ featureId: fe.featureId, sectionOrder: fe.sectionOrder, partTitle: entry.title, partIdx })
+        }
+      } else {
+        flat.push({ featureId: entry.featureId, sectionOrder: entry.sectionOrder })
+      }
+    }
+    const totalChapters = flat.length
+    if (chNum < 1 || chNum > totalChapters) return fail(reply, 404, '章节不存在')
+    const target = flat[chNum - 1]
+
+    const featuresData = JSON.parse(ver.features_json || '[]') as FeatureData[]
+    const feature = featuresData.find(f => f.id === target.featureId)
+
+    // 审核模式：需要重组装以过滤未审核内容
+    if (approvedOnly) {
+      const statusOv = JSON.parse(ver.status_snapshot || '{}') as Record<string, string>
+      const chapter = assembleChapter(ver.catalog_id, chNum, {
+        approvedOnly: true,
+        featureOverride: ver.features_snapshot,
+        statusOverride: statusOv,
+        featuresData,
+      })
+      if (!chapter) return fail(reply, 404, '章节不存在')
+      return success(chapter)
+    }
+
+    // 非审核模式：直接从存储的 markdown 提取（文档内容可能已被删除）
+    const chapterMd = extractChapterMarkdown(ver.markdown, chNum)
+    if (chapterMd === null) return fail(reply, 404, '章节不存在')
+
+    // 从 headings 快照中筛选本章标题
+    const chId = `ch${chNum}`
+    const allHeadings = JSON.parse(ver.headings_json || '[]') as Array<{ level: number; text: string; id: string }>
+    const chHeadIdx = allHeadings.findIndex(h => h.id === chId)
+    const chapterHeadings: Array<{ level: number; text: string; id: string }> = []
+    if (chHeadIdx !== -1) {
+      // 收集本章标题 + 后续子标题直到遇到下一个 ch 或 part 锚点
+      for (let i = chHeadIdx; i < allHeadings.length; i++) {
+        const h = allHeadings[i]
+        if (i > chHeadIdx && (h.id.startsWith('ch') || h.id.startsWith('part-'))) break
+        chapterHeadings.push(h)
+      }
+    }
+
+    // 调整本章内 headings 的层级（使章节标题成为最高级）
+    const baseLevel = chapterHeadings.length > 0 ? chapterHeadings[0].level : 2
+    const shiftedHeadings = chapterHeadings.map(h => ({
+      ...h,
+      level: Math.max(1, h.level - baseLevel + 2),
+    }))
+
+    // 如果章节属于某个 Part，在 markdown 前补上 Part 标题
+    let finalMd = chapterMd
+    const finalHeadings = [...shiftedHeadings]
+    if (target.partTitle && target.partIdx != null) {
+      const partId = `part-${target.partIdx}`
+      finalMd = `## <a id="${partId}"></a>${target.partTitle}\n\n${chapterMd}`
+      finalHeadings.unshift({ level: 2, text: target.partTitle, id: partId })
+    }
+
+    return success({
+      chNum,
+      featureId: target.featureId,
+      featureTitle: feature?.title || '',
+      markdown: finalMd,
+      headings: finalHeadings,
+      totalChapters,
+      hasParts,
+      partTitle: target.partTitle,
+      partIdx: target.partIdx,
     })
-    if (!chapter) return fail(reply, 404, '章节不存在')
-    return success(chapter)
   })
 
   // 导出 Markdown 压缩包（md + 图片）
   app.get('/api/v1/catalogs/:id/export/markdown', { preHandler: [authMiddleware, requireRole('admin', 'member')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const db = getDb()
-    const catalogMeta = db.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(id) as { project_id: string } | undefined
+    const catalogMeta = db.prepare('SELECT project_id, title FROM catalogs WHERE id = ?').get(id) as { project_id: string; title: string } | undefined
     if (!catalogMeta) return fail(reply, 404, '目录不存在')
     if (!hasProjectRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
       return fail(reply, 403, '项目内权限不足')
     }
+
+    // 计算指纹 + 参数哈希，尝试命中缓存
+    const fingerprint = computeFingerprint(id)
+    const optionsHash = computeOptionsHash({})
+    const cached = getCachedExport(id, 'markdown', fingerprint, optionsHash)
+    if (cached) {
+      const buf = readFileSync(cached.filePath)
+      reply.header('Content-Type', 'application/zip')
+      reply.header('Content-Disposition', `attachment; filename="${encodeURIComponent(cached.fileName)}"`)
+      return reply.send(buf)
+    }
+
     const manual = assembleManual(id)
     if (!manual) {
       return fail(reply, 404, '目录不存在')
@@ -179,13 +268,151 @@ export async function catalogRoutes(app: FastifyInstance) {
 
     try {
       const { stream, filename } = await buildMarkdownZip(manual)
+      // 收集 stream 为 Buffer（用于缓存）
+      const chunks: Buffer[] = []
+      stream.on('data', (chunk: Buffer) => chunks.push(chunk))
+      await new Promise<void>((resolve, reject) => {
+        stream.on('end', resolve)
+        stream.on('error', reject)
+      })
+      const zipBuffer = Buffer.concat(chunks)
+
+      // 保存缓存
+      saveCachedExport(id, 'markdown', fingerprint, optionsHash, zipBuffer, filename)
+
       reply.header('Content-Type', 'application/zip')
       reply.header('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`)
-      return reply.send(stream)
+      return reply.send(zipBuffer)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       app.log.error(`Markdown export failed: ${msg}`)
       return fail(reply, 500, '导出失败')
+    }
+  })
+
+  // 导出草稿 PDF（项目 pm+ 可操作）
+  app.get('/api/v1/catalogs/:id/export/pdf', { preHandler: [authMiddleware, requireRole('admin', 'member')] }, async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const { mode } = req.query as { mode?: string }
+    const db = getDb()
+    const catalogMeta = db.prepare('SELECT project_id, title FROM catalogs WHERE id = ?').get(id) as { project_id: string; title: string } | undefined
+    if (!catalogMeta) return fail(reply, 404, '目录不存在')
+    if (!hasProjectRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
+      return fail(reply, 403, '项目内权限不足')
+    }
+
+    // 计算指纹 + 参数哈希，尝试命中缓存
+    const options = { mode: mode || '', approvedOnly: mode === 'approved' }
+    const fingerprint = computeFingerprint(id)
+    const optionsHash = computeOptionsHash(options)
+    const cached = getCachedExport(id, 'pdf', fingerprint, optionsHash)
+    if (cached) {
+      const buf = readFileSync(cached.filePath)
+      reply.header('Content-Type', 'application/pdf')
+      reply.header('Content-Disposition', `attachment; filename="${encodeURIComponent(cached.fileName)}"`)
+      return reply.send(buf)
+    }
+
+    const manual = assembleManual(id, { approvedOnly: mode === 'approved' })
+    if (!manual) return fail(reply, 404, '目录不存在')
+
+    try {
+      const dateStr = new Date().toISOString().slice(0, 10)
+      const pdfBuffer = await buildPdf(manual, {
+        headerText: catalogMeta.title,
+        footerText: `草稿 · ${dateStr}`,
+      })
+      const safeTitle = catalogMeta.title.replace(/[\\/:*?"<>|]/g, '_').slice(0, 50)
+      const fileName = `${safeTitle}-draft-${dateStr}.pdf`
+
+      // 保存缓存
+      saveCachedExport(id, 'pdf', fingerprint, optionsHash, pdfBuffer, fileName)
+
+      reply.header('Content-Type', 'application/pdf')
+      reply.header('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`)
+      return reply.send(pdfBuffer)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      app.log.error(`PDF export failed: ${msg}`)
+      return fail(reply, 500, 'PDF 导出失败')
+    }
+  })
+
+  // 历史版本导出 PDF
+  app.get('/api/v1/catalogs/:id/versions/:versionId/export/pdf', { preHandler: [authMiddleware, requireRole('admin', 'member')] }, async (req, reply) => {
+    const { id, versionId } = req.params as { id: string; versionId: string }
+    const { mode } = req.query as { mode?: string }
+    const db = getDb()
+
+    const ver = db.prepare('SELECT * FROM catalog_versions WHERE id = ?').get(versionId) as CatalogVersionRow | undefined
+    if (!ver || ver.catalog_id !== id) return fail(reply, 404, '版本不存在')
+
+    const catalogMeta = db.prepare('SELECT * FROM catalogs WHERE id = ?').get(id) as CatalogRow | undefined
+    if (!catalogMeta) return fail(reply, 404, '目录不存在')
+    if (!hasProjectRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
+      return fail(reply, 403, '项目内权限不足')
+    }
+
+    // 版本内容不可变，指纹基于版本快照数据
+    const options = { mode: mode || '', approvedOnly: mode === 'approved' }
+    const fingerprint = computeFingerprint(id) + '-' + versionId.slice(0, 8)
+    const optionsHash = computeOptionsHash(options)
+    const cached = getCachedExport(id, 'pdf', fingerprint, optionsHash)
+    if (cached) {
+      const buf = readFileSync(cached.filePath)
+      reply.header('Content-Type', 'application/pdf')
+      reply.header('Content-Disposition', `attachment; filename="${encodeURIComponent(cached.fileName)}"`)
+      return reply.send(buf)
+    }
+
+    // 尝试从快照重新组装（以支持 mode=approved 过滤）
+    const approvedOnly = mode === 'approved'
+    const statusOv = approvedOnly ? JSON.parse(ver.status_snapshot || '{}') as Record<string, string> : undefined
+    const featuresData = JSON.parse(ver.features_json || '[]') as FeatureData[]
+    const manual = assembleManual(ver.catalog_id, {
+      approvedOnly,
+      featureOverride: ver.features_snapshot,
+      statusOverride: statusOv,
+      featuresData,
+    })
+
+    const versionLabel = `v${ver.version_major}.${ver.version_minor}`
+
+    try {
+      const pdfBuffer = await buildPdf(
+        manual || {
+          catalog: {
+            id: catalogMeta.id,
+            title: catalogMeta.title,
+            project_id: catalogMeta.project_id,
+            created_at: catalogMeta.created_at,
+            updated_at: catalogMeta.updated_at,
+            targets: JSON.parse(catalogMeta.targets),
+            coverInfo: JSON.parse(catalogMeta.cover_info || '{}'),
+            entries: JSON.parse(ver.features_snapshot || '[]') as CatalogEntry[],
+          },
+          features: JSON.parse(ver.features_json || '[]'),
+          markdown: ver.markdown,
+          headings: JSON.parse(ver.headings_json || '[]'),
+        },
+        {
+          headerText: ver.title || catalogMeta.title,
+          footerText: versionLabel,
+        },
+      )
+      const safeTitle = (ver.title || catalogMeta.title).replace(/[\\/:*?"<>|]/g, '_').slice(0, 50)
+      const fileName = `${safeTitle}-${versionLabel}.pdf`
+
+      // 保存缓存
+      saveCachedExport(id, 'pdf', fingerprint, optionsHash, pdfBuffer, fileName)
+
+      reply.header('Content-Type', 'application/pdf')
+      reply.header('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`)
+      return reply.send(pdfBuffer)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      app.log.error(`PDF export failed: ${msg}`)
+      return fail(reply, 500, 'PDF 导出失败')
     }
   })
 
