@@ -72,7 +72,7 @@ function toggleNotifyEnabled() {
   saveNotifyPrefs()
 }
 
-function toggleNotifyPref(key: string) {
+function toggleNotifyPref(key: 'assign' | 'review' | 'project' | 'status') {
   notifyPrefs.value[key] = !notifyPrefs.value[key]
   saveNotifyPrefs()
 }
