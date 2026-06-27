@@ -53,12 +53,12 @@ export interface FeatureSection extends SectionDef {
   assignees?: string[]
   reviewNote?: string
   reviewStep?: number
-  reviewLog?: ReviewLogEntry[]
+  statusLog?: StatusLogEntry[]
 }
 
-export interface ReviewLogEntry {
-  action: 'approved' | 'rejected'
-  reviewerId: string
+export interface StatusLogEntry {
+  action: 'submitted' | 'approved' | 'rejected' | 'direct_approved' | 'reset_to_draft' | 'reset_to_in_progress'
+  userId: string
   note: string
   step: number
   createdAt: string

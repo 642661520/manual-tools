@@ -148,6 +148,8 @@ export interface VersionPreviewResponse {
   title: string
   changeNotes: string
   createdAt: string
+  publishScope: string
+  statusSnapshot: Record<string, string>
   features: Array<{
     id: string
     title: string

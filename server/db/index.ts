@@ -15,8 +15,48 @@ export function getDb(): Database.Database {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true })
     }
-    db = new Database(DB_PATH)
-    db.pragma('journal_mode = WAL')
+
+    // 如果配置为 delete 模式，尝试提前清理可能残留的 WAL/SHM 文件
+    // （上次 WAL 模式运行崩溃后残留，在 NTFS bind mount 上会导致 SHMOPEN 错误）
+    if (config.dbJournalMode !== 'wal') {
+      const cleaned: string[] = []
+      for (const ext of ['-wal', '-shm']) {
+        const p = DB_PATH + ext
+        if (fs.existsSync(p)) {
+          try { fs.unlinkSync(p); cleaned.push(ext) } catch { /* 文件被锁定 */ }
+        }
+      }
+      if (cleaned.length > 0) {
+        log.info({ cleaned }, '已清理残留的 WAL/SHM 文件')
+      }
+      // 如果 WAL/SHM 文件仍在，说明被锁定无法删除，复制数据库到临时路径绕过
+      if (fs.existsSync(DB_PATH + '-wal') || fs.existsSync(DB_PATH + '-shm')) {
+        const safeDir = path.join(dir, '.recovery')
+        fs.mkdirSync(safeDir, { recursive: true })
+        const safePath = path.join(safeDir, path.basename(DB_PATH))
+        log.warn({ safePath }, 'WAL 残留文件被锁定无法清理，复制数据库到安全路径打开')
+        fs.copyFileSync(DB_PATH, safePath)
+        db = new Database(safePath)
+      } else {
+        db = new Database(DB_PATH)
+      }
+    } else {
+      db = new Database(DB_PATH)
+    }
+
+    // 设置 journal_mode
+    try {
+      db.pragma(`journal_mode = ${config.dbJournalMode}`)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      if (config.dbJournalMode === 'wal' && msg.includes('SQLITE_IOERR')) {
+        log.warn({ err: msg }, 'WAL 模式不可用（NTFS bind mount 不支持共享内存），降级为 delete')
+        db.pragma('journal_mode = delete')
+      } else {
+        throw e
+      }
+    }
+
     db.pragma('foreign_keys = ON')
   }
   return db
@@ -63,7 +103,7 @@ export function initDatabase() {
       assignees TEXT DEFAULT '[]',
       review_note TEXT DEFAULT '',
       review_step INTEGER DEFAULT 0,
-      review_log TEXT DEFAULT '[]',
+      status_log TEXT DEFAULT '[]',
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (feature_id) REFERENCES features(id) ON DELETE CASCADE
     );
@@ -236,6 +276,11 @@ export function initDatabase() {
   // 幂等迁移：为旧版本数据库添加 publish_scope 列
   if (!columnExists(conn, 'catalog_versions', 'publish_scope')) {
     conn.exec("ALTER TABLE catalog_versions ADD COLUMN publish_scope TEXT NOT NULL DEFAULT 'all'")
+  }
+
+  // 幂等迁移：review_log 列重命名为 status_log
+  if (columnExists(conn, 'documents', 'review_log')) {
+    conn.exec("ALTER TABLE documents RENAME COLUMN review_log TO status_log")
   }
 
   // 种子系统管理员账号

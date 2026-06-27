@@ -36,7 +36,7 @@ export interface DocumentRow {
   assignees: string  // JSON user ID 数组
   review_note: string
   review_step: number
-  review_log: string  // JSON ReviewLogEntry 数组
+  status_log: string  // JSON StatusLogEntry 数组
   updated_at: string
 }
 
@@ -127,6 +127,7 @@ export interface CatalogVersionRow {
   visibility: DocVisibility
   features_json: string
   headings_json: string
+  publish_scope: string
   created_at: string
 }
 
@@ -147,10 +148,10 @@ export interface UpdateSectionStatusBody {
   direct?: boolean
 }
 
-// 审核日志条目
-export interface ReviewLogEntry {
-  action: 'approved' | 'rejected'
-  reviewerId: string
+// 状态变更日志条目
+export interface StatusLogEntry {
+  action: 'submitted' | 'approved' | 'rejected' | 'direct_approved' | 'reset_to_draft' | 'reset_to_in_progress'
+  userId: string
   note: string
   step: number
   created_at: string

@@ -51,6 +51,7 @@ export const config = {
 
   // 数据库
   databasePath: env('DATABASE_PATH', './data/manual.db'),
+  dbJournalMode: env('DB_JOURNAL_MODE', 'wal'),
 
   // JWT（生产环境随机生成，开发环境通过 process.env.JWT_SECRET 覆盖）
   jwtSecret: getJwtSecret(),
