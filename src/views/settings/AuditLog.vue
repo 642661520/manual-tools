@@ -42,6 +42,12 @@ async function load() {
   }
 }
 
+function handleFilterChange(value: SelectOption['value']) {
+  filterAction.value = value
+  page.value = 1
+  load()
+}
+
 function goPage(p: number) {
   page.value = p
   load()
@@ -69,11 +75,7 @@ onMounted(load)
         :options="actionOptions"
         placeholder="全部操作"
         width-class="w-40"
-        @update:model-value="
-          filterAction = $event
-          page = 1
-          load()
-        "
+        @update:model-value="handleFilterChange"
       />
       <span class="text-xs text-gray-400">共 {{ total }} 条记录</span>
     </div>

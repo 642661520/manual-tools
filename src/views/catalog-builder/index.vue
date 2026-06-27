@@ -677,6 +677,21 @@ function moveFeatureToPart(featureId: string, targetPartId: string) {
   nextTick(() => initAllSorts())
 }
 
+function handleMoveToPart(featureId: string, targetPartId: string) {
+  moveFeatureToPart(featureId, targetPartId)
+  movingFeatureId.value = null
+}
+
+function handleAddToPart(targetPartId: string, feature: FeatureSummary | null) {
+  if (!feature) return
+  addFeatureToPart(targetPartId, feature)
+  movingPoolFeature.value = null
+}
+
+function getPartId(en: CatNode): string {
+  return isPart(en) ? en.id : ''
+}
+
 /** 在数据模型中查找 featureId */
 function findEntryById(
   featureId: string,
@@ -1207,10 +1222,7 @@ watch(currentProjectId, () => {
                           :key="isPart(en) ? en.id : ''"
                           v-show="isPart(en)"
                           class="w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 flex items-center gap-2"
-                          @click.stop="
-                            moveFeatureToPart(node.feature.id, (en as CatPart).id)
-                            movingFeatureId = null
-                          "
+                          @click.stop="handleMoveToPart(node.feature.id, getPartId(en))"
                         >
                           <span
                             class="i-lucide-book-open w-3.5 h-3.5 inline-block align-middle text-indigo-400"
@@ -1307,10 +1319,7 @@ watch(currentProjectId, () => {
           :key="isPart(en) ? en.id : ''"
           v-show="isPart(en)"
           class="w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 flex items-center gap-2"
-          @click.stop="
-            addFeatureToPart((en as CatPart).id, movingPoolFeature!)
-            movingPoolFeature = null
-          "
+          @click.stop="handleAddToPart(getPartId(en), movingPoolFeature)"
         >
           <span class="i-lucide-folder w-3.5 h-3.5 inline-block align-middle text-indigo-400" />
           {{ (en as CatPart).title || '未命名篇' }}
