@@ -5,6 +5,7 @@
  * POST   /api/v1/cache/clean              — 手动清理过期缓存
  * POST   /api/v1/cache/invalidate         — 清除特定 catalog 的导出缓存
  * GET    /api/v1/cache/entries/export     — 列出导出缓存文件详情
+ * GET    /api/v1/cache/entries/export/:id/download — 下载导出缓存文件
  * GET    /api/v1/cache/entries/remote     — 列出远程资源缓存详情（分页）
  * GET    /api/v1/cache/entries/remote/:hash/:ext/preview — 预览远程缓存文件
  * DELETE /api/v1/cache/entries/export/:id — 删除单个导出缓存文件
@@ -117,6 +118,34 @@ export async function cacheRoutes(app: FastifyInstance) {
     }))
 
     return success(entries)
+  })
+
+  // 下载导出缓存文件
+  app.get('/api/v1/cache/entries/export/:id/download', { preHandler: [authMiddleware, requireRole('admin', 'pm')] }, async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const db = getDb()
+
+    const entry = db.prepare(
+      'SELECT file_path, file_name, type FROM export_cache WHERE id = ?',
+    ).get(id) as { file_path: string; file_name: string; type: string } | undefined
+
+    if (!entry) {
+      return fail(reply, 404, '缓存条目不存在')
+    }
+
+    if (!existsSync(entry.file_path)) {
+      return fail(reply, 404, '缓存文件不存在（可能已被清理）')
+    }
+
+    const buf = readFileSync(entry.file_path)
+    const mimeType = entry.type === 'pdf'
+      ? 'application/pdf'
+      : 'application/zip'
+
+    reply.header('Content-Type', mimeType)
+    reply.header('Content-Disposition', `attachment; filename="${encodeURIComponent(entry.file_name)}"`)
+    reply.header('Content-Length', buf.length)
+    return reply.send(buf)
   })
 
   // 列出远程缓存详情（分页）

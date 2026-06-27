@@ -11,6 +11,9 @@ import { config } from '../config.js'
 import { getDb } from '../db/index.js'
 import { isCatalogPart } from '../types.js'
 import type { CatalogFeatureEntry, CatalogEntry } from '../types.js'
+import { getLogger } from '../lib/logger.js'
+
+const log = getLogger()
 
 // ================ 类型 ========================================================
 
@@ -202,7 +205,7 @@ export function cleanExpiredExportCache(): number {
   }
 
   if (expired.length > 0) {
-    console.log(`[export-cache] Cleaned up ${expired.length} expired export entries.`)
+    log.info({ count: expired.length }, 'export cache cleaned')
   }
   return expired.length
 }

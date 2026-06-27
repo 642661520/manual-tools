@@ -10,6 +10,14 @@ import { config } from '../config.js'
 
 const UPLOAD_BASE = config.uploadDir
 
+export interface UploadFileInfo {
+  path: string
+  size: number
+  mtime: string
+  /** 是否被文档引用 */
+  referenced: boolean
+}
+
 export interface OrphanFile {
   path: string
   size: number
@@ -101,4 +109,52 @@ export function deleteOrphanFiles(): { deleted: number; freedBytes: number } {
   }
 
   return { deleted, freedBytes }
+}
+
+/** 列出所有上传文件，标记是否被引用 */
+export function getUploadsList(): {
+  files: UploadFileInfo[]
+  totalSize: number
+  totalCount: number
+  referencedCount: number
+  orphanedCount: number
+} {
+  const refs = collectAllReferencedUploads()
+  const allFiles = listAllUploadFiles(UPLOAD_BASE)
+  const files: UploadFileInfo[] = []
+
+  for (const file of allFiles) {
+    const fullPath = path.join(UPLOAD_BASE, file)
+    try {
+      const stat = fs.statSync(fullPath)
+      files.push({
+        path: file,
+        size: stat.size,
+        mtime: stat.mtime.toISOString(),
+        referenced: refs.has(file),
+      })
+    } catch { /* 文件可能在扫描期间被删除 */ }
+  }
+
+  // 按时间倒序排列
+  files.sort((a, b) => new Date(b.mtime).getTime() - new Date(a.mtime).getTime())
+
+  const totalSize = files.reduce((sum, f) => sum + f.size, 0)
+  const referencedCount = files.filter(f => f.referenced).length
+  const orphanedCount = files.length - referencedCount
+
+  return { files, totalSize, totalCount: files.length, referencedCount, orphanedCount }
+}
+
+/** 删除单个上传文件，校验路径防止目录穿越 */
+export function deleteUploadFile(filePath: string): void {
+  // 安全检查：防止路径穿越
+  const resolved = path.resolve(UPLOAD_BASE, filePath)
+  if (!resolved.startsWith(path.resolve(UPLOAD_BASE))) {
+    throw new Error('非法路径')
+  }
+  if (!fs.existsSync(resolved)) {
+    throw new Error('文件不存在')
+  }
+  fs.unlinkSync(resolved)
 }

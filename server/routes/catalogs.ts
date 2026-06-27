@@ -4,7 +4,8 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import { getDb } from '../db/index.js'
 import { authMiddleware, requireRole } from '../auth/middleware.js'
-import { isProjectMember, hasProjectRole } from '../auth/membership.js'
+import { isProjectMember, hasProjectRole, assertCatalogMember } from '../auth/membership.js'
+import { recordAudit } from '../services/audit.js'
 import { success, created, ok, fail } from '../lib/response.js'
 import { v4 as uuid } from 'uuid'
 import { assembleManual, assembleChapter, extractChapterMarkdown } from '../services/manual-assembler.js'
@@ -48,11 +49,8 @@ export async function catalogRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string }
     const { mode } = req.query as { mode?: string }
     const db = getDb()
-    const catalogMeta = db.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(id) as { project_id: string } | undefined
-    if (!catalogMeta) return fail(reply, 404, 'Catalog not found')
-    if (!isProjectMember(req.user!.userId, req.user!.role, catalogMeta.project_id)) {
-      return fail(reply, 403, '你不是该项目的成员')
-    }
+    const member = assertCatalogMember(db, id, req.user!.userId, req.user!.role)
+    if (!member) return fail(reply, 404, 'Catalog not found')
     const manual = assembleManual(id, { approvedOnly: mode === 'approved' })
     if (!manual) return fail(reply, 404, 'Catalog not found')
     // 不返回 markdown，前端按需从 chapters 端点获取
@@ -70,11 +68,8 @@ export async function catalogRoutes(app: FastifyInstance) {
     const chNum = parseInt(chNumStr)
     if (isNaN(chNum) || chNum < 1) return fail(reply, 400, '无效的章节编号')
     const db = getDb()
-    const catalogMeta = db.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(id) as { project_id: string } | undefined
-    if (!catalogMeta) return fail(reply, 404, 'Catalog not found')
-    if (!isProjectMember(req.user!.userId, req.user!.role, catalogMeta.project_id)) {
-      return fail(reply, 403, '你不是该项目的成员')
-    }
+    const member = assertCatalogMember(db, id, req.user!.userId, req.user!.role)
+    if (!member) return fail(reply, 404, 'Catalog not found')
     const chapter = assembleChapter(id, chNum, { approvedOnly: mode === 'approved' })
     if (!chapter) return fail(reply, 404, '章节不存在')
     return success(chapter)
@@ -84,13 +79,10 @@ export async function catalogRoutes(app: FastifyInstance) {
   app.get('/api/v1/catalogs/:id/versions', { preHandler: authMiddleware }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const db = getDb()
-    const catalogMeta = db.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(id) as { project_id: string } | undefined
-    if (!catalogMeta) return fail(reply, 404, 'Catalog not found')
-    if (!isProjectMember(req.user!.userId, req.user!.role, catalogMeta.project_id)) {
-      return fail(reply, 403, '你不是该项目的成员')
-    }
+    const member = assertCatalogMember(db, id, req.user!.userId, req.user!.role)
+    if (!member) return fail(reply, 404, 'Catalog not found')
     const rows = db.prepare(
-      'SELECT id, version_major, version_minor, title, change_notes, visibility, created_at FROM catalog_versions WHERE catalog_id = ? ORDER BY version_major DESC, version_minor DESC',
+      'SELECT id, version_major, version_minor, title, change_notes, visibility, publish_scope, created_at FROM catalog_versions WHERE catalog_id = ? ORDER BY version_major DESC, version_minor DESC',
     ).all(id) as (Pick<CatalogVersionRow, 'id' | 'version_major' | 'version_minor' | 'title' | 'change_notes' | 'visibility' | 'created_at'>)[]
     return success(rows)
   })
@@ -104,11 +96,8 @@ export async function catalogRoutes(app: FastifyInstance) {
     if (!ver) return fail(reply, 404, 'Version not found')
 
     // 校验项目成员
-    const catalogMeta = db.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(ver.catalog_id) as { project_id: string } | undefined
-    if (!catalogMeta) return fail(reply, 404, 'Catalog not found')
-    if (!isProjectMember(req.user!.userId, req.user!.role, catalogMeta.project_id)) {
-      return fail(reply, 403, '你不是该项目的成员')
-    }
+    const member = assertCatalogMember(db, ver.catalog_id, req.user!.userId, req.user!.role)
+    if (!member) return fail(reply, 404, 'Catalog not found')
 
     // 模式筛选时重新组装，使用快照的审核状态
     if (mode === 'approved') {
@@ -419,8 +408,9 @@ export async function catalogRoutes(app: FastifyInstance) {
   // 发布版本（项目 pm+ 可操作）
   app.post('/api/v1/catalogs/:id/publish', { preHandler: [authMiddleware, requireRole('admin', 'member')] }, async (req, reply) => {
     const { id } = req.params as { id: string }
-    const body = req.body as { changeNotes?: string; visibility?: string }
+    const body = req.body as { changeNotes?: string; visibility?: string; approvedOnly?: boolean }
     const visibility = (['public', 'login_required', 'project_members'].includes(body.visibility || '') ? body.visibility : 'project_members') as string
+    const approvedOnly = body.approvedOnly !== false
     const db = getDb()
 
     const catalogMeta = db.prepare('SELECT project_id, title, features FROM catalogs WHERE id = ?').get(id) as { project_id: string; title: string; features: string } | undefined
@@ -429,7 +419,47 @@ export async function catalogRoutes(app: FastifyInstance) {
       return fail(reply, 403, '项目内权限不足')
     }
 
-    const fullManual = assembleManual(id)
+    // 收集审核状态快照（展平 Part 结构）
+    const featuresListRaw: CatalogEntry[] = JSON.parse(catalogMeta.features)
+    const featuresList: CatalogFeatureEntry[] = []
+    for (const entry of featuresListRaw) {
+      if (isCatalogPart(entry)) { featuresList.push(...entry.features) }
+      else { featuresList.push(entry) }
+    }
+    const statusSnapshot: Record<string, string> = {}
+    const featureNames: Record<string, string> = {}
+    for (const fe of featuresList) {
+      const f = db.prepare('SELECT title, sections FROM features WHERE id = ?').get(fe.featureId) as { title: string; sections: string } | undefined
+      if (!f) continue
+      featureNames[fe.featureId] = f.title
+      const secs = JSON.parse(f.sections || '[]') as { key: string; title: string }[]
+      for (const s of secs) {
+        const docId = `${fe.featureId}/${s.key}`
+        const doc = db.prepare('SELECT status FROM documents WHERE id = ?').get(docId) as { status: string } | undefined
+        statusSnapshot[docId] = doc?.status || 'draft'
+      }
+    }
+
+    // 审核检查
+    const unreviewed = Object.entries(statusSnapshot)
+      .filter(([, s]) => s !== 'approved')
+      .map(([docId, s]) => {
+        const [fid] = docId.split('/')
+        return { docId, status: s, featureTitle: featureNames[fid] || fid }
+      })
+
+    if (approvedOnly && unreviewed.length > 0) {
+      const detail = unreviewed
+        .slice(0, 10)
+        .map(u => `${u.featureTitle}: ${u.status}`)
+        .join('; ')
+      const more = unreviewed.length > 10 ? ` 等共 ${unreviewed.length} 个` : ''
+      return fail(reply, 400,
+        `以下 ${unreviewed.length} 个章节未通过审核：${detail}${more}。\n若要强制发布，请勾选「允许未审核内容发布」。`,
+      )
+    }
+
+    const fullManual = assembleManual(id, { approvedOnly })
     if (!fullManual) return fail(reply, 404, 'Catalog not found')
 
     const currentFeatures = catalogMeta.features
@@ -453,37 +483,16 @@ export async function catalogRoutes(app: FastifyInstance) {
       minor = 0
     }
 
-    // 收集审核状态快照（展平 Part 结构）
-    const featuresListRaw: CatalogEntry[] = JSON.parse(currentFeatures)
-    const featuresList: CatalogFeatureEntry[] = []
-    for (const entry of featuresListRaw) {
-      if (isCatalogPart(entry)) {
-        featuresList.push(...entry.features)
-      } else {
-        featuresList.push(entry)
-      }
-    }
-    const statusSnapshot: Record<string, string> = {}
-    for (const fe of featuresList) {
-      const f = db.prepare('SELECT sections FROM features WHERE id = ?').get(fe.featureId) as { sections: string } | undefined
-      if (!f) continue
-      const secs = JSON.parse(f.sections || '[]') as { key: string }[]
-      for (const s of secs) {
-        const docId = `${fe.featureId}/${s.key}`
-        const doc = db.prepare('SELECT status FROM documents WHERE id = ?').get(docId) as { status: string } | undefined
-        if (doc) statusSnapshot[docId] = doc.status
-      }
-    }
-
     const versionId = uuid().slice(0, 8)
+    const scope = approvedOnly ? 'approved_only' : 'all'
     db.prepare(`
-      INSERT INTO catalog_versions (id, catalog_id, version_major, version_minor, title, features_snapshot, change_notes, markdown, status_snapshot, visibility, features_json, headings_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO catalog_versions (id, catalog_id, version_major, version_minor, title, features_snapshot, change_notes, markdown, status_snapshot, visibility, features_json, headings_json, publish_scope)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       versionId, id, major, minor, fullManual.catalog.title,
       currentFeatures, body.changeNotes || '', fullManual.markdown,
       JSON.stringify(statusSnapshot), visibility,
-      JSON.stringify(fullManual.features), JSON.stringify(fullManual.headings),
+      JSON.stringify(fullManual.features), JSON.stringify(fullManual.headings), scope,
     )
 
     // 构建静态文档站点
@@ -492,7 +501,22 @@ export async function catalogRoutes(app: FastifyInstance) {
       app.log.error(`静态站点构建失败: ${err instanceof Error ? err.message : err}`)
     })
 
-    return success({ id: versionId, versionMajor: major, versionMinor: minor })
+    recordAudit({
+      userId: req.user!.userId,
+      username: req.user?.username || '',
+      action: 'catalog.publish',
+      targetType: 'catalog',
+      targetId: id,
+      detail: { versionMajor: major, versionMinor: minor, title: catalogMeta.title, visibility, approvedOnly },
+    })
+
+    return success({
+      id: versionId,
+      versionMajor: major,
+      versionMinor: minor,
+      approved: unreviewed.length,
+      total: Object.keys(statusSnapshot).length,
+    })
   })
 
   // 更新版本可见性
@@ -639,6 +663,14 @@ export async function catalogRoutes(app: FastifyInstance) {
     }
 
     db.prepare('DELETE FROM catalogs WHERE id = ?').run(id)
+
+    recordAudit({
+      userId: req.user!.userId,
+      username: req.user?.username || '',
+      action: 'catalog.delete',
+      targetType: 'catalog',
+      targetId: id,
+    })
 
     // 清理静态文档站点文件
     const docsDir = join(process.cwd(), 'data/docs', id)

@@ -3,14 +3,14 @@ import { FastifyInstance } from 'fastify'
 import { authMiddleware } from '../auth/middleware.js'
 import { getDb } from '../db/index.js'
 import { getFeishuAuthUrl, exchangeCodeForToken } from '../services/feishu.js'
+import { generateState } from '../lib/crypto.js'
 import { success, ok, fail } from '../lib/response.js'
 
 export async function feishuRoutes(app: FastifyInstance) {
   // 生成绑定 OAuth URL
   app.get('/api/v1/auth/feishu/bind-url', { preHandler: authMiddleware }, async (req) => {
     const userId = req.user!.userId
-    const random = Math.random().toString(36).slice(2, 8)
-    const state = `${userId}:${random}`
+    const state = `${userId}:${generateState()}`
     const url = getFeishuAuthUrl(state)
     return success({ url })
   })

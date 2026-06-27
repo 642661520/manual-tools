@@ -110,6 +110,9 @@ export function assembleManual(
           })
         : ordered
 
+      // approvedOnly 下如果所有 section 都未审核，则整篇 feature 也跳过
+      if (approvedOnly && sections.length === 0) return
+
       features.push({
         id: f.id,
         title: f.title,
@@ -119,8 +122,13 @@ export function assembleManual(
     }
 
     if (isCatalogPart(entry)) {
+      const before = features.length
       for (const fe of entry.features) {
         processFeature(fe)
+      }
+      // 如果 Part 下所有 feature 都未审核，移除这个 Part
+      if (approvedOnly && features.length === before) {
+        // 不添加这个 Part（它的所有子 feature 都被跳过了）
       }
     } else {
       processFeature(entry)

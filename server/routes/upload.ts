@@ -22,7 +22,25 @@ const VIDEO_EXT: Record<string, string> = {
 
 const UPLOAD_BASE = config.uploadDir
 
-/** 通用上传处理：校验类型 → 大小 → 哈希去重 → 返回 URL */
+/** Magic bytes 签名映射表：offset → 期望的字节序列 */
+const MAGIC_SIGNATURES: Record<string, { offset: number; bytes: number[] }> = {
+  'image/png':  { offset: 0, bytes: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A] },
+  'image/jpeg': { offset: 0, bytes: [0xFF, 0xD8, 0xFF] },
+  'image/gif':  { offset: 0, bytes: [0x47, 0x49, 0x46, 0x38] },
+  'image/webp': { offset: 8, bytes: [0x57, 0x45, 0x42, 0x50] },
+  'video/mp4':  { offset: 4, bytes: [0x66, 0x74, 0x79, 0x70] },
+  'video/webm': { offset: 0, bytes: [0x1A, 0x45, 0xDF, 0xA3] },
+}
+
+/** 校验文件 magic bytes 是否匹配声明的 MIME 类型 */
+function verifyMagicBytes(mimetype: string, buffer: Buffer): boolean {
+  const sig = MAGIC_SIGNATURES[mimetype]
+  if (!sig) return true // 未收录的类型跳过校验
+  if (buffer.length < sig.offset + sig.bytes.length) return false
+  return sig.bytes.every((b, i) => buffer[sig.offset + i] === b)
+}
+
+/** 通用上传处理：校验类型 → 校验 magic bytes → 大小 → 哈希去重 → 返回 URL */
 async function handleUpload(
   file: { mimetype: string; toBuffer: () => Promise<Buffer> },
   allowedTypes: string[],
@@ -39,6 +57,11 @@ async function handleUpload(
   const buf = await file.toBuffer()
   if (buf.length > maxSize) {
     throw new Error(`文件过大，上限 ${maxMB}MB`)
+  }
+
+  // 校验 magic bytes：防止将非图片/视频文件伪装为合法类型
+  if (!verifyMagicBytes(file.mimetype, buf)) {
+    throw new Error(`文件类型不匹配：声明为 ${file.mimetype}，但实际内容不符`)
   }
 
   const dir = join(UPLOAD_BASE, subDir)

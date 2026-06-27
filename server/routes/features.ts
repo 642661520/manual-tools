@@ -224,19 +224,20 @@ export async function featureRoutes(app: FastifyInstance) {
     const db = getDb()
     const userId = req.user!.userId
     const userRole = req.user!.role
+
+    // 预加载：合并 projectId 查询 + 成员检查
+    const projectId = getFeatureProjectId(featureId)
+    if (!projectId) return fail(reply, 404, '章节不存在')
+    if (!isProjectMember(userId, userRole, projectId)) return fail(reply, 403, '你不是该项目的成员')
+
+    const reviewChain = getEffectiveReviewChain(projectId)
+    const docId = `${featureId}/${sectionKey}`
     const dbUser = db.prepare('SELECT display_name FROM users WHERE id = ?').get(userId) as { display_name: string } | undefined
     const reviewerName = dbUser?.display_name || req.user?.displayName || '未知用户'
 
-    const projectId = getFeatureProjectId(featureId)
-    if (!projectId) {
-      return fail(reply, 404, '章节不存在')
-    }
-    if (!isProjectMember(userId, userRole, projectId)) {
-      return fail(reply, 403, '你不是该项目的成员')
-    }
-
-    const docId = `${featureId}/${sectionKey}`
-    const existingDoc = db.prepare('SELECT * FROM documents WHERE id = ?').get(docId) as DocumentRow | undefined
+    // 事务包裹所有写操作，减少 N+1 开销
+    db.transaction(() => {
+      const existingDoc = db.prepare('SELECT * FROM documents WHERE id = ?').get(docId) as DocumentRow | undefined
 
     // 确保 document 存在
     if (!existingDoc) {
@@ -245,10 +246,8 @@ export async function featureRoutes(app: FastifyInstance) {
       ).run(docId, featureId, sectionKey, 'draft', '[]', '', 0, '[]')
     }
 
-    // 获取有效审核链
-    const reviewChain = getEffectiveReviewChain(projectId)
-    const currentStep = existingDoc?.review_step ?? 0
-    const reviewLog = JSON.parse(existingDoc?.review_log || '[]') as { action: string; reviewerId: string; note: string; step: number; createdAt: string }[]
+      const currentStep = existingDoc?.review_step ?? 0
+      const reviewLog = JSON.parse(existingDoc?.review_log || '[]') as { action: string; reviewerId: string; note: string; step: number; createdAt: string }[]
 
     // ====== 分支处理 ======
 
@@ -293,7 +292,6 @@ export async function featureRoutes(app: FastifyInstance) {
       if (!hasProjectRole(userId, userRole, projectId, 'pm')) {
         return fail(reply, 403, '项目内权限不足，只有项目管理员可以审核')
       }
-      // 直接通过：跳过审核链校验
       if (!direct) {
         const currentReviewerId = reviewChain[currentStep]
         if (currentReviewerId && currentReviewerId !== userId) {
@@ -311,7 +309,6 @@ export async function featureRoutes(app: FastifyInstance) {
       reviewLog.push(logEntry)
 
       if (direct) {
-        // 直接通过：直接设为 approved
         db.prepare("UPDATE documents SET status = 'approved', review_log = ?, review_note = ?, updated_at = datetime('now') WHERE id = ?")
           .run(JSON.stringify(reviewLog), '', docId)
         const docAssignees = JSON.parse(existingDoc?.assignees || '[]') as string[]
@@ -322,7 +319,6 @@ export async function featureRoutes(app: FastifyInstance) {
       } else {
         const newStep = currentStep + 1
         if (newStep >= reviewChain.length) {
-          // 全部审核通过
           db.prepare("UPDATE documents SET status = 'approved', review_step = ?, review_log = ?, review_note = ?, updated_at = datetime('now') WHERE id = ?")
             .run(newStep, JSON.stringify(reviewLog), reviewNote || '', docId)
           const docAssignees = JSON.parse(existingDoc?.assignees || '[]') as string[]
@@ -331,7 +327,6 @@ export async function featureRoutes(app: FastifyInstance) {
               .catch((e: unknown) => app.log.error(`飞书通知失败(通过) ${e instanceof Error ? e.message : e}`))
           }
         } else {
-          // 推进到下一步
           db.prepare("UPDATE documents SET review_step = ?, review_log = ?, review_note = ?, updated_at = datetime('now') WHERE id = ?")
             .run(newStep, JSON.stringify(reviewLog), reviewNote || '', docId)
           notifyNextReviewer(featureId, sectionKey, reviewChain[newStep], newStep + 1, reviewChain.length, reviewerName)
@@ -386,6 +381,7 @@ export async function featureRoutes(app: FastifyInstance) {
     }
 
     return ok()
+    }) // db.transaction
   })
 
   // 删除游离文档（pm only）

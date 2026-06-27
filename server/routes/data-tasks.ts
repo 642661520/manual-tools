@@ -12,7 +12,7 @@ import fs from 'fs'
 import path from 'path'
 import { estimateExport, runExportTask } from '../services/export-service.js'
 import { analyzeImport, applyImport } from '../services/import-service.js'
-import { getOrphanFiles, deleteOrphanFiles } from '../services/upload-cleaner.js'
+import { getOrphanFiles, deleteOrphanFiles, getUploadsList, deleteUploadFile } from '../services/upload-cleaner.js'
 import type { ImportApplyOptions } from '../../shared/types/models.js'
 
 const EXPORT_BASE = config.exportDir
@@ -371,6 +371,30 @@ export async function dataTaskRoutes(app: FastifyInstance) {
     }
 
     return success({ taskId })
+  })
+
+  // ============================================================
+  // 上传资源管理
+  // ============================================================
+
+  app.get('/api/v1/uploads', {
+    preHandler: [authMiddleware, requireRole('admin')],
+  }, async () => {
+    const result = getUploadsList()
+    return success(result)
+  })
+
+  app.delete('/api/v1/uploads', {
+    preHandler: [authMiddleware, requireRole('admin')],
+  }, async (req, reply) => {
+    const { filePath } = req.query as { filePath?: string }
+    if (!filePath) return fail(reply, 400, '缺少 filePath 参数')
+    try {
+      deleteUploadFile(filePath)
+      return ok()
+    } catch (e: unknown) {
+      return fail(reply, 400, e instanceof Error ? e.message : '删除失败')
+    }
   })
 
   // ============================================================

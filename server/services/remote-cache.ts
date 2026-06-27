@@ -9,6 +9,9 @@ import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { config } from '../config.js'
 import { getDb } from '../db/index.js'
+import { getLogger } from '../lib/logger.js'
+
+const log = getLogger()
 
 // ================ 类型 ========================================================
 
@@ -119,7 +122,7 @@ export function cleanExpiredRemoteCache(): number {
   }
 
   if (result.changes > 0) {
-    console.log(`[remote-cache] Cleaned up ${result.changes} expired cache entries.`)
+    log.info({ count: result.changes }, 'remote cache cleaned')
   }
   return result.changes
 }
@@ -236,14 +239,14 @@ async function fetchAndCache(url: string, force = false): Promise<CacheResult | 
       // 检查 Content-Length（如果服务器提供了）
       const contentLength = res.headers.get('content-length')
       if (contentLength && parseInt(contentLength) > maxBytes) {
-        console.warn(`[remote-cache] URL ${url} 超过大小限制 (${contentLength} > ${maxBytes})，跳过下载`)
+        log.warn({ url, contentLength, maxBytes }, 'URL 超过大小限制，跳过下载')
         return null
       }
 
       const buf = Buffer.from(await res.arrayBuffer())
 
       if (buf.length > maxBytes) {
-        console.warn(`[remote-cache] URL ${url} 实际大小超过限制 (${buf.length} > ${maxBytes})，仅下载不缓存`)
+        log.warn({ url, actualSize: buf.length, maxBytes }, '实际大小超过限制，仅下载不缓存')
         return null
       }
 

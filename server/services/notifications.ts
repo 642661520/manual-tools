@@ -3,6 +3,9 @@
 import { getDb } from '../db/index.js'
 import { sendFeishuMessage, buildCardMessage } from './feishu.js'
 import { config } from '../config.js'
+import { getLogger } from '../lib/logger.js'
+
+const log = getLogger()
 
 const APP_BASE_URL = config.appBaseUrl
 
@@ -99,7 +102,7 @@ export async function notifyAssignees(
 
     await Promise.allSettled(openIds.map(openId => sendFeishuMessage(openId, card)))
   } catch (e: unknown) {
-    console.error('通知被指派人失败:', e instanceof Error ? e.message : e)
+    log.error({ err: e }, '通知被指派人失败')
   }
 }
 
@@ -129,7 +132,7 @@ export async function notifyNextReviewer(
 
     await sendFeishuMessage(openId, card)
   } catch (e: unknown) {
-    console.error('通知审核人失败:', e instanceof Error ? e.message : e)
+    log.error({ err: e }, '通知审核人失败')
   }
 }
 
@@ -164,7 +167,7 @@ export async function notifyWriterReviewResult(
 
     await Promise.allSettled(openIds.map(openId => sendFeishuMessage(openId, card)))
   } catch (e: unknown) {
-    console.error('通知审核结果失败:', e instanceof Error ? e.message : e)
+    log.error({ err: e }, '通知审核结果失败')
   }
 }
 
@@ -192,7 +195,7 @@ export async function notifyDirectApprove(
 
     await Promise.allSettled(openIds.map(openId => sendFeishuMessage(openId, card)))
   } catch (e: unknown) {
-    console.error('通知直接通过失败:', e instanceof Error ? e.message : e)
+    log.error({ err: e }, '通知直接通过失败')
   }
 }
 
@@ -223,7 +226,7 @@ export async function notifyStatusReset(
 
     await Promise.allSettled(openIds.map(openId => sendFeishuMessage(openId, card)))
   } catch (e: unknown) {
-    console.error('通知状态重置失败:', e instanceof Error ? e.message : e)
+    log.error({ err: e }, '通知状态重置失败')
   }
 }
 
@@ -243,7 +246,7 @@ export async function notifyNewGuest(displayName: string): Promise<void> {
 
     await Promise.allSettled(adminOpenIds.map(openId => sendFeishuMessage(openId, card)))
   } catch (e: unknown) {
-    console.error('通知新成员失败:', e instanceof Error ? e.message : e)
+    log.error({ err: e }, '通知新成员失败')
   }
 }
 
@@ -272,7 +275,7 @@ export async function notifyJoinProject(
 
     await sendFeishuMessage(openId, card)
   } catch (e: unknown) {
-    console.error('通知加入项目失败:', e instanceof Error ? e.message : e)
+    log.error({ err: e }, '通知加入项目失败')
   }
 }
 
@@ -295,7 +298,7 @@ export async function notifyLeaveProject(
 
     await sendFeishuMessage(openId, card)
   } catch (e: unknown) {
-    console.error('通知移出项目失败:', e instanceof Error ? e.message : e)
+    log.error({ err: e }, '通知移出项目失败')
   }
 }
 
@@ -321,7 +324,7 @@ export async function notifyRoleChange(
 
     await sendFeishuMessage(openId, card)
   } catch (e: unknown) {
-    console.error('通知角色变更失败:', e instanceof Error ? e.message : e)
+    log.error({ err: e }, '通知角色变更失败')
   }
 }
 
@@ -348,7 +351,7 @@ export async function notifyProjectRoleChange(
 
     await sendFeishuMessage(openId, card)
   } catch (e: unknown) {
-    console.error('通知项目角色变更失败:', e instanceof Error ? e.message : e)
+    log.error({ err: e }, '通知项目角色变更失败')
   }
 }
 
@@ -375,6 +378,6 @@ export async function notifyRemoveAssignee(
 
     await sendFeishuMessage(openId, card)
   } catch (e: unknown) {
-    console.error('通知移除编写人失败:', e instanceof Error ? e.message : e)
+    log.error({ err: e }, '通知移除编写人失败')
   }
 }

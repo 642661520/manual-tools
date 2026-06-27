@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import Fastify, { type FastifyRequest, type FastifyReply } from 'fastify'
@@ -9,6 +10,7 @@ import websocket from '@fastify/websocket'
 import multipart from '@fastify/multipart'
 import { initDatabase } from './db/index.js'
 import { config } from './config.js'
+import { getLogger } from './lib/logger.js'
 import { yjsRoutes } from './routes/yjs.js'
 import { authRoutes } from './routes/auth.js'
 import { profileRoutes } from './routes/profile.js'
@@ -22,26 +24,25 @@ import { dataTaskRoutes } from './routes/data-tasks.js'
 import { uploadRoutes } from './routes/upload.js'
 import { todoRoutes } from './routes/todos.js'
 import { cacheRoutes } from './routes/cache.js'
+import { auditRoutes } from './routes/audit.js'
+import { searchRoutes } from './routes/search.js'
+import { aiRoutes } from './routes/ai.js'
+import { diffRoutes } from './routes/diff.js'
+import { logRoutes } from './routes/log.js'
 import { cleanExpiredRemoteCache } from './services/remote-cache.js'
 import { cleanExpiredExportCache } from './services/export-cache.js'
+import { rebuildProjectIndex } from './services/search.js'
 import { verifyToken } from './auth/jwt.js'
 import { getDb } from './db/index.js'
 import { isProjectMember } from './auth/membership.js'
+import { csrfMiddleware } from './lib/csrf.js'
+import { extractToken } from './auth/token.js'
 
 const PORT = config.port
 
 /** 从请求中提取已认证用户，未登录返回 null */
 function extractDocUser(req: FastifyRequest | { headers: Record<string, string | string[] | undefined> }, conn: ReturnType<typeof getDb>): { userId: string; role: string } | null {
-  let token = ''
-  const auth = req.headers.authorization
-  if (auth && typeof auth === 'string' && auth.startsWith('Bearer ')) {
-    token = auth.slice(7)
-  }
-  if (!token) {
-    const cookies = typeof req.headers.cookie === 'string' ? req.headers.cookie : ''
-    const match = cookies.match(/auth_token=([^;]+)/)
-    if (match) token = match[1]
-  }
+  const token = extractToken(req)
   if (!token) return null
 
   try {
@@ -66,7 +67,11 @@ function getAllowedVisibilities(user: { userId: string; role: string } | null, p
 }
 
 async function main() {
-  const app = Fastify({ logger: true, bodyLimit: 500 * 1024 * 1024 })
+  const app = Fastify({
+    loggerInstance: getLogger(),
+    genReqId: () => randomUUID(),
+    bodyLimit: 500 * 1024 * 1024,
+  })
 
   // CORS：开发 + 多域名白名单，同源/curl 请求放行
   await app.register(cors, {
@@ -88,6 +93,25 @@ async function main() {
 
   // 全局限速（auth 路由内部可覆盖为更严格限制）
   await app.register(rateLimit, { max: 200, timeWindow: '1 minute' })
+
+  // CSRF 保护：对所有状态变更请求验证 X-CSRF-Token
+  app.addHook('onRequest', csrfMiddleware)
+
+  // 为请求级日志注入用户上下文
+  app.addHook('onRequest', async (req) => {
+    const conn = getDb()
+    const token = extractToken(req)
+    if (token) {
+      try {
+        const payload = verifyToken(token)
+        const user = conn.prepare('SELECT token_version FROM users WHERE id = ?').get(payload.userId) as { token_version: number } | undefined
+        if (user && user.token_version === payload.tokenVersion) {
+          ;(req as unknown as Record<string, unknown>)._userId = payload.userId
+          ;(req as unknown as Record<string, unknown>)._userRole = payload.role
+        }
+      } catch { /* token 无效，不注入用户上下文 */ }
+    }
+  })
 
   await app.register(websocket)
   const uploadLimit = Math.max(config.uploadMaxSize, config.videoMaxSize) * 1024 * 1024
@@ -120,6 +144,16 @@ async function main() {
   // 启动时清理过期缓存
   cleanExpiredRemoteCache()
   cleanExpiredExportCache()
+
+  // 重建所有项目的搜索索引
+  try {
+    const db = getDb()
+    const projects = db.prepare('SELECT id FROM projects').all() as { id: string }[]
+    for (const p of projects) {
+      rebuildProjectIndex(p.id)
+    }
+    app.log.info({ count: projects.length }, 'search index rebuilt')
+  } catch (e) { app.log.error({ err: e }, '搜索索引重建失败') }
 
   // 静态托管上传文件
   const staticModule = await import('@fastify/static')
@@ -175,6 +209,21 @@ async function main() {
   // 缓存管理路由
   await app.register(cacheRoutes)
 
+  // 审计日志路由
+  await app.register(auditRoutes)
+
+  // 全文搜索路由
+  await app.register(searchRoutes)
+
+  // AI 辅助写作路由
+  await app.register(aiRoutes)
+
+  // 版本对比路由
+  await app.register(diffRoutes)
+
+  // 前端日志上报路由
+  await app.register(logRoutes)
+
   // 文档站点访问控制
   app.addHook('onRequest', async (req, reply) => {
     // 匹配 /docs/{catalogId}/v{major}.{minor}/ 开头的请求
@@ -200,19 +249,8 @@ async function main() {
     // public: 任何人可看
     if (ver.visibility === 'public') return
 
-    // 需要登录：先取 token（优先 header，其次 cookie）
-    let token = ''
-    const auth = req.headers.authorization
-    if (auth && auth.startsWith('Bearer ')) {
-      token = auth.slice(7)
-    }
-    if (!token) {
-      // 从 cookie 读取
-      const cookies = req.headers.cookie || ''
-      const match = cookies.match(/auth_token=([^;]+)/)
-      if (match) token = match[1]
-    }
-
+    // 需要登录：提取 token（统一用 extractToken）
+    const token = extractToken(req)
     let payload: { userId: string; role: string; tokenVersion: number } | null = null
     if (token) {
       try {
@@ -298,8 +336,8 @@ async function main() {
   app.get('/api/health', async () => ({ status: 'ok' }))
 
   // 全局错误处理
-  app.setErrorHandler((error, _request, reply) => {
-    app.log.error(error)
+  app.setErrorHandler((error, request, reply) => {
+    request.log.error({ err: error }, 'unhandled error')
     const statusCode = (error as { statusCode?: number }).statusCode || reply.statusCode || 500
     if (statusCode >= 500) {
       return reply.status(500).send({ ok: false, error: '服务器内部错误' })
@@ -307,11 +345,24 @@ async function main() {
     return reply.status(statusCode).send({ ok: false, error: (error as Error).message || '未知错误' })
   })
 
+  // 请求完成日志
+  app.addHook('onResponse', (req, reply, done) => {
+    const meta = req as unknown as Record<string, unknown>
+    req.log.info({
+      method: req.method,
+      url: req.url,
+      statusCode: reply.statusCode,
+      userId: meta._userId || 'anonymous',
+      responseTime: reply.elapsedTime,
+    }, 'request completed')
+    done()
+  })
+
   try {
     await app.listen({ port: PORT, host: '0.0.0.0' })
-    console.log(`Server running at http://localhost:${PORT}`)
+    app.log.info({ port: PORT }, 'server started')
   } catch (err) {
-    app.log.error(err)
+    app.log.error({ err }, 'server start failed')
     process.exit(1)
   }
 }

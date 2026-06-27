@@ -13,6 +13,9 @@ import MarkdownIt from 'markdown-it'
 import { getOrFetch } from './remote-cache.js'
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import type { ManualResult, HeadingEntry } from '../types.js'
+import { getLogger } from '../lib/logger.js'
+
+const log = getLogger()
 
 // ================ 常量 ========================================================
 
@@ -291,8 +294,7 @@ export async function buildPdf(manual: ManualResult, opts: PdfOptions = {}): Pro
       }
     } catch (outlineErr: unknown) {
       // 书签注入失败不阻塞导出，仅记录日志
-      const msg = outlineErr instanceof Error ? outlineErr.message : String(outlineErr)
-      console.error('PDF outline failed:', msg)
+      log.error({ err: outlineErr }, 'PDF outline failed')
     }
 
     return pdfBuffer

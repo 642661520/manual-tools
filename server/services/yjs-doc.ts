@@ -55,6 +55,10 @@ export function getOrCreateDoc(docId: string): DocState {
       if (origin === 'db-load') return
       persistUpdate(docId, update)
       state!.updateCount++
+      // 达到阈值时自动创建快照
+      if (state!.updateCount >= config.yjsSnapshotThreshold) {
+        createSnapshot(docId)
+      }
     })
   }
   return state
@@ -120,6 +124,9 @@ function persistUpdate(docId: string, update: Uint8Array) {
 
   // 更新文档的 updated_at
   db.prepare("UPDATE documents SET updated_at = datetime('now') WHERE id = ?").run(docId)
+
+  // 去抖后更新全文搜索索引
+  scheduleIndexUpdate(docId, featureId)
 }
 
 // 确保文档记录存在
@@ -168,6 +175,9 @@ export function onUpdate(docId: string, callback: (update: Uint8Array) => void) 
 }
 
 import { config } from '../config.js'
+import { getLogger } from '../lib/logger.js'
+
+const log = getLogger()
 
 // 获取当前 snapshot 阈值
 export function getSnapshotThreshold() {
@@ -192,5 +202,40 @@ export function createSnapshot(docId: string) {
   db.prepare('DELETE FROM document_updates WHERE document_id = ?').run(docId)
   state.updateCount = 0
 
-  console.log(`Snapshot created for ${docId}`)
+  log.info({ docId }, 'snapshot created')
 }
+
+// 搜索索引去抖：合并 5 秒内的连续更新
+const indexTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+function scheduleIndexUpdate(docId: string, featureId: string) {
+  const existing = indexTimers.get(docId)
+  if (existing) clearTimeout(existing)
+  indexTimers.set(docId, setTimeout(async () => {
+    indexTimers.delete(docId)
+    try {
+      const state = docs.get(docId)
+      if (!state) return
+      const db = getDb()
+      const feature = db.prepare('SELECT project_id, title FROM features WHERE id = ?').get(featureId) as { project_id: string; title: string } | undefined
+      if (!feature) return
+      const content = state.doc.getText('content').toString()
+      const { indexDocument } = await import('./search.js')
+      indexDocument(docId, feature.project_id, feature.title, content)
+    } catch { /* 索引更新失败不影响主流程 */ }
+  }, 5000))
+}
+
+// 优雅关闭：为所有内存中的活跃文档创建快照
+function snapshotAllDocs() {
+  for (const docId of docs.keys()) {
+    try {
+      createSnapshot(docId)
+    } catch {
+      // 单个文档快照失败不影响其他文档
+    }
+  }
+}
+
+process.on('SIGTERM', snapshotAllDocs)
+process.on('SIGINT', snapshotAllDocs)

@@ -1,28 +1,9 @@
 import type { FeatureData } from '../../types.js'
 import type { PartMeta } from './shared.js'
-import { escHtml } from './shared.js'
-
-function pad(n: number): string {
-  return String(n).padStart(2, '0')
-}
+import { escHtml, pad, buildFeaturePartMap } from './shared.js'
 
 function isLeafChapter(f: FeatureData): boolean {
   return f.sections.length === 1 && f.sections[0].key === '_default'
-}
-
-/**
- * 构建 featureId → part 映射（用于查询 feature 所属的 part）
- * 始终以 `features` 数组的顺序为准进行编号
- */
-function buildFeaturePartMap(parts: PartMeta[]): Map<string, { title: string; idx: number } | null> {
-  const map = new Map<string, { title: string; idx: number } | null>()
-  for (const part of parts) {
-    for (const fid of part.featureIds) {
-      map.set(fid, { title: part.title, idx: part.idx })
-    }
-  }
-  // 不在任何 Part 中的 feature 设为 null
-  return map
 }
 
 /** 构建侧边栏导航 HTML（支持 Part 分组和跨页链接） */

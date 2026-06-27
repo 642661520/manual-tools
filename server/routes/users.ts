@@ -6,6 +6,7 @@ import { getDb } from '../db/index.js'
 import { v4 as uuid } from 'uuid'
 import { validatePassword } from '../lib/password.js'
 import { notifyRoleChange } from '../services/notifications.js'
+import { recordAudit } from '../services/audit.js'
 import { success, ok, created, fail } from '../lib/response.js'
 
 export async function userRoutes(app: FastifyInstance) {
@@ -54,6 +55,15 @@ export async function userRoutes(app: FastifyInstance) {
     if (!existing) return fail(reply, 404, '用户不存在')
     const oldRole = existing.role
     db.prepare('UPDATE users SET role = ?, token_version = token_version + 1 WHERE id = ?').run(role, id)
+
+    recordAudit({
+      userId: req.user!.userId,
+      username: req.user?.username || '',
+      action: 'user.role_change',
+      targetType: 'user',
+      targetId: id,
+      detail: { oldRole, newRole: role },
+    })
 
     const operator = db.prepare('SELECT display_name FROM users WHERE id = ?').get(req.user!.userId) as { display_name: string } | undefined
     notifyRoleChange(id, oldRole, role, operator?.display_name || '系统管理员')

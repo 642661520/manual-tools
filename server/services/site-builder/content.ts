@@ -1,21 +1,6 @@
 import type { FeatureData } from '../../types.js'
 import type { SitePage, PartMeta } from './shared.js'
-import { escHtml, rewriteCrossLinks } from './shared.js'
-
-function pad(n: number): string {
-  return String(n).padStart(2, '0')
-}
-
-/** 构建 featureId → part 映射 */
-function buildFeaturePartMap(parts: PartMeta[]): Map<string, { title: string; idx: number } | null> {
-  const map = new Map<string, { title: string; idx: number } | null>()
-  for (const part of parts) {
-    for (const fid of part.featureIds) {
-      map.set(fid, { title: part.title, idx: part.idx })
-    }
-  }
-  return map
-}
+import { escHtml, rewriteCrossLinks, pad, buildFeaturePartMap } from './shared.js'
 
 /** 构建封面页 HTML（标题 + TOC） */
 export function buildCoverContentHtml(

@@ -27,6 +27,19 @@ function pad(n: number): string {
   return String(n).padStart(2, '0')
 }
 
+export { pad }
+
+/** 构建 featureId → part 映射 */
+export function buildFeaturePartMap(parts: PartMeta[]): Map<string, { title: string; idx: number } | null> {
+  const map = new Map<string, { title: string; idx: number } | null>()
+  for (const part of parts) {
+    for (const fid of part.featureIds) {
+      map.set(fid, { title: part.title, idx: part.idx })
+    }
+  }
+  return map
+}
+
 /** 改写 HTML 中的交叉引用链接：同章保留 hash，异章改为跨页链接 */
 export function rewriteCrossLinks(html: string, currentCh: number): string {
   return html.replace(/href="#ch(\d+)(-s\d+)?"/g, (_match, chStr: string, secStr?: string) => {
