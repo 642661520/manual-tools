@@ -29,9 +29,9 @@ function collectAllReferencedUploads(): Set<string> {
   const db = getDb()
   const refs = new Set<string>()
 
-  const snapshots = db.prepare(
-    'SELECT snapshot_data FROM document_snapshots ORDER BY id DESC',
-  ).all() as { snapshot_data: Buffer }[]
+  const snapshots = db
+    .prepare('SELECT snapshot_data FROM document_snapshots ORDER BY id DESC')
+    .all() as { snapshot_data: Buffer }[]
 
   for (const s of snapshots) {
     for (const ref of extractUploadRefsFromBlob(s.snapshot_data)) {
@@ -39,9 +39,9 @@ function collectAllReferencedUploads(): Set<string> {
     }
   }
 
-  const updates = db.prepare(
-    'SELECT update_data FROM document_updates',
-  ).all() as { update_data: Buffer }[]
+  const updates = db.prepare('SELECT update_data FROM document_updates').all() as {
+    update_data: Buffer
+  }[]
 
   for (const u of updates) {
     for (const ref of extractUploadRefsFromBlob(u.update_data)) {
@@ -86,7 +86,9 @@ export function getOrphanFiles(): OrphanFile[] {
           size: stat.size,
           mtime: stat.mtime.toISOString(),
         })
-      } catch { /* 文件可能在扫描期间被删除 */ }
+      } catch {
+        /* 文件可能在扫描期间被删除 */
+      }
     }
   }
 
@@ -105,7 +107,9 @@ export function deleteOrphanFiles(): { deleted: number; freedBytes: number } {
       fs.unlinkSync(fullPath)
       deleted++
       freedBytes += orphan.size
-    } catch { /* 删除失败不中断 */ }
+    } catch {
+      /* 删除失败不中断 */
+    }
   }
 
   return { deleted, freedBytes }
@@ -133,14 +137,16 @@ export function getUploadsList(): {
         mtime: stat.mtime.toISOString(),
         referenced: refs.has(file),
       })
-    } catch { /* 文件可能在扫描期间被删除 */ }
+    } catch {
+      /* 文件可能在扫描期间被删除 */
+    }
   }
 
   // 按时间倒序排列
   files.sort((a, b) => new Date(b.mtime).getTime() - new Date(a.mtime).getTime())
 
   const totalSize = files.reduce((sum, f) => sum + f.size, 0)
-  const referencedCount = files.filter(f => f.referenced).length
+  const referencedCount = files.filter((f) => f.referenced).length
   const orphanedCount = files.length - referencedCount
 
   return { files, totalSize, totalCount: files.length, referencedCount, orphanedCount }

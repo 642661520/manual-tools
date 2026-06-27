@@ -24,12 +24,12 @@ const UPLOAD_BASE = config.uploadDir
 
 /** Magic bytes 签名映射表：offset → 期望的字节序列 */
 const MAGIC_SIGNATURES: Record<string, { offset: number; bytes: number[] }> = {
-  'image/png':  { offset: 0, bytes: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A] },
-  'image/jpeg': { offset: 0, bytes: [0xFF, 0xD8, 0xFF] },
-  'image/gif':  { offset: 0, bytes: [0x47, 0x49, 0x46, 0x38] },
+  'image/png': { offset: 0, bytes: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] },
+  'image/jpeg': { offset: 0, bytes: [0xff, 0xd8, 0xff] },
+  'image/gif': { offset: 0, bytes: [0x47, 0x49, 0x46, 0x38] },
   'image/webp': { offset: 8, bytes: [0x57, 0x45, 0x42, 0x50] },
-  'video/mp4':  { offset: 4, bytes: [0x66, 0x74, 0x79, 0x70] },
-  'video/webm': { offset: 0, bytes: [0x1A, 0x45, 0xDF, 0xA3] },
+  'video/mp4': { offset: 4, bytes: [0x66, 0x74, 0x79, 0x70] },
+  'video/webm': { offset: 0, bytes: [0x1a, 0x45, 0xdf, 0xa3] },
 }
 
 /** 校验文件 magic bytes 是否匹配声明的 MIME 类型 */
@@ -49,7 +49,7 @@ async function handleUpload(
   subDir: string,
 ): Promise<{ url: string; filename: string; size: number }> {
   if (!allowedTypes.includes(file.mimetype)) {
-    const names = allowedTypes.map(t => t.split('/')[1].toUpperCase()).join('/')
+    const names = allowedTypes.map((t) => t.split('/')[1].toUpperCase()).join('/')
     throw new Error(`不支持的文件类型: ${file.mimetype}，仅支持 ${names}`)
   }
 
@@ -64,20 +64,23 @@ async function handleUpload(
     throw new Error(`文件类型不匹配：声明为 ${file.mimetype}，但实际内容不符`)
   }
 
-  const dir = join(UPLOAD_BASE, subDir)
-  await mkdir(dir, { recursive: true })
-
   const hash = createHash('sha256').update(buf).digest('hex')
   const ext = extMap[file.mimetype] || '.bin'
   const filename = `${hash}${ext}`
+  const shard = hash.slice(0, 2)
+  const dir = join(UPLOAD_BASE, subDir, shard)
+  await mkdir(dir, { recursive: true })
+
   const filepath = join(dir, filename)
 
-  const exists = await access(filepath).then(() => true).catch(() => false)
+  const exists = await access(filepath)
+    .then(() => true)
+    .catch(() => false)
   if (!exists) {
     await writeFile(filepath, buf)
   }
 
-  return { url: `/uploads/${subDir}/${filename}`, filename, size: buf.length }
+  return { url: `/uploads/${subDir}/${shard}/${filename}`, filename, size: buf.length }
 }
 
 export async function uploadRoutes(app: FastifyInstance) {

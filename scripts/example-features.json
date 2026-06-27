@@ -4,7 +4,11 @@
     "title": "同步回放",
     "description": "实现对水域监控视频的同步回放功能，支持多路视频同时回放",
     "sections": [
-      { "key": "target-track", "title": "目标轨迹回放", "description": "在地图上展示目标的历史轨迹" },
+      {
+        "key": "target-track",
+        "title": "目标轨迹回放",
+        "description": "在地图上展示目标的历史轨迹"
+      },
       { "key": "video", "title": "光电视频回放", "description": "同步播放光电监控视频" },
       { "key": "radar", "title": "雷达回放", "description": "回放雷达扫描数据" },
       { "key": "ais", "title": "AIS 数据回放", "description": "回放 AIS 船舶定位数据" }
@@ -24,7 +28,11 @@
     "title": "光电监视",
     "description": "通过光电设备对水域目标进行实时监视和跟踪",
     "sections": [
-      { "key": "device-control", "title": "设备控制", "description": "光电设备的云台控制和参数设置" },
+      {
+        "key": "device-control",
+        "title": "设备控制",
+        "description": "光电设备的云台控制和参数设置"
+      },
       { "key": "target-tracking", "title": "目标跟踪", "description": "对目标进行自动跟踪和锁定" }
     ]
   },
@@ -34,7 +42,11 @@
     "description": "对出入境船舶进行查验管理，包括证件核验和风险研判",
     "sections": [
       { "key": "cert-verify", "title": "证件核验", "description": "核验船舶和船员证件信息" },
-      { "key": "risk-assessment", "title": "风险研判", "description": "基于多维度数据的风险等级评估" }
+      {
+        "key": "risk-assessment",
+        "title": "风险研判",
+        "description": "基于多维度数据的风险等级评估"
+      }
     ]
   }
 ]

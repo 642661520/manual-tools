@@ -66,59 +66,59 @@
 ```ts
 // 项目
 interface Project {
-  id: string                    // 'default' | uuid
-  name: string                  // '水域监管系统'
+  id: string // 'default' | uuid
+  name: string // '水域监管系统'
   description: string
-  review_chain: string[]        // 审核角色序列，如 ['pm'] 或 ['pm', 'admin']
+  review_chain: string[] // 审核角色序列，如 ['pm'] 或 ['pm', 'admin']
 }
 
 // 分类
 interface Category {
-  id: string                    // uuid
-  name: string                  // '水域监管'
-  color: string                 // '#6366f1'
+  id: string // uuid
+  name: string // '水域监管'
+  color: string // '#6366f1'
   sort_order: number
   project_id: string
 }
 
 // 功能骨架
 interface FeatureSkeleton {
-  id: string                    // 'waterway:sync-replay'  格式 {prefix}:{name}
-  title: string                 // '同步回放'
-  description: string           // 功能描述 + 核心业务逻辑
-  sections: FeatureSection[]    // 必填，至少一项
-  is_custom: boolean            // 代码导入 false，PM 创建 true
-  category_id: string | null    // 所属分类
-  project_id: string            // 所属项目
+  id: string // 'waterway:sync-replay'  格式 {prefix}:{name}
+  title: string // '同步回放'
+  description: string // 功能描述 + 核心业务逻辑
+  sections: FeatureSection[] // 必填，至少一项
+  is_custom: boolean // 代码导入 false，PM 创建 true
+  category_id: string | null // 所属分类
+  project_id: string // 所属项目
 }
 
 interface FeatureSection {
-  key: string                   // 'target-track' → 存储为 {key}.md
-  title: string                 // '目标轨迹回放'
-  description?: string          // 子项提示说明
+  key: string // 'target-track' → 存储为 {key}.md
+  title: string // '目标轨迹回放'
+  description?: string // 子项提示说明
 }
 
 // 目录编排
 interface Catalog {
   id: string
-  title: string                 // '水域版操作手册'
-  targets: string[]             // 对应 BUILD_MODES 的 target
-  features: string[]            // featureId 的有序列表
-  cover_info: Record<string, string>  // 封面信息（subtitle, logo 等）
-  project_id: string            // 所属项目
+  title: string // '水域版操作手册'
+  targets: string[] // 对应 BUILD_MODES 的 target
+  features: string[] // featureId 的有序列表
+  cover_info: Record<string, string> // 封面信息（subtitle, logo 等）
+  project_id: string // 所属项目
 }
 
 // 导出版本快照
 interface CatalogVersion {
   id: string
   catalog_id: string
-  version_major: number         // 主版本号
-  version_minor: number         // 次版本号
+  version_major: number // 主版本号
+  version_minor: number // 次版本号
   title: string
-  features_snapshot: string     // JSON：导出时的 features 快照
-  change_notes: string          // 版本变更说明
-  markdown: string              // 完整 Markdown 内容
-  status_snapshot: string       // JSON：导出时的状态快照
+  features_snapshot: string // JSON：导出时的 features 快照
+  change_notes: string // 版本变更说明
+  markdown: string // 完整 Markdown 内容
+  status_snapshot: string // JSON：导出时的状态快照
   visibility: 'public' | 'login_required' | 'project_members'
   created_at: string
 }
@@ -129,7 +129,7 @@ interface User {
   username: string
   display_name: string
   role: 'pm' | 'ops' | 'guest'
-  token_version: number         // 角色/密码变更时递增，旧 JWT 失效
+  token_version: number // 角色/密码变更时递增，旧 JWT 失效
   feishu_open_id: string | null
   feishu_name: string | null
   feishu_avatar_url: string | null
@@ -215,19 +215,19 @@ manual-tools PM：
 
 以 `feature.id` 为稳定 key，对比导入的 JSON 和现有数据：
 
-| 情况 | 处理 |
-|------|------|
-| 新增（导入有，现有无） | 标记"新增" → 确认后插入 |
-| 修改（两边都有，字段不同） | 标记"已修改" → 展示变更字段 |
-| 缺失（导入无，现有有） | 标记"缺失" → 已有内容则保留为废弃，无内容则删除 |
+| 情况                       | 处理                                            |
+| -------------------------- | ----------------------------------------------- |
+| 新增（导入有，现有无）     | 标记"新增" → 确认后插入                         |
+| 修改（两边都有，字段不同） | 标记"已修改" → 展示变更字段                     |
+| 缺失（导入无，现有有）     | 标记"缺失" → 已有内容则保留为废弃，无内容则删除 |
 
 ### 字段级合并规则
 
-| 字段 | 导入行为 |
-|------|---------|
-| `id`, `title`, `description`, `sections` | **覆盖**（开发者维护） |
-| `category_id` | **保留**（PM 在平台上维护，不受导入影响） |
-| 文档状态、指派、编辑时间 | **保留**（manual-tools 内部维护） |
+| 字段                                     | 导入行为                                  |
+| ---------------------------------------- | ----------------------------------------- |
+| `id`, `title`, `description`, `sections` | **覆盖**（开发者维护）                    |
+| `category_id`                            | **保留**（PM 在平台上维护，不受导入影响） |
+| 文档状态、指派、编辑时间                 | **保留**（manual-tools 内部维护）         |
 
 ### 骨架变更后的 section 同步
 
@@ -242,15 +242,18 @@ manual-tools PM：
 骨架移除了某个 section 后，其对应的 Y.js 文档不会自动删除，而是标记为"游离"状态：
 
 **编辑器中的展示**：
+
 - 游离 section 在左侧骨架进度树中显示为灰色删除线 + `⚠ 游离` 标记
 - 内容仍可查看和编辑，但标题旁有提示"此章节已从骨架中移除"
 - PM 可在编辑器中手动将游离内容合并到其他 section，然后删除
 
 **导出行为**：
+
 - 默认不参与导出（游离内容不出现在 PDF 中）
 - Catalog 设置中可勾选"包含游离章节"（PM 临时恢复导出用）
 
 **清理**：
+
 - 功能列表页有"清理游离内容"入口，列出所有游离 section，PM 可批量删除
 - 骨架导入时，若 PM 在 diff 确认中选了"删除骨架和内容"，则一并清理对应游离文档
 
@@ -331,14 +334,14 @@ snapshot₁ → update₁ → update₂ → update₃ → snapshot₂ → update
 
 ### 状态定义
 
-| 状态 | 含义 | 判定方式 |
-|------|------|---------|
-| `draft` | 还没人动过 | 系统自动（Y.js 文档为空） |
-| `in_progress` | 有编辑内容 | 系统自动（Y.js 文档有内容） |
-| `completed` | 运维认为完成 | 运维手动标记 |
-| `pending_review` | 提交审核 | 运维提交后自动进入 |
-| `approved` | 审核通过 | PM 审核通过 |
-| `rejected` | 审核驳回 | PM 驳回，附审核意见 |
+| 状态             | 含义         | 判定方式                    |
+| ---------------- | ------------ | --------------------------- |
+| `draft`          | 还没人动过   | 系统自动（Y.js 文档为空）   |
+| `in_progress`    | 有编辑内容   | 系统自动（Y.js 文档有内容） |
+| `completed`      | 运维认为完成 | 运维手动标记                |
+| `pending_review` | 提交审核     | 运维提交后自动进入          |
+| `approved`       | 审核通过     | PM 审核通过                 |
+| `rejected`       | 审核驳回     | PM 驳回，附审核意见         |
 
 ### 审核链（Review Chain）
 
@@ -346,8 +349,20 @@ snapshot₁ → update₁ → update₂ → update₃ → snapshot₂ → update
 
 ```json
 [
-  { "action": "approved", "reviewerId": "user1", "note": "内容无误", "step": 0, "created_at": "..." },
-  { "action": "rejected", "reviewerId": "user2", "note": "需补充截图", "step": 1, "created_at": "..." }
+  {
+    "action": "approved",
+    "reviewerId": "user1",
+    "note": "内容无误",
+    "step": 0,
+    "created_at": "..."
+  },
+  {
+    "action": "rejected",
+    "reviewerId": "user2",
+    "note": "需补充截图",
+    "step": 1,
+    "created_at": "..."
+  }
 ]
 ```
 
@@ -383,14 +398,14 @@ PM 创建：   custom:faq                （custom:xxx）
 
 ### 属性对比
 
-| | 代码功能 | 自定义功能 |
-|------|---------|-----------|
-| 来源 | 代码导入 | manual-tools 创建 |
-| 骨架可编辑 | 否，以导入为准 | 是，PM 可编辑删除 |
-| sections | 开发者定义，导入时覆盖 | PM 自由增删改，可拖拽排序 |
-| 分类 | PM 手动分配 | PM 自由分配 |
-| 删除 | 导入缺失时提示 | PM 随时删除（含内容） |
-| catalog 中显示 | 按分类分组 | 与代码功能混合显示 |
+|                | 代码功能               | 自定义功能                |
+| -------------- | ---------------------- | ------------------------- |
+| 来源           | 代码导入               | manual-tools 创建         |
+| 骨架可编辑     | 否，以导入为准         | 是，PM 可编辑删除         |
+| sections       | 开发者定义，导入时覆盖 | PM 自由增删改，可拖拽排序 |
+| 分类           | PM 手动分配            | PM 自由分配               |
+| 删除           | 导入缺失时提示         | PM 随时删除（含内容）     |
+| catalog 中显示 | 按分类分组             | 与代码功能混合显示        |
 
 ---
 
@@ -454,11 +469,11 @@ Catalogs:
 
 两种方式：
 
-| 方式 | 场景 | 说明 |
-|------|------|------|
-| 从 catalog 导出 PDF | 日常 | 复用编排，一键导出 |
+| 方式                | 场景 | 说明                               |
+| ------------------- | ---- | ---------------------------------- |
+| 从 catalog 导出 PDF | 日常 | 复用编排，一键导出                 |
 | 从 catalog 发布站点 | 分发 | 生成静态站点，支持 visibility 控制 |
-| 快速导出 | 临时 | 选功能 → 排序 → 导出，不保存编排 |
+| 快速导出            | 临时 | 选功能 → 排序 → 导出，不保存编排   |
 
 ---
 
@@ -505,6 +520,7 @@ Fastify 服务：
 ### 未完成 section 处理
 
 Catalog 设置中可选：
+
 - **跳过**：未完成的 section 不出现
 - **占位**：显示"（本章节暂未编写）"
 
@@ -514,27 +530,27 @@ Catalog 设置中可选：
 
 ### 前端
 
-| 层 | 选择 |
-|------|------|
-| 框架 | Vue 3 + Vite |
-| UI | UnoCSS（不引入组件库） |
+| 层     | 选择                                   |
+| ------ | -------------------------------------- |
+| 框架   | Vue 3 + Vite                           |
+| UI     | UnoCSS（不引入组件库）                 |
 | 编辑器 | TipTap（ProseMirror 内核 + Y.js 绑定） |
-| 路由 | Vue Router |
-| 拖拽 | @vueuse/integrations + sortablejs |
-| 图标 | lucide-vue-next |
+| 路由   | Vue Router                             |
+| 拖拽   | @vueuse/integrations + sortablejs      |
+| 图标   | lucide-vue-next                        |
 
 ### 后端
 
-| 层 | 选择 |
-|------|------|
-| 运行时 | Node.js 20+ |
-| 框架 | Fastify |
-| WebSocket | y-websocket |
-| 数据库 | better-sqlite3 + Drizzle ORM |
-| Markdown 渲染 | markdown-it |
-| PDF 导出 | Puppeteer（puppeteer-core + 系统 Chromium）+ pdf-lib |
-| 认证 | JWT（含 token_version）+ 飞书 OAuth |
-| 通知 | 飞书机器人消息推送 |
+| 层            | 选择                                                 |
+| ------------- | ---------------------------------------------------- |
+| 运行时        | Node.js 20+                                          |
+| 框架          | Fastify                                              |
+| WebSocket     | y-websocket                                          |
+| 数据库        | better-sqlite3 + Drizzle ORM                         |
+| Markdown 渲染 | markdown-it                                          |
+| PDF 导出      | Puppeteer（puppeteer-core + 系统 Chromium）+ pdf-lib |
+| 认证          | JWT（含 token_version）+ 飞书 OAuth                  |
+| 通知          | 飞书机器人消息推送                                   |
 
 ### 项目结构
 
@@ -651,15 +667,15 @@ manual-tools/
 
 ### 核心页面
 
-| 页面 | 路由 | 功能 | 权限 |
-|------|------|------|------|
-| 功能列表 | `/features` | 骨架管理、状态总览、导入导出、按项目过滤 | 所有人可见，PM 可编辑 |
-| 编辑器 | `/features/:id/edit` | 左侧骨架（只读）+ 右侧 TipTap 编辑 | 指派人 + PM 可编辑 |
-| 目录编排 | `/catalogs/:id` | 左侧可选功能 + 右侧拖拽编排，按项目过滤 | PM 专属 |
-| 手册预览 | `/preview/:id` | 完整手册渲染、PDF 导出、版本发布 | PM 专属 |
-| 设置 | `/settings` | 项目管理（CRUD）+ 用户管理 | PM 专属 |
-| 个人资料 | `/profile` | 当前用户信息 + 飞书绑定 | 已登录 |
-| 待办 | `/todos` | 我的待办文档汇总 | 已登录 |
+| 页面     | 路由                 | 功能                                     | 权限                  |
+| -------- | -------------------- | ---------------------------------------- | --------------------- |
+| 功能列表 | `/features`          | 骨架管理、状态总览、导入导出、按项目过滤 | 所有人可见，PM 可编辑 |
+| 编辑器   | `/features/:id/edit` | 左侧骨架（只读）+ 右侧 TipTap 编辑       | 指派人 + PM 可编辑    |
+| 目录编排 | `/catalogs/:id`      | 左侧可选功能 + 右侧拖拽编排，按项目过滤  | PM 专属               |
+| 手册预览 | `/preview/:id`       | 完整手册渲染、PDF 导出、版本发布         | PM 专属               |
+| 设置     | `/settings`          | 项目管理（CRUD）+ 用户管理               | PM 专属               |
+| 个人资料 | `/profile`           | 当前用户信息 + 飞书绑定                  | 已登录                |
+| 待办     | `/todos`             | 我的待办文档汇总                         | 已登录                |
 
 ---
 
@@ -710,28 +726,28 @@ manual-tools/
 
 ### 角色定义
 
-| 角色 | 来源 | 判定方式 |
-|------|------|---------|
-| PM | 飞书通讯录部门 / 管理员指定 | 先查配置名单 → 再按部门映射 |
-| 运维 | 飞书通讯录部门 / 默认 | 同上 |
-| 访客 | 管理员指定 | 只读访问，仅查看已发布文档 |
-| 开发 | 不需要登录 manual-tools | 在项目源码中维护 features.ts |
+| 角色 | 来源                        | 判定方式                     |
+| ---- | --------------------------- | ---------------------------- |
+| PM   | 飞书通讯录部门 / 管理员指定 | 先查配置名单 → 再按部门映射  |
+| 运维 | 飞书通讯录部门 / 默认       | 同上                         |
+| 访客 | 管理员指定                  | 只读访问，仅查看已发布文档   |
+| 开发 | 不需要登录 manual-tools     | 在项目源码中维护 features.ts |
 
 ### 权限矩阵
 
-| 操作 | 运维 | PM | 访客 |
-|------|------|-----|------|
-| 查看功能列表 | ✅ | ✅ | ✅ |
-| 编辑自己指派的功能 | ✅ | ✅ | ❌ |
-| 编辑他人指派的功能 | 只读 | ✅ | ❌ |
-| 导入骨架 | ❌ | ✅ | ❌ |
-| 新增/编辑/删除自定义功能 | ❌ | ✅ | ❌ |
-| 管理分类 | ❌ | ✅ | ❌ |
-| 创建/编辑/删除 catalog | ❌ | ✅ | ❌ |
-| 审核通过/驳回（改状态） | ❌ | ✅ | ❌ |
-| 导出 PDF / 发布站点 | ❌ | ✅ | ❌ |
-| 导出备份 | ❌ | ✅ | ❌ |
-| 查看已发布站点 | ✅ | ✅ | ✅ |
+| 操作                     | 运维 | PM  | 访客 |
+| ------------------------ | ---- | --- | ---- |
+| 查看功能列表             | ✅   | ✅  | ✅   |
+| 编辑自己指派的功能       | ✅   | ✅  | ❌   |
+| 编辑他人指派的功能       | 只读 | ✅  | ❌   |
+| 导入骨架                 | ❌   | ✅  | ❌   |
+| 新增/编辑/删除自定义功能 | ❌   | ✅  | ❌   |
+| 管理分类                 | ❌   | ✅  | ❌   |
+| 创建/编辑/删除 catalog   | ❌   | ✅  | ❌   |
+| 审核通过/驳回（改状态）  | ❌   | ✅  | ❌   |
+| 导出 PDF / 发布站点      | ❌   | ✅  | ❌   |
+| 导出备份                 | ❌   | ✅  | ❌   |
+| 查看已发布站点           | ✅   | ✅  | ✅   |
 
 ---
 
@@ -788,7 +804,7 @@ services:
     container_name: manual-tools
     build: .
     ports:
-      - "3000:3000"
+      - '3000:3000'
     volumes:
       - ./data:/app/data
     environment:
@@ -817,10 +833,10 @@ docker compose up -d --force-recreate
 
 ### 两层机制
 
-| 方式 | 触发 | 存储位置 | 用途 |
-|------|------|---------|------|
-| 定时自动 | Host cron 每天凌晨 | 服务器本地 + 异地（rsync NAS） | 灾难恢复 |
-| 网页手动 | PM 点击"导出备份" | PM 浏览器下载 .zip | 临时导出、本地留档 |
+| 方式     | 触发               | 存储位置                       | 用途               |
+| -------- | ------------------ | ------------------------------ | ------------------ |
+| 定时自动 | Host cron 每天凌晨 | 服务器本地 + 异地（rsync NAS） | 灾难恢复           |
+| 网页手动 | PM 点击"导出备份"  | PM 浏览器下载 .zip             | 临时导出、本地留档 |
 
 ### 自动备份
 
@@ -847,6 +863,7 @@ find "$BACKUP_DIR" -mtime +30 -delete
 ```
 
 Host cron：
+
 ```bash
 0 2 * * * docker exec manual-tools /app/scripts/backup.sh >> /var/log/manual-backup.log 2>&1
 ```
@@ -873,25 +890,25 @@ docker compose up -d
 
 ## 十五、实施顺序
 
-| 序号 | 步骤 | 状态 |
-|------|------|------|
-| 1 | 新建 manual-tools 仓库 + 项目骨架 | ✅ 完成 |
-| 2 | SQLite + Drizzle schema（projects, categories, features, documents, catalogs, catalog_versions, users, project_members） | ✅ 完成 |
-| 3 | y-websocket + TipTap 编辑器 | ✅ 完成 |
-| 4 | 占位认证（AUTH_MODE=dev） | ✅ 完成 |
-| 5 | 功能列表页 + 骨架导入（diff 确认） | ✅ 完成 |
-| 6 | 目录编排器（拖拽） | ✅ 完成 |
-| 7 | 手册预览 + Puppeteer PDF 导出 | ✅ 完成 |
-| 8 | 飞书 OAuth 登录 + 角色判定 + 本地账号降级 | ✅ 完成 |
-| 9 | 多项目支持 | ✅ 完成 |
-| 10 | Y.js 快照合并策略实现 | ✅ 完成 |
-| 11 | 备份系统（定时 + 手动） | ✅ 完成 |
-| 12 | Docker 部署脚本 | ✅ 完成 |
-| 13 | 前端组件提取（16 个通用组件） | ✅ 完成 |
-| 14 | TypeScript 严格模式 + ESLint（零 any） | ✅ 完成 |
-| 15 | 分类系统（categories 替代 module） | ✅ 完成 |
-| 16 | 审核链 + 状态流转（pending_review, rejected） | ✅ 完成 |
-| 17 | 飞书通知集成 | ✅ 完成 |
-| 18 | 静态站点发布 + visibility 访问控制 | ✅ 完成 |
-| 19 | 编辑器增强（查找替换/颜色/全屏/待办/对齐/视频等） | ✅ 完成 |
-| 20 | 交叉引用 + 光标持久化 | ✅ 完成 |
+| 序号 | 步骤                                                                                                                     | 状态    |
+| ---- | ------------------------------------------------------------------------------------------------------------------------ | ------- |
+| 1    | 新建 manual-tools 仓库 + 项目骨架                                                                                        | ✅ 完成 |
+| 2    | SQLite + Drizzle schema（projects, categories, features, documents, catalogs, catalog_versions, users, project_members） | ✅ 完成 |
+| 3    | y-websocket + TipTap 编辑器                                                                                              | ✅ 完成 |
+| 4    | 占位认证（AUTH_MODE=dev）                                                                                                | ✅ 完成 |
+| 5    | 功能列表页 + 骨架导入（diff 确认）                                                                                       | ✅ 完成 |
+| 6    | 目录编排器（拖拽）                                                                                                       | ✅ 完成 |
+| 7    | 手册预览 + Puppeteer PDF 导出                                                                                            | ✅ 完成 |
+| 8    | 飞书 OAuth 登录 + 角色判定 + 本地账号降级                                                                                | ✅ 完成 |
+| 9    | 多项目支持                                                                                                               | ✅ 完成 |
+| 10   | Y.js 快照合并策略实现                                                                                                    | ✅ 完成 |
+| 11   | 备份系统（定时 + 手动）                                                                                                  | ✅ 完成 |
+| 12   | Docker 部署脚本                                                                                                          | ✅ 完成 |
+| 13   | 前端组件提取（16 个通用组件）                                                                                            | ✅ 完成 |
+| 14   | TypeScript 严格模式 + ESLint（零 any）                                                                                   | ✅ 完成 |
+| 15   | 分类系统（categories 替代 module）                                                                                       | ✅ 完成 |
+| 16   | 审核链 + 状态流转（pending_review, rejected）                                                                            | ✅ 完成 |
+| 17   | 飞书通知集成                                                                                                             | ✅ 完成 |
+| 18   | 静态站点发布 + visibility 访问控制                                                                                       | ✅ 完成 |
+| 19   | 编辑器增强（查找替换/颜色/全屏/待办/对齐/视频等）                                                                        | ✅ 完成 |
+| 20   | 交叉引用 + 光标持久化                                                                                                    | ✅ 完成 |

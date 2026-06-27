@@ -15,9 +15,9 @@ const ROLE_HIERARCHY: Record<string, number> = {
 export function isProjectMember(userId: string, role: string, projectId: string): boolean {
   if (role === 'admin') return true
   const db = getDb()
-  const row = db.prepare(
-    'SELECT 1 FROM project_members WHERE project_id = ? AND user_id = ?',
-  ).get(projectId, userId)
+  const row = db
+    .prepare('SELECT 1 FROM project_members WHERE project_id = ? AND user_id = ?')
+    .get(projectId, userId)
   return !!row
 }
 
@@ -32,7 +32,9 @@ export function assertCatalogMember(
   userId: string,
   role: string,
 ): { projectId: string } | null {
-  const meta = db.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(catalogId) as { project_id: string } | undefined
+  const meta = db.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(catalogId) as
+    | { project_id: string }
+    | undefined
   if (!meta) return null
   if (!isProjectMember(userId, role, meta.project_id)) return null
   return { projectId: meta.project_id }
@@ -51,9 +53,9 @@ export function hasProjectRole(
 ): boolean {
   if (systemRole === 'admin') return true
   const db = getDb()
-  const row = db.prepare(
-    'SELECT role FROM project_members WHERE project_id = ? AND user_id = ?',
-  ).get(projectId, userId) as { role: string } | undefined
+  const row = db
+    .prepare('SELECT role FROM project_members WHERE project_id = ? AND user_id = ?')
+    .get(projectId, userId) as { role: string } | undefined
   if (!row) return false
   return (ROLE_HIERARCHY[row.role] || 0) >= (ROLE_HIERARCHY[minRole] || 0)
 }
@@ -66,8 +68,8 @@ export function hasProjectRole(
 export function isExplicitMember(userId: string, role: string, projectId: string): boolean {
   if (role === 'admin') return true
   const db = getDb()
-  const row = db.prepare(
-    'SELECT 1 FROM project_members WHERE project_id = ? AND user_id = ?',
-  ).get(projectId, userId)
+  const row = db
+    .prepare('SELECT 1 FROM project_members WHERE project_id = ? AND user_id = ?')
+    .get(projectId, userId)
   return !!row
 }

@@ -28,20 +28,24 @@ export async function todoRoutes(app: FastifyInstance) {
     // 查询项目下的文档
     let docs: (DocumentRow & { feature_title: string; feature_project_id: string })[]
     if (projectId) {
-      docs = db.prepare(`
+      docs = db
+        .prepare(`
         SELECT d.*, f.title as feature_title, f.project_id as feature_project_id
         FROM documents d
         JOIN features f ON f.id = d.feature_id
         WHERE f.project_id = ?
         ORDER BY f.title, d.section_key
-      `).all(projectId) as (DocumentRow & { feature_title: string; feature_project_id: string })[]
+      `)
+        .all(projectId) as (DocumentRow & { feature_title: string; feature_project_id: string })[]
     } else {
-      docs = db.prepare(`
+      docs = db
+        .prepare(`
         SELECT d.*, f.title as feature_title, f.project_id as feature_project_id
         FROM documents d
         JOIN features f ON f.id = d.feature_id
         ORDER BY f.title, d.section_key
-      `).all() as (DocumentRow & { feature_title: string; feature_project_id: string })[]
+      `)
+        .all() as (DocumentRow & { feature_title: string; feature_project_id: string })[]
     }
 
     // 缓存 feature sections
@@ -50,10 +54,15 @@ export async function todoRoutes(app: FastifyInstance) {
     function getSectionTitle(featureId: string, sectionKey: string): string {
       if (sectionKey === '_default') return '正文'
       if (!sectionCache.has(featureId)) {
-        const f = db.prepare('SELECT sections FROM features WHERE id = ?').get(featureId) as { sections: string } | undefined
-        sectionCache.set(featureId, f ? (JSON.parse(f.sections || '[]') as { key: string; title: string }[]) : [])
+        const f = db.prepare('SELECT sections FROM features WHERE id = ?').get(featureId) as
+          | { sections: string }
+          | undefined
+        sectionCache.set(
+          featureId,
+          f ? (JSON.parse(f.sections || '[]') as { key: string; title: string }[]) : [],
+        )
       }
-      const sec = sectionCache.get(featureId)!.find(s => s.key === sectionKey)
+      const sec = sectionCache.get(featureId)!.find((s) => s.key === sectionKey)
       return sec ? sec.title : sectionKey
     }
 
@@ -62,18 +71,28 @@ export async function todoRoutes(app: FastifyInstance) {
 
     function getReviewerAtStep(projectId: string, step: number): string | null {
       if (!reviewChainCache.has(projectId)) {
-        const project = db.prepare('SELECT review_chain FROM projects WHERE id = ?').get(projectId) as { review_chain: string } | undefined
+        const project = db
+          .prepare('SELECT review_chain FROM projects WHERE id = ?')
+          .get(projectId) as { review_chain: string } | undefined
         if (project) {
-          try { reviewChainCache.set(projectId, JSON.parse(project.review_chain || '[]') as string[]) }
-          catch { reviewChainCache.set(projectId, []) }
+          try {
+            reviewChainCache.set(projectId, JSON.parse(project.review_chain || '[]') as string[])
+          } catch {
+            reviewChainCache.set(projectId, [])
+          }
         } else {
           // fallback: 项目所有 PM（查 project_members.role = 'pm'）
-          const pms = db.prepare(`
+          const pms = db
+            .prepare(`
             SELECT u.id FROM users u
             JOIN project_members pm ON u.id = pm.user_id
             WHERE pm.project_id = ? AND pm.role = 'pm'
-          `).all(projectId) as { id: string }[]
-          reviewChainCache.set(projectId, pms.map(p => p.id))
+          `)
+            .all(projectId) as { id: string }[]
+          reviewChainCache.set(
+            projectId,
+            pms.map((p) => p.id),
+          )
         }
       }
       const chain = reviewChainCache.get(projectId)!
@@ -119,7 +138,9 @@ export async function todoRoutes(app: FastifyInstance) {
             }
           }
         }
-      } catch { /* ignore malformed JSON */ }
+      } catch {
+        /* ignore malformed JSON */
+      }
     }
 
     return success(todos)

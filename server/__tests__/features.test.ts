@@ -14,25 +14,34 @@ let featureId: string
 beforeAll(async () => {
   app = await buildTestApp()
   const loginRes = await app.inject({
-    method: 'POST', url: '/api/v1/auth/login',
+    method: 'POST',
+    url: '/api/v1/auth/login',
     payload: { username: 'admin', password: 'admin123' },
   })
   adminToken = loginRes.json().data.token
 
   const projRes = await app.inject({
-    method: 'POST', url: '/api/v1/projects',
+    method: 'POST',
+    url: '/api/v1/projects',
     headers: { authorization: `Bearer ${adminToken}` },
     payload: { name: `__test_${PREFIX}_proj`, description: 'test' },
   })
   projectId = projRes.json().data.id
 
   await app.inject({
-    method: 'POST', url: '/api/v1/auth/users',
+    method: 'POST',
+    url: '/api/v1/auth/users',
     headers: { authorization: `Bearer ${adminToken}` },
-    payload: { username: `__test_${PREFIX}_mbr`, displayName: 'T', password: 'TestPass1!', role: 'member' },
+    payload: {
+      username: `__test_${PREFIX}_mbr`,
+      displayName: 'T',
+      password: 'TestPass1!',
+      role: 'member',
+    },
   })
   const mbrLogin = await app.inject({
-    method: 'POST', url: '/api/v1/auth/login',
+    method: 'POST',
+    url: '/api/v1/auth/login',
     payload: { username: `__test_${PREFIX}_mbr`, password: 'TestPass1!' },
   })
   memberToken = mbrLogin.json().data.token
@@ -46,7 +55,8 @@ afterAll(async () => {
 describe('Feature CRUD', () => {
   it('可创建 feature', async () => {
     const res = await app.inject({
-      method: 'POST', url: '/api/v1/features',
+      method: 'POST',
+      url: '/api/v1/features',
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         title: '__test_feature_a',
@@ -62,16 +72,18 @@ describe('Feature CRUD', () => {
 
   it('可更新 feature', async () => {
     const res = await app.inject({
-      method: 'PUT', url: `/api/v1/features/${featureId}`,
+      method: 'PUT',
+      url: `/api/v1/features/${featureId}`,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
-        ...await getFeatureData(featureId),
+        ...(await getFeatureData(featureId)),
         title: '__test_feature_a_updated',
       },
     })
     async function getFeatureData(id: string) {
       const r = await app.inject({
-        method: 'GET', url: `/api/v1/features/${id}`,
+        method: 'GET',
+        url: `/api/v1/features/${id}`,
         headers: { authorization: `Bearer ${adminToken}` },
       })
       return r.json().data
@@ -81,7 +93,8 @@ describe('Feature CRUD', () => {
 
   it('可按项目过滤 features', async () => {
     const res = await app.inject({
-      method: 'GET', url: `/api/v1/features?projectId=${projectId}`,
+      method: 'GET',
+      url: `/api/v1/features?projectId=${projectId}`,
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(res.statusCode).toBe(200)
@@ -90,7 +103,8 @@ describe('Feature CRUD', () => {
 
   it('未登录无法访问', async () => {
     const res = await app.inject({
-      method: 'GET', url: '/api/v1/features',
+      method: 'GET',
+      url: '/api/v1/features',
     })
     expect(res.statusCode).toBe(401)
   })
@@ -99,7 +113,8 @@ describe('Feature CRUD', () => {
 describe('Feature 状态流转', () => {
   it('可提交审核', async () => {
     const res = await app.inject({
-      method: 'PUT', url: `/api/v1/features/${featureId}/sections/_default/status`,
+      method: 'PUT',
+      url: `/api/v1/features/${featureId}/sections/_default/status`,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: { status: 'pending_review' },
     })
@@ -109,7 +124,8 @@ describe('Feature 状态流转', () => {
 
   it('无效状态返回 400', async () => {
     const res = await app.inject({
-      method: 'PUT', url: `/api/v1/features/${featureId}/sections/_default/status`,
+      method: 'PUT',
+      url: `/api/v1/features/${featureId}/sections/_default/status`,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: { status: 'invalid_status' },
     })
@@ -120,7 +136,8 @@ describe('Feature 状态流转', () => {
 
   it('非 PM 不可审核通过', async () => {
     const res = await app.inject({
-      method: 'PUT', url: `/api/v1/features/${featureId}/sections/_default/status`,
+      method: 'PUT',
+      url: `/api/v1/features/${featureId}/sections/_default/status`,
       headers: { authorization: `Bearer ${memberToken}` },
       payload: { status: 'approved' },
     })

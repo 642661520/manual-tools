@@ -19,14 +19,17 @@ export async function logRoutes(app: FastifyInstance) {
 
     const userId = (req as unknown as Record<string, unknown>)._userId || 'anonymous'
 
-    log.warn({
-      type: 'frontend-error',
-      message: body.message,
-      stack: body.stack,
-      url: body.url,
-      userAgent: body.userAgent,
-      userId,
-    }, '前端错误上报')
+    log.warn(
+      {
+        type: 'frontend-error',
+        message: body.message,
+        stack: body.stack,
+        url: body.url,
+        userAgent: body.userAgent,
+        userId,
+      },
+      '前端错误上报',
+    )
 
     return reply.send({ ok: true })
   })

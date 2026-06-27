@@ -58,7 +58,8 @@ const actions = [
 
     <div class="grid grid-cols-2 gap-2" :class="{ 'opacity-50 pointer-events-none': loading }">
       <button
-        v-for="a in actions" :key="a.key"
+        v-for="a in actions"
+        :key="a.key"
         class="flex flex-col items-center gap-0.5 p-2 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
         @click="run(a.key)"
       >
@@ -76,7 +77,11 @@ const actions = [
 
     <div v-if="result" class="flex-1 flex flex-col min-h-0">
       <div class="text-xs text-gray-400 mb-1">结果：</div>
-      <div class="flex-1 overflow-y-auto bg-gray-50 rounded p-2 text-sm text-gray-700 whitespace-pre-wrap">{{ result }}</div>
+      <div
+        class="flex-1 overflow-y-auto bg-gray-50 rounded p-2 text-sm text-gray-700 whitespace-pre-wrap"
+      >
+        {{ result }}
+      </div>
       <div class="flex gap-2 mt-2">
         <button class="btn-primary text-xs flex-1" @click="accept">
           <span class="i-lucide-check w-3.5 h-3.5 inline-block align-middle mr-1" />替换

@@ -6,7 +6,13 @@ import { useProject } from '@/composables/useProject'
 import { useAuth } from '@/composables/useAuth'
 import { useDialog } from '@/composables/useDialog'
 import { getFeatures } from '@/api/endpoints/features'
-import { getCatalogs, getCatalog, createCatalog, updateCatalog, deleteCatalog as apiDeleteCatalog } from '@/api/endpoints/catalogs'
+import {
+  getCatalogs,
+  getCatalog,
+  createCatalog,
+  updateCatalog,
+  deleteCatalog as apiDeleteCatalog,
+} from '@/api/endpoints/catalogs'
 import { getCategories } from '@/api/endpoints/categories'
 import type { FeatureSummary, CategoryInfo, CatalogInfo, CatalogEntry } from '@shared/types'
 import { parseSections } from '@shared/utils/sections'
@@ -16,7 +22,7 @@ interface CatFeature {
   id: string
   title: string
   description: string
-  sections: string   // JSON string
+  sections: string // JSON string
   categoryId: string | null
   totalSections?: number
   approvedSections?: number
@@ -105,7 +111,10 @@ const poolMenuX = ref(0)
 const poolMenuY = ref(0)
 
 function openMoveMenu(e: MouseEvent, featureId: string) {
-  if (movingFeatureId.value === featureId) { movingFeatureId.value = null; return }
+  if (movingFeatureId.value === featureId) {
+    movingFeatureId.value = null
+    return
+  }
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
   moveMenuX.value = rect.left
   moveMenuY.value = rect.bottom + 4
@@ -113,7 +122,10 @@ function openMoveMenu(e: MouseEvent, featureId: string) {
 }
 
 function openPoolMoveMenu(e: MouseEvent, f: FeatureSummary) {
-  if (movingPoolFeature.value?.id === f.id) { movingPoolFeature.value = null; return }
+  if (movingPoolFeature.value?.id === f.id) {
+    movingPoolFeature.value = null
+    return
+  }
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
   poolMenuX.value = rect.right
   poolMenuY.value = rect.top
@@ -129,7 +141,9 @@ function getSections(f: { sections?: string }): { key: string; title: string }[]
 function getOrderedSections(entry: CatEntry): { key: string; title: string }[] {
   const raw = getSections(entry.feature)
   if (entry.sectionOrder) {
-    return entry.sectionOrder.map((k: string) => raw.find(s => s.key === k)).filter(Boolean) as typeof raw
+    return entry.sectionOrder
+      .map((k: string) => raw.find((s) => s.key === k))
+      .filter(Boolean) as typeof raw
   }
   return raw
 }
@@ -139,7 +153,7 @@ function getRemovedSections(entry: CatEntry): { key: string; title: string }[] {
   const all = getSections(entry.feature)
   if (!entry.sectionOrder) return []
   const inOrder = new Set(entry.sectionOrder)
-  return all.filter(s => !inOrder.has(s.key))
+  return all.filter((s) => !inOrder.has(s.key))
 }
 
 const categoryInfo = computed(() => {
@@ -150,9 +164,7 @@ const categoryInfo = computed(() => {
   return map
 })
 
-const categoryMap = computed(() =>
-  new Map(categories.value.map(c => [c.id, c.name]))
-)
+const categoryMap = computed(() => new Map(categories.value.map((c) => [c.id, c.name])))
 
 // 收集所有已选中的 feature id
 const selectedFeatureIds = computed(() => {
@@ -172,8 +184,10 @@ const filteredFeatures = computed(() => {
   const q = searchQuery.value.toLowerCase()
   return allFeatures.value.filter((f: FeatureSummary) => {
     const catName = f.categoryId ? categoryMap.value.get(f.categoryId) || '' : ''
-    return !selectedFeatureIds.value.has(f.id) &&
+    return (
+      !selectedFeatureIds.value.has(f.id) &&
       (!q || f.title.toLowerCase().includes(q) || catName.toLowerCase().includes(q))
+    )
   })
 })
 
@@ -189,7 +203,9 @@ const grouped = computed(() => {
 
   // 保持分类顺序，未分类放最后
   const sorted: Record<string, FeatureSummary[]> = {}
-  const catOrder = [...categories.value].sort((a: CategoryInfo, b: CategoryInfo) => a.sortOrder - b.sortOrder)
+  const catOrder = [...categories.value].sort(
+    (a: CategoryInfo, b: CategoryInfo) => a.sortOrder - b.sortOrder,
+  )
   for (const c of catOrder) {
     if (groups[c.id]) sorted[c.id] = groups[c.id]
   }
@@ -213,7 +229,7 @@ async function loadData() {
 
   if (!isNew.value) {
     try {
-      const data = await getCatalog(catalogIdVal) as unknown as CatalogResponse
+      const data = (await getCatalog(catalogIdVal)) as unknown as CatalogResponse
       function parseNode(node: CatalogResponseNode): CatNode {
         if ((node as CatalogResponsePart).type === 'part') {
           const p = node as CatalogResponsePart
@@ -266,9 +282,13 @@ function addFeature(f: FeatureSummary) {
   const sectionsStr = typeof f.sections === 'string' ? f.sections : JSON.stringify(f.sections || [])
   catalog.value.entries.push({
     feature: {
-      id: f.id, title: f.title, description: f.description,
-      sections: sectionsStr, categoryId: f.categoryId,
-      totalSections: f.totalSections, approvedSections: f.approvedSections,
+      id: f.id,
+      title: f.title,
+      description: f.description,
+      sections: sectionsStr,
+      categoryId: f.categoryId,
+      totalSections: f.totalSections,
+      approvedSections: f.approvedSections,
     },
   })
   dirty.value = true
@@ -276,13 +296,15 @@ function addFeature(f: FeatureSummary) {
   nextTick(() => {
     const el = sortList.value?.querySelector(`[data-entry-id="${f.id}"]`)
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-    setTimeout(() => { highlightedId.value = null }, 1500)
+    setTimeout(() => {
+      highlightedId.value = null
+    }, 1500)
   })
 }
 
 // 添加 Part
 function addPart() {
-  const partCount = catalog.value.entries.filter(e => isPart(e)).length + 1
+  const partCount = catalog.value.entries.filter((e) => isPart(e)).length + 1
   catalog.value.entries.push({
     type: 'part',
     id: `part-${Date.now()}`,
@@ -304,7 +326,7 @@ function removePart(index: number) {
 
 // 向 Part 内添加 feature
 function addFeatureToPart(targetPartId: string, f: FeatureSummary) {
-  const node = catalog.value.entries.find(e => isPart(e) && (e as CatPart).id === targetPartId)
+  const node = catalog.value.entries.find((e) => isPart(e) && (e as CatPart).id === targetPartId)
   if (!node || !isPart(node)) return
   const sectionsStr = typeof f.sections === 'string' ? f.sections : JSON.stringify(f.sections || [])
   node.features.push({
@@ -323,7 +345,9 @@ function addFeatureToPart(targetPartId: string, f: FeatureSummary) {
   nextTick(() => {
     const el = sortList.value?.querySelector(`[data-entry-id="${f.id}"]`)
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-    setTimeout(() => { highlightedId.value = null }, 1500)
+    setTimeout(() => {
+      highlightedId.value = null
+    }, 1500)
   })
 }
 
@@ -347,7 +371,7 @@ function removeFeature(entryIndex: number) {
 }
 
 async function deleteCatalog(id: string) {
-  if (!await dangerConfirm('确定删除此目录？\n导出版本历史也将被删除，不可恢复。')) return
+  if (!(await dangerConfirm('确定删除此目录？\n导出版本历史也将被删除，不可恢复。'))) return
   await apiDeleteCatalog(id)
   catalogList.value = catalogList.value.filter((c: CatalogInfo) => c.id !== id)
   // 如果删除的是当前目录，跳转到新建
@@ -365,9 +389,10 @@ function toggleExpand(index: number) {
 function updateSectionOrder(entryIndex: number, newOrder: string[]) {
   const entry = catalog.value.entries[entryIndex]
   if (isPart(entry)) return
-  const defaultOrder = getSections(entry.feature).map(s => s.key)
+  const defaultOrder = getSections(entry.feature).map((s) => s.key)
   // 只有顺序跟默认不同时才保存
-  const isSame = newOrder.length === defaultOrder.length && newOrder.every((k, i) => k === defaultOrder[i])
+  const isSame =
+    newOrder.length === defaultOrder.length && newOrder.every((k, i) => k === defaultOrder[i])
   entry.sectionOrder = isSame ? undefined : newOrder
   if (!isSame) dirty.value = true
 }
@@ -377,8 +402,9 @@ function updateSectionOrderInPart(partIndex: number, featIndex: number, newOrder
   const node = catalog.value.entries[partIndex]
   if (!isPart(node)) return
   const entry = node.features[featIndex]
-  const defaultOrder = getSections(entry.feature).map(s => s.key)
-  const isSame = newOrder.length === defaultOrder.length && newOrder.every((k, i) => k === defaultOrder[i])
+  const defaultOrder = getSections(entry.feature).map((s) => s.key)
+  const isSame =
+    newOrder.length === defaultOrder.length && newOrder.every((k, i) => k === defaultOrder[i])
   entry.sectionOrder = isSame ? undefined : newOrder
   if (!isSame) dirty.value = true
 }
@@ -387,9 +413,13 @@ function updateSectionOrderInPart(partIndex: number, featIndex: number, newOrder
 async function removeSection(entryIndex: number, sectionKey: string) {
   const entry = catalog.value.entries[entryIndex]
   if (isPart(entry)) return
-  const current = getOrderedSections(entry).map(s => s.key)
-  if (current.length <= 1 && !await confirm('这是最后一个小节，确定移除？\n移除后该章节在目录中将没有可见内容。')) return
-  const filtered = current.filter(k => k !== sectionKey)
+  const current = getOrderedSections(entry).map((s) => s.key)
+  if (
+    current.length <= 1 &&
+    !(await confirm('这是最后一个小节，确定移除？\n移除后该章节在目录中将没有可见内容。'))
+  )
+    return
+  const filtered = current.filter((k) => k !== sectionKey)
   updateSectionOrder(entryIndex, filtered)
   dirty.value = true
 }
@@ -398,7 +428,7 @@ async function removeSection(entryIndex: number, sectionKey: string) {
 function restoreSection(entryIndex: number, sectionKey: string) {
   const entry = catalog.value.entries[entryIndex]
   if (isPart(entry)) return
-  const current = entry.sectionOrder || getSections(entry.feature).map(s => s.key)
+  const current = entry.sectionOrder || getSections(entry.feature).map((s) => s.key)
   entry.sectionOrder = [...current, sectionKey]
   dirty.value = true
 }
@@ -408,9 +438,13 @@ async function removeSectionInPart(partIndex: number, featIndex: number, section
   const node = catalog.value.entries[partIndex]
   if (!isPart(node)) return
   const entry = node.features[featIndex]
-  const current = getOrderedSections(entry).map(s => s.key)
-  if (current.length <= 1 && !await confirm('这是最后一个小节，确定移除？\n移除后该章节在目录中将没有可见内容。')) return
-  const filtered = current.filter(k => k !== sectionKey)
+  const current = getOrderedSections(entry).map((s) => s.key)
+  if (
+    current.length <= 1 &&
+    !(await confirm('这是最后一个小节，确定移除？\n移除后该章节在目录中将没有可见内容。'))
+  )
+    return
+  const filtered = current.filter((k) => k !== sectionKey)
   updateSectionOrderInPart(partIndex, featIndex, filtered)
   dirty.value = true
 }
@@ -420,7 +454,7 @@ function restoreSectionInPart(partIndex: number, featIndex: number, sectionKey: 
   const node = catalog.value.entries[partIndex]
   if (!isPart(node)) return
   const entry = node.features[featIndex]
-  const current = entry.sectionOrder || getSections(entry.feature).map(s => s.key)
+  const current = entry.sectionOrder || getSections(entry.feature).map((s) => s.key)
   entry.sectionOrder = [...current, sectionKey]
   dirty.value = true
 }
@@ -468,7 +502,9 @@ async function save() {
       await updateCatalog(catalogId.value, payload)
       dirty.value = false
       saveSuccess.value = true
-      setTimeout(() => { saveSuccess.value = false }, 2000)
+      setTimeout(() => {
+        saveSuccess.value = false
+      }, 2000)
       await loadData()
       await nextTick()
       initAllSorts()
@@ -491,7 +527,7 @@ watch(catalogId, () => {
 
 async function switchCatalog(id: string | number | null) {
   if (!id || id === catalogId.value) return
-  if (dirty.value && !await confirm('有未保存的更改，确定切换？')) return
+  if (dirty.value && !(await confirm('有未保存的更改，确定切换？'))) return
   router.push(`/catalogs/${id}`)
 }
 
@@ -501,10 +537,15 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
   }
 }
 
-watch(() => catalog.value.title, () => { if (!loading.value) dirty.value = true })
+watch(
+  () => catalog.value.title,
+  () => {
+    if (!loading.value) dirty.value = true
+  },
+)
 
 onBeforeRouteLeave(async () => {
-  if (dirty.value && !await confirm('有未保存的更改，确定离开？')) return false
+  if (dirty.value && !(await confirm('有未保存的更改，确定离开？'))) return false
 })
 
 onMounted(() => {
@@ -587,18 +628,29 @@ function onPartDragLeave(e: DragEvent) {
 
 function onPartDrop(e: DragEvent) {
   const el = (e.currentTarget as HTMLElement).closest('.part-drop-target') as HTMLElement | null
-  if (el) { el.dataset.dragCount = '0'; el.classList.remove('bg-indigo-50') }
+  if (el) {
+    el.dataset.dragCount = '0'
+    el.classList.remove('bg-indigo-50')
+  }
   const targetPartId = el?.dataset.partId
   if (!targetPartId) return
   const featureId = e.dataTransfer?.getData('text/plain')
   if (!featureId) return
   const f = allFeatures.value.find((x: FeatureSummary) => x.id === featureId)
   if (!f) return
-  const node = catalog.value.entries.find(e => isPart(e) && (e as CatPart).id === targetPartId)
+  const node = catalog.value.entries.find((e) => isPart(e) && (e as CatPart).id === targetPartId)
   if (!node || !isPart(node)) return
   const sectionsStr = typeof f.sections === 'string' ? f.sections : JSON.stringify(f.sections || [])
   node.features.push({
-    feature: { id: f.id, title: f.title, description: f.description, sections: sectionsStr, categoryId: f.categoryId, totalSections: f.totalSections, approvedSections: f.approvedSections },
+    feature: {
+      id: f.id,
+      title: f.title,
+      description: f.description,
+      sections: sectionsStr,
+      categoryId: f.categoryId,
+      totalSections: f.totalSections,
+      approvedSections: f.approvedSections,
+    },
   })
   dirty.value = true
   nextTick(() => initAllSorts())
@@ -612,21 +664,29 @@ function moveFeatureToPart(featureId: string, targetPartId: string) {
   const n = catalog.value.entries[src.entryIndex]
   if (!n || isPart(n)) return
   const [moved] = catalog.value.entries.splice(src.entryIndex, 1) as unknown as CatEntry[]
-  const targetNode = catalog.value.entries.find(e => isPart(e) && (e as CatPart).id === targetPartId)
-  if (!targetNode || !isPart(targetNode)) { catalog.value.entries.push(moved) }
-  else { targetNode.features.push(moved) }
+  const targetNode = catalog.value.entries.find(
+    (e) => isPart(e) && (e as CatPart).id === targetPartId,
+  )
+  if (!targetNode || !isPart(targetNode)) {
+    catalog.value.entries.push(moved)
+  } else {
+    targetNode.features.push(moved)
+  }
   expandedIndex.value = null
   dirty.value = true
   nextTick(() => initAllSorts())
 }
 
 /** 在数据模型中查找 featureId */
-function findEntryById(featureId: string): { type: 'main' | 'part'; entryIndex: number; featIndex?: number } | null {
+function findEntryById(
+  featureId: string,
+): { type: 'main' | 'part'; entryIndex: number; featIndex?: number } | null {
   for (let i = 0; i < catalog.value.entries.length; i++) {
     const node = catalog.value.entries[i]
     if (isPart(node)) {
       for (let j = 0; j < node.features.length; j++) {
-        if (node.features[j].feature.id === featureId) return { type: 'part', entryIndex: i, featIndex: j }
+        if (node.features[j].feature.id === featureId)
+          return { type: 'part', entryIndex: i, featIndex: j }
       }
     } else if (node.feature.id === featureId) return { type: 'main', entryIndex: i }
   }
@@ -656,7 +716,7 @@ function initSort() {
 
 function initPartSorts() {
   const containers = sortList.value?.querySelectorAll<HTMLElement>('.part-features-sort')
-  containers?.forEach(container => {
+  containers?.forEach((container) => {
     const el = container as SortableElement
     if (el._sortable) el._sortable.destroy()
     const partId = (container.closest('.part-drop-target') as HTMLElement | null)?.dataset.partId
@@ -667,7 +727,7 @@ function initPartSorts() {
       ghostClass: 'bg-blue-50',
       onEnd(evt) {
         if (evt.oldIndex === undefined || evt.newIndex === undefined) return
-        const node = catalog.value.entries.find(e => isPart(e) && (e as CatPart).id === partId)
+        const node = catalog.value.entries.find((e) => isPart(e) && (e as CatPart).id === partId)
         if (!node || !isPart(node)) return
         const [moved] = node.features.splice(evt.oldIndex, 1)
         node.features.splice(evt.newIndex, 0, moved)
@@ -687,7 +747,7 @@ function initAllSorts() {
 
 function initSectionSorts() {
   const areas = sortList.value?.querySelectorAll<HTMLElement>('.section-sort-area')
-  areas?.forEach(area => {
+  areas?.forEach((area) => {
     const el = area as SortableElement
     if (el._sortable) el._sortable.destroy()
     const featureId = area.dataset.featureId
@@ -713,9 +773,10 @@ function initSectionSorts() {
         const ordered = getOrderedSections(entry)
         const [moved] = ordered.splice(evt.oldIndex, 1)
         ordered.splice(evt.newIndex, 0, moved)
-        const defaultOrder = getSections(entry.feature).map(s => s.key)
-        const newOrder = ordered.map(s => s.key)
-        const isSame = newOrder.length === defaultOrder.length && newOrder.every((k, i) => k === defaultOrder[i])
+        const defaultOrder = getSections(entry.feature).map((s) => s.key)
+        const newOrder = ordered.map((s) => s.key)
+        const isSame =
+          newOrder.length === defaultOrder.length && newOrder.every((k, i) => k === defaultOrder[i])
         entry.sectionOrder = isSame ? undefined : newOrder
         dirty.value = true
       },
@@ -730,10 +791,13 @@ onMounted(async () => {
 })
 
 // 目录内容变化时重建拖拽
-watch(() => catalog.value.entries.length, async () => {
-  await nextTick()
-  initAllSorts()
-})
+watch(
+  () => catalog.value.entries.length,
+  async () => {
+    await nextTick()
+    initAllSorts()
+  },
+)
 
 watch(currentProjectId, () => {
   loadData().then(() => {
@@ -756,38 +820,69 @@ watch(currentProjectId, () => {
           v-if="catalogList.length > 0"
           width-class="w-48"
           :model-value="isNew ? '' : catalogId"
-          :options="catalogList.map(c => ({ value: c.id, label: c.title }))"
+          :options="catalogList.map((c) => ({ value: c.id, label: c.title }))"
           placeholder="选择目录"
           @update:model-value="switchCatalog"
         />
         <span class="text-xs text-gray-400 flex-shrink-0">{{ catalogList.length }} 个目录</span>
-        <button v-if="canManageProject && !isNew" class="btn-secondary text-sm px-2 py-1.5" v-tooltip="'新建目录'" @click="router.push('/catalogs/new')"><span class="i-lucide-plus w-4 h-4 inline-block align-middle" /></button>
-        <button v-if="canManageProject && !isNew" class="btn-secondary text-sm px-2 py-1.5 text-red-400 hover:text-red-600" v-tooltip="'删除目录'" @click="deleteCatalog(catalogId)"><span class="i-lucide-trash-2 w-4 h-4 inline-block align-middle" /></button>
+        <button
+          v-if="canManageProject && !isNew"
+          class="btn-secondary text-sm px-2 py-1.5"
+          v-tooltip="'新建目录'"
+          @click="router.push('/catalogs/new')"
+        >
+          <span class="i-lucide-plus w-4 h-4 inline-block align-middle" />
+        </button>
+        <button
+          v-if="canManageProject && !isNew"
+          class="btn-secondary text-sm px-2 py-1.5 text-red-400 hover:text-red-600"
+          v-tooltip="'删除目录'"
+          @click="deleteCatalog(catalogId)"
+        >
+          <span class="i-lucide-trash-2 w-4 h-4 inline-block align-middle" />
+        </button>
         <div class="w-px h-5 bg-gray-200" />
-        <input v-model="catalog.title" class="text-lg font-semibold bg-transparent border-none outline-none min-w-0" placeholder="目录名称" :readonly="!canManageProject" />
+        <input
+          v-model="catalog.title"
+          class="text-lg font-semibold bg-transparent border-none outline-none min-w-0"
+          placeholder="目录名称"
+          :readonly="!canManageProject"
+        />
       </template>
       <template #right>
-        <span v-if="dirty" class="text-xs text-amber-500 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-amber-400" />未保存</span>
+        <span v-if="dirty" class="text-xs text-amber-500 flex items-center gap-1"
+          ><span class="w-1.5 h-1.5 rounded-full bg-amber-400" />未保存</span
+        >
         <ErrorMessage :message="saveError" />
-        <span v-if="saveSuccess" class="text-xs text-green-600 flex items-center gap-1"><span class="i-lucide-check w-3.5 h-3.5 inline-block align-middle" />已保存</span>
-        <button class="btn-primary text-sm" v-if="canManageProject" :disabled="saving" @click="save">{{ saving ? '保存中...' : '保存' }}</button>
+        <span v-if="saveSuccess" class="text-xs text-green-600 flex items-center gap-1"
+          ><span class="i-lucide-check w-3.5 h-3.5 inline-block align-middle" />已保存</span
+        >
+        <button
+          class="btn-primary text-sm"
+          v-if="canManageProject"
+          :disabled="saving"
+          @click="save"
+        >
+          {{ saving ? '保存中...' : '保存' }}
+        </button>
       </template>
     </PageHeader>
 
     <div class="flex-1 flex overflow-hidden">
       <!-- 左侧：可选章节（仅 PM 可编辑） -->
-      <aside v-if="canManageProject" class="w-72 border-r border-gray-200 bg-white flex-shrink-0 flex flex-col">
+      <aside
+        v-if="canManageProject"
+        class="w-72 border-r border-gray-200 bg-white flex-shrink-0 flex flex-col"
+      >
         <div class="p-4 flex-shrink-0">
-          <input
-            v-model="searchQuery"
-            class="input text-sm"
-            placeholder="搜索章节..."
-          />
+          <input v-model="searchQuery" class="input text-sm" placeholder="搜索章节..." />
         </div>
 
         <div class="flex-1 overflow-y-auto px-4 pb-3">
           <template v-for="(items, catId) in grouped" :key="catId">
-            <div class="text-xs font-semibold text-gray-400 uppercase mb-2 mt-3 flex items-center gap-1.5 left-pool-header">
+            <div
+              class="text-xs font-semibold text-gray-400 uppercase mb-2 mt-3 flex items-center gap-1.5 left-pool-header"
+            >
               <span
                 v-if="catId !== '__uncategorized__' && categoryInfo.has(catId)"
                 class="w-2 h-2 rounded-full flex-shrink-0"
@@ -813,7 +908,7 @@ watch(currentProjectId, () => {
                   {{ f.approvedSections ?? 0 }}/{{ f.totalSections }}
                 </span>
               </button>
-              <div v-if="catalog.entries.some(e => isPart(e))" class="relative flex-shrink-0">
+              <div v-if="catalog.entries.some((e) => isPart(e))" class="relative flex-shrink-0">
                 <button
                   class="text-gray-300 hover:text-indigo-500 px-1 py-2 transition-colors"
                   v-tooltip="'添加到篇'"
@@ -830,11 +925,7 @@ watch(currentProjectId, () => {
       </aside>
 
       <!-- 右侧：已编排内容 -->
-      <main
-        class="flex-1 overflow-y-auto bg-gray-50 p-6"
-        @dragover="onDragOver"
-        @drop="onDrop"
-      >
+      <main class="flex-1 overflow-y-auto bg-gray-50 p-6" @dragover="onDragOver" @drop="onDrop">
         <!-- 添加部分按钮 -->
         <div v-if="canManageProject" class="mb-3 max-w-3xl">
           <button class="btn-secondary text-sm" @click="addPart">
@@ -852,7 +943,10 @@ watch(currentProjectId, () => {
             <span class="text-sm">从左侧拖入或点击章节添加到目录</span>
           </div>
 
-          <template v-for="(node, ni) in catalog.entries" :key="isPart(node) ? node.id : node.feature.id">
+          <template
+            v-for="(node, ni) in catalog.entries"
+            :key="isPart(node) ? node.id : node.feature.id"
+          >
             <!-- ====== Part 容器 ====== -->
             <div
               v-if="isPart(node)"
@@ -865,15 +959,24 @@ watch(currentProjectId, () => {
               @drop.stop.prevent="onPartDrop($event)"
             >
               <div class="flex items-center gap-3 px-4 py-3 bg-indigo-50/50">
-                <div v-if="canManageProject" class="drag-handle cursor-grab text-gray-300 hover:text-gray-500"><span class="i-lucide-grip-vertical w-4 h-4 inline-block align-middle" /></div>
-                <span class="i-lucide-book-open text-indigo-400 w-4 h-4 inline-block align-middle flex-shrink-0" />
+                <div
+                  v-if="canManageProject"
+                  class="drag-handle cursor-grab text-gray-300 hover:text-gray-500"
+                >
+                  <span class="i-lucide-grip-vertical w-4 h-4 inline-block align-middle" />
+                </div>
+                <span
+                  class="i-lucide-book-open text-indigo-400 w-4 h-4 inline-block align-middle flex-shrink-0"
+                />
                 <input
                   v-model="node.title"
                   class="flex-1 text-sm font-semibold bg-transparent border-none outline-none text-gray-800"
                   placeholder="篇名称"
                   @input="dirty = true"
                 />
-                <span class="text-xs text-gray-400 flex-shrink-0">{{ node.features.length }} 个章节</span>
+                <span class="text-xs text-gray-400 flex-shrink-0"
+                  >{{ node.features.length }} 个章节</span
+                >
                 <button
                   v-if="canManageProject"
                   class="text-red-400 hover:text-red-600 text-sm flex-shrink-0"
@@ -885,8 +988,20 @@ watch(currentProjectId, () => {
               </div>
 
               <!-- Part 内的 features（始终渲染以支持 SortableJS group 空容器拖入） -->
-              <div class="part-features-sort border-t border-gray-100" :class="{ 'min-h-[40px]': node.features.length === 0 }">
-                <div v-if="node.features.length === 0" class="px-4 py-3 text-xs text-gray-400 text-center">拖入左侧章节，或点击左侧章节的 <span class="i-lucide-book-plus w-3 h-3 inline-block align-middle text-indigo-400" /> 按钮添加到此处</div>
+              <div
+                class="part-features-sort border-t border-gray-100"
+                :class="{ 'min-h-[40px]': node.features.length === 0 }"
+              >
+                <div
+                  v-if="node.features.length === 0"
+                  class="px-4 py-3 text-xs text-gray-400 text-center"
+                >
+                  拖入左侧章节，或点击左侧章节的
+                  <span
+                    class="i-lucide-book-plus w-3 h-3 inline-block align-middle text-indigo-400"
+                  />
+                  按钮添加到此处
+                </div>
                 <div
                   v-for="(fe, fi) in node.features"
                   :key="fe.feature.id"
@@ -894,13 +1009,39 @@ watch(currentProjectId, () => {
                   class="border-b border-gray-50 last:border-b-0"
                   :class="{ 'highlight-new': highlightedId === fe.feature.id }"
                 >
-                  <div class="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-50" @click="toggleExpand(ni * 10000 + fi)">
-                    <div v-if="canManageProject" class="part-feat-drag cursor-grab text-gray-300 hover:text-gray-500 flex-shrink-0"><span class="i-lucide-grip-vertical w-3.5 h-3.5 inline-block align-middle" /></div>
-                    <span class="text-xs font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{{ getGlobalFeatNum(ni, fi) }}</span>
-                    <span :class="expandedIndex === ni * 10000 + fi ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'" class="w-3.5 h-3.5 text-gray-400 inline-block align-middle flex-shrink-0" />
+                  <div
+                    class="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-50"
+                    @click="toggleExpand(ni * 10000 + fi)"
+                  >
+                    <div
+                      v-if="canManageProject"
+                      class="part-feat-drag cursor-grab text-gray-300 hover:text-gray-500 flex-shrink-0"
+                    >
+                      <span class="i-lucide-grip-vertical w-3.5 h-3.5 inline-block align-middle" />
+                    </div>
+                    <span
+                      class="text-xs font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded"
+                      >{{ getGlobalFeatNum(ni, fi) }}</span
+                    >
+                    <span
+                      :class="
+                        expandedIndex === ni * 10000 + fi
+                          ? 'i-lucide-chevron-down'
+                          : 'i-lucide-chevron-right'
+                      "
+                      class="w-3.5 h-3.5 text-gray-400 inline-block align-middle flex-shrink-0"
+                    />
                     <div class="flex-1 min-w-0">
                       <span class="text-sm text-gray-800">{{ fe.feature.title }}</span>
-                      <span v-if="fe.feature.totalSections" class="text-xs ml-1.5" :class="(fe.feature.approvedSections ?? 0) === (fe.feature.totalSections ?? 0) ? 'text-green-500' : 'text-gray-400'">
+                      <span
+                        v-if="fe.feature.totalSections"
+                        class="text-xs ml-1.5"
+                        :class="
+                          (fe.feature.approvedSections ?? 0) === (fe.feature.totalSections ?? 0)
+                            ? 'text-green-500'
+                            : 'text-gray-400'
+                        "
+                      >
                         ✓{{ fe.feature.approvedSections ?? 0 }}/{{ fe.feature.totalSections }}
                       </span>
                     </div>
@@ -915,19 +1056,30 @@ watch(currentProjectId, () => {
                   </div>
 
                   <!-- 展开的 section 排序 -->
-                  <div v-if="expandedIndex === ni * 10000 + fi" class="border-t border-gray-100 bg-gray-50 px-4 py-2">
-                    <div v-if="canManageProject" class="text-xs text-gray-400 mb-2">小节排序（拖拽调整，点击 × 移除）</div>
-                    <div
-                      class="section-sort-area space-y-1"
-                      :data-feature-id="fe.feature.id"
-                    >
+                  <div
+                    v-if="expandedIndex === ni * 10000 + fi"
+                    class="border-t border-gray-100 bg-gray-50 px-4 py-2"
+                  >
+                    <div v-if="canManageProject" class="text-xs text-gray-400 mb-2">
+                      小节排序（拖拽调整，点击 × 移除）
+                    </div>
+                    <div class="section-sort-area space-y-1" :data-feature-id="fe.feature.id">
                       <div
                         v-for="(sec, si) in getOrderedSections(fe)"
                         :key="sec.key"
                         class="flex items-center gap-2 text-sm bg-white px-3 py-1.5 rounded border border-gray-100 group"
                       >
-                        <div v-if="canManageProject" class="section-drag-handle cursor-grab text-gray-300 hover:text-gray-500"><span class="i-lucide-grip-vertical w-3.5 h-3.5 inline-block align-middle" /></div>
-                        <span class="text-gray-400 font-mono text-xs">{{ getGlobalFeatNum(ni, fi) }}.{{ si + 1 }}</span>
+                        <div
+                          v-if="canManageProject"
+                          class="section-drag-handle cursor-grab text-gray-300 hover:text-gray-500"
+                        >
+                          <span
+                            class="i-lucide-grip-vertical w-3.5 h-3.5 inline-block align-middle"
+                          />
+                        </div>
+                        <span class="text-gray-400 font-mono text-xs"
+                          >{{ getGlobalFeatNum(ni, fi) }}.{{ si + 1 }}</span
+                        >
                         <span class="text-gray-700 flex-1">{{ sec.title }}</span>
                         <button
                           v-if="canManageProject"
@@ -972,28 +1124,65 @@ watch(currentProjectId, () => {
               class="card !p-0 overflow-hidden"
               :class="{ 'highlight-new': highlightedId === node.feature.id }"
             >
-              <div class="flex items-center gap-3 px-4 py-3 cursor-pointer" @click="toggleExpand(ni)">
-                <div v-if="canManageProject" class="drag-handle cursor-grab text-gray-300 hover:text-gray-500 flex-shrink-0"><span class="i-lucide-grip-vertical w-4 h-4 inline-block align-middle" /></div>
-                <span class="text-sm font-mono text-gray-400 bg-gray-100 px-2 py-0.5 rounded">{{ getGlobalFeatNum(ni) }}</span>
-                <span :class="expandedIndex === ni ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'" class="w-4 h-4 text-gray-400 inline-block align-middle flex-shrink-0" />
+              <div
+                class="flex items-center gap-3 px-4 py-3 cursor-pointer"
+                @click="toggleExpand(ni)"
+              >
+                <div
+                  v-if="canManageProject"
+                  class="drag-handle cursor-grab text-gray-300 hover:text-gray-500 flex-shrink-0"
+                >
+                  <span class="i-lucide-grip-vertical w-4 h-4 inline-block align-middle" />
+                </div>
+                <span class="text-sm font-mono text-gray-400 bg-gray-100 px-2 py-0.5 rounded">{{
+                  getGlobalFeatNum(ni)
+                }}</span>
+                <span
+                  :class="expandedIndex === ni ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
+                  class="w-4 h-4 text-gray-400 inline-block align-middle flex-shrink-0"
+                />
                 <div class="flex-1 min-w-0">
                   <div class="font-medium text-gray-900 text-sm flex items-center gap-2">
                     {{ node.feature.title }}
-                    <span v-if="node.feature.totalSections" class="text-xs font-normal" :class="(node.feature.approvedSections ?? 0) === (node.feature.totalSections ?? 0) ? 'text-green-500' : 'text-gray-400'">
+                    <span
+                      v-if="node.feature.totalSections"
+                      class="text-xs font-normal"
+                      :class="
+                        (node.feature.approvedSections ?? 0) === (node.feature.totalSections ?? 0)
+                          ? 'text-green-500'
+                          : 'text-gray-400'
+                      "
+                    >
                       ✓{{ node.feature.approvedSections ?? 0 }}/{{ node.feature.totalSections }}
                     </span>
                     <span
                       v-if="node.feature.categoryId && categoryInfo.has(node.feature.categoryId)"
                       class="text-xs font-normal px-1.5 py-0.5 rounded-full flex items-center gap-1"
-                      :style="{ backgroundColor: categoryInfo.get(node.feature.categoryId)!.color + '18', color: categoryInfo.get(node.feature.categoryId)!.color }"
+                      :style="{
+                        backgroundColor: categoryInfo.get(node.feature.categoryId)!.color + '18',
+                        color: categoryInfo.get(node.feature.categoryId)!.color,
+                      }"
                     >
-                      <span class="w-1.5 h-1.5 rounded-full" :style="{ backgroundColor: categoryInfo.get(node.feature.categoryId)!.color }" />
+                      <span
+                        class="w-1.5 h-1.5 rounded-full"
+                        :style="{
+                          backgroundColor: categoryInfo.get(node.feature.categoryId)!.color,
+                        }"
+                      />
                       {{ categoryInfo.get(node.feature.categoryId)!.name }}
                     </span>
                   </div>
-                  <div v-if="node.feature.description" class="text-xs text-gray-400 truncate mt-0.5">{{ node.feature.description }}</div>
+                  <div
+                    v-if="node.feature.description"
+                    class="text-xs text-gray-400 truncate mt-0.5"
+                  >
+                    {{ node.feature.description }}
+                  </div>
                 </div>
-                <div class="relative" v-if="canManageProject && catalog.entries.some(e => isPart(e))">
+                <div
+                  class="relative"
+                  v-if="canManageProject && catalog.entries.some((e) => isPart(e))"
+                >
                   <button
                     class="text-gray-300 hover:text-indigo-500 text-xs px-1.5 py-1 rounded"
                     v-tooltip="'移至篇'"
@@ -1002,7 +1191,11 @@ watch(currentProjectId, () => {
                     <span class="i-lucide-log-in w-3.5 h-3.5 inline-block align-middle" />
                   </button>
                   <Teleport to="body">
-                    <div v-if="movingFeatureId === node.feature.id" class="fixed inset-0 z-40" @click="movingFeatureId = null">
+                    <div
+                      v-if="movingFeatureId === node.feature.id"
+                      class="fixed inset-0 z-40"
+                      @click="movingFeatureId = null"
+                    >
                       <div
                         class="absolute bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[160px]"
                         :style="{ top: `${moveMenuY}px`, left: `${moveMenuX}px` }"
@@ -1014,34 +1207,52 @@ watch(currentProjectId, () => {
                           :key="isPart(en) ? en.id : ''"
                           v-show="isPart(en)"
                           class="w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 flex items-center gap-2"
-                          @click.stop="moveFeatureToPart(node.feature.id, (en as CatPart).id); movingFeatureId = null"
+                          @click.stop="
+                            moveFeatureToPart(node.feature.id, (en as CatPart).id)
+                            movingFeatureId = null
+                          "
                         >
-                          <span class="i-lucide-book-open w-3.5 h-3.5 inline-block align-middle text-indigo-400" />
+                          <span
+                            class="i-lucide-book-open w-3.5 h-3.5 inline-block align-middle text-indigo-400"
+                          />
                           {{ (en as CatPart).title || '未命名篇' }}
                         </button>
                       </div>
                     </div>
                   </Teleport>
                 </div>
-                <button v-if="canManageProject" class="text-red-400 hover:text-red-600 text-sm" @click.stop="removeFeature(ni)">
+                <button
+                  v-if="canManageProject"
+                  class="text-red-400 hover:text-red-600 text-sm"
+                  @click.stop="removeFeature(ni)"
+                >
                   <span class="i-lucide-x w-4 h-4 inline-block align-middle" />
                 </button>
               </div>
 
               <!-- 展开的 section 排序 -->
-              <div v-if="expandedIndex === ni" class="border-t border-gray-100 bg-gray-50 px-4 py-2">
-                <div v-if="canManageProject" class="text-xs text-gray-400 mb-2">小节排序（拖拽调整，点击 × 移除）</div>
-                <div
-                  class="section-sort-area space-y-1"
-                  :data-feature-id="node.feature.id"
-                >
+              <div
+                v-if="expandedIndex === ni"
+                class="border-t border-gray-100 bg-gray-50 px-4 py-2"
+              >
+                <div v-if="canManageProject" class="text-xs text-gray-400 mb-2">
+                  小节排序（拖拽调整，点击 × 移除）
+                </div>
+                <div class="section-sort-area space-y-1" :data-feature-id="node.feature.id">
                   <div
                     v-for="(sec, si) in getOrderedSections(node)"
                     :key="sec.key"
                     class="flex items-center gap-2 text-sm bg-white px-3 py-1.5 rounded border border-gray-100 group"
                   >
-                    <div v-if="canManageProject" class="section-drag-handle cursor-grab text-gray-300 hover:text-gray-500"><span class="i-lucide-grip-vertical w-3.5 h-3.5 inline-block align-middle" /></div>
-                    <span class="text-gray-400 font-mono text-xs">{{ getGlobalFeatNum(ni) }}.{{ si + 1 }}</span>
+                    <div
+                      v-if="canManageProject"
+                      class="section-drag-handle cursor-grab text-gray-300 hover:text-gray-500"
+                    >
+                      <span class="i-lucide-grip-vertical w-3.5 h-3.5 inline-block align-middle" />
+                    </div>
+                    <span class="text-gray-400 font-mono text-xs"
+                      >{{ getGlobalFeatNum(ni) }}.{{ si + 1 }}</span
+                    >
                     <span class="text-gray-700 flex-1">{{ sec.title }}</span>
                     <button
                       v-if="canManageProject"
@@ -1096,7 +1307,10 @@ watch(currentProjectId, () => {
           :key="isPart(en) ? en.id : ''"
           v-show="isPart(en)"
           class="w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 flex items-center gap-2"
-          @click.stop="addFeatureToPart((en as CatPart).id, movingPoolFeature!); movingPoolFeature = null"
+          @click.stop="
+            addFeatureToPart((en as CatPart).id, movingPoolFeature!)
+            movingPoolFeature = null
+          "
         >
           <span class="i-lucide-folder w-3.5 h-3.5 inline-block align-middle text-indigo-400" />
           {{ (en as CatPart).title || '未命名篇' }}
@@ -1108,8 +1322,12 @@ watch(currentProjectId, () => {
 
 <style scoped>
 @keyframes highlight-fade {
-  from { background-color: #eff6ff; }
-  to { background-color: transparent; }
+  from {
+    background-color: #eff6ff;
+  }
+  to {
+    background-color: transparent;
+  }
 }
 .highlight-new {
   animation: highlight-fade 1.5s ease-out;

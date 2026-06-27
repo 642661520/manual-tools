@@ -44,13 +44,18 @@ import fastifySwaggerUi from '@fastify/swagger-ui'
 const PORT = config.port
 
 /** 从请求中提取已认证用户，未登录返回 null */
-function extractDocUser(req: FastifyRequest | { headers: Record<string, string | string[] | undefined> }, conn: ReturnType<typeof getDb>): { userId: string; role: string } | null {
+function extractDocUser(
+  req: FastifyRequest | { headers: Record<string, string | string[] | undefined> },
+  conn: ReturnType<typeof getDb>,
+): { userId: string; role: string } | null {
   const token = extractToken(req)
   if (!token) return null
 
   try {
     const payload = verifyToken(token)
-    const user = conn.prepare('SELECT token_version FROM users WHERE id = ?').get(payload.userId) as { token_version: number } | undefined
+    const user = conn
+      .prepare('SELECT token_version FROM users WHERE id = ?')
+      .get(payload.userId) as { token_version: number } | undefined
     if (!user || user.token_version !== payload.tokenVersion) return null
     return { userId: payload.userId, role: payload.role }
   } catch {
@@ -59,7 +64,10 @@ function extractDocUser(req: FastifyRequest | { headers: Record<string, string |
 }
 
 /** 根据用户身份返回可见的 visibility 集合 */
-function getAllowedVisibilities(user: { userId: string; role: string } | null, projectId: string): Set<string> {
+function getAllowedVisibilities(
+  user: { userId: string; role: string } | null,
+  projectId: string,
+): Set<string> {
   if (!user) return new Set(['public'])
   // admin 和项目成员可见所有版本
   if (user.role === 'admin' || isProjectMember(user.userId, user.role, projectId)) {
@@ -82,7 +90,10 @@ async function main() {
       const allowed = [
         'http://localhost:5173',
         `http://localhost:${config.port}`,
-        ...config.corsOrigin.split(',').map(s => s.trim()).filter(Boolean),
+        ...config.corsOrigin
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
       ]
       if (!origin || allowed.includes(origin)) {
         cb(null, true)
@@ -108,12 +119,16 @@ async function main() {
     if (token) {
       try {
         const payload = verifyToken(token)
-        const user = conn.prepare('SELECT token_version FROM users WHERE id = ?').get(payload.userId) as { token_version: number } | undefined
+        const user = conn
+          .prepare('SELECT token_version FROM users WHERE id = ?')
+          .get(payload.userId) as { token_version: number } | undefined
         if (user && user.token_version === payload.tokenVersion) {
           ;(req as unknown as Record<string, unknown>)._userId = payload.userId
           ;(req as unknown as Record<string, unknown>)._userRole = payload.role
         }
-      } catch { /* token 无效，不注入用户上下文 */ }
+      } catch {
+        /* token 无效，不注入用户上下文 */
+      }
     }
   })
 
@@ -157,7 +172,9 @@ async function main() {
       rebuildProjectIndex(p.id)
     }
     app.log.info({ count: projects.length }, 'search index rebuilt')
-  } catch (e) { app.log.error({ err: e }, '搜索索引重建失败') }
+  } catch (e) {
+    app.log.error({ err: e }, '搜索索引重建失败')
+  }
 
   // 静态托管上传文件
   const staticModule = await import('@fastify/static')
@@ -210,13 +227,17 @@ async function main() {
   })
 
   // 健康检查
-  app.get('/api/health', {
-    schema: {
-      tags: ['health'],
-      description: '服务健康检查',
-      response: { 200: { type: 'object', properties: { status: { type: 'string' } } } },
+  app.get(
+    '/api/health',
+    {
+      schema: {
+        tags: ['health'],
+        description: '服务健康检查',
+        response: { 200: { type: 'object', properties: { status: { type: 'string' } } } },
+      },
     },
-  }, async () => ({ status: 'ok' }))
+    async () => ({ status: 'ok' }),
+  )
 
   // Swagger / OpenAPI 文档 — 必须在路由之前注册，否则收集不到 schema
   await app.register(fastifySwagger, {
@@ -226,9 +247,7 @@ async function main() {
         description: '多项目操作手册编写与发布平台 RESTful API 文档',
         version: '0.1.0',
       },
-      servers: [
-        { url: `http://localhost:${config.port}`, description: '本地开发服务器' },
-      ],
+      servers: [{ url: `http://localhost:${config.port}`, description: '本地开发服务器' }],
       components: {
         securitySchemes: {
           bearerAuth: {
@@ -339,9 +358,13 @@ async function main() {
     const minor = parseInt(vParts[1])
 
     const conn = getDb()
-    const ver = conn.prepare(
-      'SELECT cv.visibility, cv.catalog_id, c.project_id FROM catalog_versions cv JOIN catalogs c ON c.id = cv.catalog_id WHERE cv.catalog_id = ? AND cv.version_major = ? AND cv.version_minor = ?',
-    ).get(catalogId, major, minor) as { visibility: string; catalog_id: string; project_id: string } | undefined
+    const ver = conn
+      .prepare(
+        'SELECT cv.visibility, cv.catalog_id, c.project_id FROM catalog_versions cv JOIN catalogs c ON c.id = cv.catalog_id WHERE cv.catalog_id = ? AND cv.version_major = ? AND cv.version_minor = ?',
+      )
+      .get(catalogId, major, minor) as
+      | { visibility: string; catalog_id: string; project_id: string }
+      | undefined
 
     if (!ver) {
       return reply.status(404).send('版本不存在')
@@ -357,11 +380,15 @@ async function main() {
       try {
         payload = verifyToken(token)
         // 校验 token_version：登出后会递增，旧 token 失效
-        const user = conn.prepare('SELECT token_version FROM users WHERE id = ?').get(payload.userId) as { token_version: number } | undefined
+        const user = conn
+          .prepare('SELECT token_version FROM users WHERE id = ?')
+          .get(payload.userId) as { token_version: number } | undefined
         if (!user || user.token_version !== payload.tokenVersion) {
           payload = null
         }
-      } catch { /* token 无效 */ }
+      } catch {
+        /* token 无效 */
+      }
     }
 
     if (!payload) {
@@ -386,14 +413,18 @@ async function main() {
 
     // 提取用户身份（同 access control hook 逻辑）
     const user = extractDocUser(req, conn)
-    const catalogProject = conn.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(catalogId) as { project_id: string } | undefined
+    const catalogProject = conn
+      .prepare('SELECT project_id FROM catalogs WHERE id = ?')
+      .get(catalogId) as { project_id: string } | undefined
     const projectId = catalogProject?.project_id || catalogId
     const allowedVis = getAllowedVisibilities(user, projectId)
 
     // 查询所有版本，按版本号降序
-    const allVersions = conn.prepare(
-      'SELECT version_major, version_minor, title, change_notes, visibility, created_at FROM catalog_versions WHERE catalog_id = ? ORDER BY version_major DESC, version_minor DESC',
-    ).all(catalogId) as Array<{
+    const allVersions = conn
+      .prepare(
+        'SELECT version_major, version_minor, title, change_notes, visibility, created_at FROM catalog_versions WHERE catalog_id = ? ORDER BY version_major DESC, version_minor DESC',
+      )
+      .all(catalogId) as Array<{
       version_major: number
       version_minor: number
       title: string
@@ -403,26 +434,33 @@ async function main() {
     }>
 
     // 按权限过滤
-    const visible = allVersions.filter(v => allowedVis.has(v.visibility))
+    const visible = allVersions.filter((v) => allowedVis.has(v.visibility))
 
     return reply.send(visible)
   })
 
   // 文档站点：latest → 302 跳转到最新可见版本
-  async function latestHandler(req: FastifyRequest<{ Params: { catalogId: string } }>, reply: FastifyReply) {
+  async function latestHandler(
+    req: FastifyRequest<{ Params: { catalogId: string } }>,
+    reply: FastifyReply,
+  ) {
     const { catalogId } = req.params
     const conn = getDb()
 
     const user = extractDocUser(req, conn)
-    const catalogProject = conn.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(catalogId) as { project_id: string } | undefined
+    const catalogProject = conn
+      .prepare('SELECT project_id FROM catalogs WHERE id = ?')
+      .get(catalogId) as { project_id: string } | undefined
     const projectId = catalogProject?.project_id || catalogId
     const allowedVis = getAllowedVisibilities(user, projectId)
 
-    const allVersions = conn.prepare(
-      'SELECT version_major, version_minor, visibility FROM catalog_versions WHERE catalog_id = ? ORDER BY version_major DESC, version_minor DESC',
-    ).all(catalogId) as Array<{ version_major: number; version_minor: number; visibility: string }>
+    const allVersions = conn
+      .prepare(
+        'SELECT version_major, version_minor, visibility FROM catalog_versions WHERE catalog_id = ? ORDER BY version_major DESC, version_minor DESC',
+      )
+      .all(catalogId) as Array<{ version_major: number; version_minor: number; visibility: string }>
 
-    const latest = allVersions.find(v => allowedVis.has(v.visibility))
+    const latest = allVersions.find((v) => allowedVis.has(v.visibility))
     if (!latest) {
       return reply.status(404).send('没有可访问的版本')
     }
@@ -440,19 +478,24 @@ async function main() {
     if (statusCode >= 500) {
       return reply.status(500).send({ ok: false, error: '服务器内部错误' })
     }
-    return reply.status(statusCode).send({ ok: false, error: (error as Error).message || '未知错误' })
+    return reply
+      .status(statusCode)
+      .send({ ok: false, error: (error as Error).message || '未知错误' })
   })
 
   // 请求完成日志
   app.addHook('onResponse', (req, reply, done) => {
     const meta = req as unknown as Record<string, unknown>
-    req.log.info({
-      method: req.method,
-      url: req.url,
-      statusCode: reply.statusCode,
-      userId: meta._userId || 'anonymous',
-      responseTime: reply.elapsedTime,
-    }, 'request completed')
+    req.log.info(
+      {
+        method: req.method,
+        url: req.url,
+        statusCode: reply.statusCode,
+        userId: meta._userId || 'anonymous',
+        responseTime: reply.elapsedTime,
+      },
+      'request completed',
+    )
     done()
   })
 

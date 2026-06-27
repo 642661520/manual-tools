@@ -57,7 +57,13 @@ export interface FeatureSection extends SectionDef {
 }
 
 export interface StatusLogEntry {
-  action: 'submitted' | 'approved' | 'rejected' | 'direct_approved' | 'reset_to_draft' | 'reset_to_in_progress'
+  action:
+    | 'submitted'
+    | 'approved'
+    | 'rejected'
+    | 'direct_approved'
+    | 'reset_to_draft'
+    | 'reset_to_in_progress'
   userId: string
   note: string
   step: number
@@ -202,9 +208,18 @@ export interface ExportEstimate {
 
 export interface ImportDiffReport {
   sourceProject: { id: string; name: string }
-  categories: { added: string[]; conflicted: { id: string; sourceName: string; targetName: string }[] }
-  features: { added: string[]; conflicted: { id: string; sourceTitle: string; targetTitle: string }[] }
-  catalogs: { added: string[]; conflicted: { id: string; sourceTitle: string; targetTitle: string }[] }
+  categories: {
+    added: string[]
+    conflicted: { id: string; sourceName: string; targetName: string }[]
+  }
+  features: {
+    added: string[]
+    conflicted: { id: string; sourceTitle: string; targetTitle: string }[]
+  }
+  catalogs: {
+    added: string[]
+    conflicted: { id: string; sourceTitle: string; targetTitle: string }[]
+  }
   documents: { added: number; conflicted: number; skipped: number }
   projectMembers: { added: string[]; unknownUsers: string[] }
   uploads: { total: number; totalSize: number; duplicates: number }

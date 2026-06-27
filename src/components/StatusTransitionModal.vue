@@ -3,7 +3,13 @@ import { ref, computed, watch } from 'vue'
 import ModalDialog from './ModalDialog.vue'
 import StatusBadge from './StatusBadge.vue'
 
-type SectionStatus = 'draft' | 'in_progress' | 'completed' | 'pending_review' | 'rejected' | 'approved'
+type SectionStatus =
+  | 'draft'
+  | 'in_progress'
+  | 'completed'
+  | 'pending_review'
+  | 'rejected'
+  | 'approved'
 
 interface TransitionOption {
   target: SectionStatus
@@ -84,9 +90,10 @@ const availableTransitions = computed<TransitionOption[]>(() => {
     result.push({
       target: 'approved',
       label: '直接通过',
-      description: s === 'pending_review'
-        ? '跳过当前审核环节，直接标记为已审核'
-        : '跳过审核流程，直接标记为已审核',
+      description:
+        s === 'pending_review'
+          ? '跳过当前审核环节，直接标记为已审核'
+          : '跳过审核流程，直接标记为已审核',
       needNote: false,
       variant: 'primary',
       direct: true,
@@ -152,14 +159,17 @@ function handleClose() {
   emit('close')
 }
 
-watch(() => props.visible, (val) => {
-  if (val) {
-    selected.value = null
-    selectedIdx.value = null
-    note.value = ''
-    error.value = ''
-  }
-})
+watch(
+  () => props.visible,
+  (val) => {
+    if (val) {
+      selected.value = null
+      selectedIdx.value = null
+      note.value = ''
+      error.value = ''
+    }
+  },
+)
 
 const variantSelected: Record<string, string> = {
   primary: 'border-blue-400 bg-blue-50',
@@ -211,18 +221,18 @@ const variantRadioFill: Record<string, string> = {
           v-for="(opt, idx) in availableTransitions"
           :key="`${opt.target}-${idx}`"
           class="w-full text-left px-4 py-3 rounded-lg border transition-colors"
-          :class="selectedIdx === idx
-            ? variantSelected[opt.variant]
-            : 'border-gray-200 hover:bg-gray-50 hover:border-gray-300'"
+          :class="
+            selectedIdx === idx
+              ? variantSelected[opt.variant]
+              : 'border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+          "
           @click="selectOption(opt, idx)"
         >
           <div class="flex items-start gap-3">
             <!-- 单选圆圈 -->
             <span
               class="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors"
-              :class="selectedIdx === idx
-                ? variantRadio[opt.variant]
-                : 'border-gray-300'"
+              :class="selectedIdx === idx ? variantRadio[opt.variant] : 'border-gray-300'"
             >
               <span
                 v-if="selectedIdx === idx"
@@ -231,7 +241,10 @@ const variantRadioFill: Record<string, string> = {
               />
             </span>
             <div class="flex-1 min-w-0">
-              <div class="font-medium text-sm" :class="selectedIdx === idx ? 'text-gray-900' : 'text-gray-700'">
+              <div
+                class="font-medium text-sm"
+                :class="selectedIdx === idx ? 'text-gray-900' : 'text-gray-700'"
+              >
                 {{ opt.label }}
               </div>
               <p class="text-xs text-gray-500 mt-0.5">{{ opt.description }}</p>
@@ -246,12 +259,7 @@ const variantRadioFill: Record<string, string> = {
           {{ selected.noteLabel || '说明' }}
           <span class="text-red-400">*</span>
         </label>
-        <textarea
-          v-model="note"
-          class="textarea w-full"
-          rows="3"
-          placeholder="请填写具体原因..."
-        />
+        <textarea v-model="note" class="textarea w-full" rows="3" placeholder="请填写具体原因..." />
       </div>
     </div>
   </ModalDialog>

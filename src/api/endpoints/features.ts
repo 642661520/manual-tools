@@ -55,6 +55,9 @@ export function deleteOrphaned(featureId: string, sectionKey: string): Promise<O
   return api.delete<OkResponse>(`${BASE}/${featureId}/orphaned/${sectionKey}`)
 }
 
-export function updateSections(featureId: string, data: UpdateSectionsBody): Promise<UpdateSectionsResponse> {
+export function updateSections(
+  featureId: string,
+  data: UpdateSectionsBody,
+): Promise<UpdateSectionsResponse> {
   return api.put<UpdateSectionsResponse>(`${BASE}/${featureId}/sections`, data)
 }

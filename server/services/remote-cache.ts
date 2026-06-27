@@ -57,9 +57,9 @@ export async function getOrFetch(url: string): Promise<CacheResult | null> {
  */
 export function getCached(url: string): CacheResult | null {
   const db = getDb()
-  const row = db.prepare(
-    'SELECT * FROM remote_cache WHERE url = ? ORDER BY created_at DESC LIMIT 1',
-  ).get(url) as CachedRow | undefined
+  const row = db
+    .prepare('SELECT * FROM remote_cache WHERE url = ? ORDER BY created_at DESC LIMIT 1')
+    .get(url) as CachedRow | undefined
   if (!row) return null
 
   const filepath = getCachePath(row.hash, row.ext)
@@ -71,7 +71,7 @@ export function getCached(url: string): CacheResult | null {
 
   // 更新访问时间
   db.prepare(
-    'UPDATE remote_cache SET accessed_at = datetime(\'now\'), fetch_count = fetch_count + 1 WHERE url = ? AND hash = ?',
+    "UPDATE remote_cache SET accessed_at = datetime('now'), fetch_count = fetch_count + 1 WHERE url = ? AND hash = ?",
   ).run(url, row.hash)
 
   return { filepath, mimeType: row.mime_type, size: row.size }
@@ -91,33 +91,43 @@ export async function refreshCache(url: string): Promise<CacheResult | null> {
 export function cleanExpiredRemoteCache(): number {
   const db = getDb()
   const ttlDays = config.remoteCacheTtlDays
-  const expired = db.prepare(
-    `SELECT url, hash, ext FROM remote_cache
+  const expired = db
+    .prepare(
+      `SELECT url, hash, ext FROM remote_cache
      WHERE datetime(accessed_at, '+' || ? || ' days') < datetime('now')`,
-  ).all(ttlDays) as { url: string; hash: string; ext: string }[]
+    )
+    .all(ttlDays) as { url: string; hash: string; ext: string }[]
 
   // 收集所有过期 hash → 检查哪些 hash 不再被任何（非过期）记录引用
-  const expiredHashes = new Set(expired.map(r => r.hash))
+  const expiredHashes = new Set(expired.map((r) => r.hash))
   const remainingHashes = new Set<string>()
   for (const hash of expiredHashes) {
-    const row = db.prepare(
-      `SELECT COUNT(*) as cnt FROM remote_cache WHERE hash = ?
+    const row = db
+      .prepare(
+        `SELECT COUNT(*) as cnt FROM remote_cache WHERE hash = ?
        AND datetime(accessed_at, '+' || ? || ' days') >= datetime('now')`,
-    ).get(hash, ttlDays) as { cnt: number }
+      )
+      .get(hash, ttlDays) as { cnt: number }
     if (row.cnt > 0) remainingHashes.add(hash)
   }
 
   // 删除过期记录
-  const result = db.prepare(
-    `DELETE FROM remote_cache
+  const result = db
+    .prepare(
+      `DELETE FROM remote_cache
      WHERE datetime(accessed_at, '+' || ? || ' days') < datetime('now')`,
-  ).run(ttlDays)
+    )
+    .run(ttlDays)
 
   // 删除不再被引用的磁盘文件
   for (const row of expired) {
     if (!remainingHashes.has(row.hash)) {
       const filepath = getCachePath(row.hash, row.ext)
-      try { unlinkSync(filepath) } catch { /* 文件可能已被手动删除 */ }
+      try {
+        unlinkSync(filepath)
+      } catch {
+        /* 文件可能已被手动删除 */
+      }
     }
   }
 
@@ -132,9 +142,9 @@ export function cleanExpiredRemoteCache(): number {
  */
 export function getRemoteCacheStats(): { count: number; totalSize: number } {
   const db = getDb()
-  const row = db.prepare(
-    'SELECT COUNT(*) as count, COALESCE(SUM(size), 0) as totalSize FROM remote_cache',
-  ).get() as { count: number; totalSize: number }
+  const row = db
+    .prepare('SELECT COUNT(*) as count, COALESCE(SUM(size), 0) as totalSize FROM remote_cache')
+    .get() as { count: number; totalSize: number }
   return row
 }
 
@@ -160,11 +170,30 @@ function extFromUrl(url: string): string {
     const pathname = new URL(url.startsWith('//') ? `https:${url}` : url).pathname
     const ext = pathname.split('.').pop()?.toLowerCase()
     // 常见媒体类型
-    const valid = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp',
-      'mp4', 'webm', 'mov', 'avi',
-      'mp3', 'wav', 'ogg', 'flac',
-      'pdf', 'md', 'txt', 'json',
-      'ttf', 'woff', 'woff2', 'otf',
+    const valid = [
+      'png',
+      'jpg',
+      'jpeg',
+      'gif',
+      'webp',
+      'svg',
+      'bmp',
+      'mp4',
+      'webm',
+      'mov',
+      'avi',
+      'mp3',
+      'wav',
+      'ogg',
+      'flac',
+      'pdf',
+      'md',
+      'txt',
+      'json',
+      'ttf',
+      'woff',
+      'woff2',
+      'otf',
     ]
     return valid.includes(ext || '') ? `.${ext}` : ''
   } catch {
@@ -175,16 +204,29 @@ function extFromUrl(url: string): string {
 /** 根据文件扩展名推断 MIME 类型 */
 function mimeFromExt(ext: string): string {
   const map: Record<string, string> = {
-    '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-    '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
-    '.bmp': 'image/bmp', '.ico': 'image/x-icon',
-    '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.bmp': 'image/bmp',
+    '.ico': 'image/x-icon',
+    '.mp4': 'video/mp4',
+    '.webm': 'video/webm',
+    '.mov': 'video/quicktime',
     '.avi': 'video/x-msvideo',
-    '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+    '.ogg': 'audio/ogg',
     '.flac': 'audio/flac',
     '.pdf': 'application/pdf',
-    '.md': 'text/markdown', '.txt': 'text/plain', '.json': 'application/json',
-    '.ttf': 'font/ttf', '.woff': 'font/woff', '.woff2': 'font/woff2',
+    '.md': 'text/markdown',
+    '.txt': 'text/plain',
+    '.json': 'application/json',
+    '.ttf': 'font/ttf',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
     '.otf': 'font/otf',
   }
   return map[ext] || 'application/octet-stream'
@@ -206,9 +248,11 @@ async function fetchAndCache(url: string, force = false): Promise<CacheResult | 
     let prevEtag: string | null = null
     let prevLastModified: string | null = null
     if (!force) {
-      const prev = db.prepare(
-        'SELECT etag, last_modified FROM remote_cache WHERE url = ? ORDER BY created_at DESC LIMIT 1',
-      ).get(url) as { etag: string | null; last_modified: string | null } | undefined
+      const prev = db
+        .prepare(
+          'SELECT etag, last_modified FROM remote_cache WHERE url = ? ORDER BY created_at DESC LIMIT 1',
+        )
+        .get(url) as { etag: string | null; last_modified: string | null } | undefined
       if (prev) {
         prevEtag = prev.etag
         prevLastModified = prev.last_modified
@@ -265,9 +309,9 @@ async function fetchAndCache(url: string, force = false): Promise<CacheResult | 
       const lastModified = res.headers.get('last-modified')
 
       // 检查是否已有相同 hash 的文件（去重）
-      const existing = db.prepare(
-        'SELECT ext FROM remote_cache WHERE hash = ? LIMIT 1',
-      ).get(hash) as { ext: string } | undefined
+      const existing = db
+        .prepare('SELECT ext FROM remote_cache WHERE hash = ? LIMIT 1')
+        .get(hash) as { ext: string } | undefined
       if (existing) {
         // 复用已有文件
         ext = existing.ext
@@ -301,12 +345,21 @@ async function fetchAndCache(url: string, force = false): Promise<CacheResult | 
 /** 从 Content-Type 推断文件扩展名 */
 function extFromContentType(ct: string): string {
   const map: Record<string, string> = {
-    'image/png': '.png', 'image/jpeg': '.jpg', 'image/gif': '.gif',
-    'image/webp': '.webp', 'image/svg+xml': '.svg', 'image/bmp': '.bmp',
-    'video/mp4': '.mp4', 'video/webm': '.webm', 'video/quicktime': '.mov',
-    'audio/mpeg': '.mp3', 'audio/wav': '.wav', 'audio/ogg': '.ogg',
+    'image/png': '.png',
+    'image/jpeg': '.jpg',
+    'image/gif': '.gif',
+    'image/webp': '.webp',
+    'image/svg+xml': '.svg',
+    'image/bmp': '.bmp',
+    'video/mp4': '.mp4',
+    'video/webm': '.webm',
+    'video/quicktime': '.mov',
+    'audio/mpeg': '.mp3',
+    'audio/wav': '.wav',
+    'audio/ogg': '.ogg',
     'application/pdf': '.pdf',
-    'text/markdown': '.md', 'text/plain': '.txt',
+    'text/markdown': '.md',
+    'text/plain': '.txt',
   }
   // 去掉 charset 等参数
   const baseType = ct.split(';')[0].trim()

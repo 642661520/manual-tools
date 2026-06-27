@@ -4,14 +4,14 @@
 
 ## 技术栈
 
-| 层级 | 技术 |
-|------|------|
-| 前端 | Vue 3 + TypeScript + Vite + UnoCSS |
-| 后端 | Fastify 5 + TypeScript |
-| 数据库 | SQLite (better-sqlite3) |
-| 协同编辑 | Y.js + WebSocket |
-| 富文本编辑器 | TipTap 3 |
-| 部署 | Docker / pnpm + tsx |
+| 层级         | 技术                               |
+| ------------ | ---------------------------------- |
+| 前端         | Vue 3 + TypeScript + Vite + UnoCSS |
+| 后端         | Fastify 5 + TypeScript             |
+| 数据库       | SQLite (better-sqlite3)            |
+| 协同编辑     | Y.js + WebSocket                   |
+| 富文本编辑器 | TipTap 3                           |
+| 部署         | Docker / pnpm + tsx                |
 
 ## 快速开始
 
@@ -113,38 +113,38 @@ manual-tools/
 
 ## 开发命令
 
-| 命令 | 说明 |
-|------|------|
-| `pnpm dev` | 前端 Vite dev server (port 5173) |
-| `pnpm server` | 后端 Fastify (port 3000, tsx watch) |
-| `pnpm build` | 生产构建（类型检查 + Vite 打包） |
-| `pnpm lint` | ESLint 检查 |
-| `pnpm lint:fix` | ESLint 自动修复 |
-| `pnpm typecheck` | 前后端一起类型检查 |
-| `pnpm test` | 运行测试 (vitest) |
-| `pnpm test:watch` | 测试 watch 模式 |
+| 命令              | 说明                                |
+| ----------------- | ----------------------------------- |
+| `pnpm dev`        | 前端 Vite dev server (port 5173)    |
+| `pnpm server`     | 后端 Fastify (port 3000, tsx watch) |
+| `pnpm build`      | 生产构建（类型检查 + Vite 打包）    |
+| `pnpm lint`       | ESLint 检查                         |
+| `pnpm lint:fix`   | ESLint 自动修复                     |
+| `pnpm typecheck`  | 前后端一起类型检查                  |
+| `pnpm test`       | 运行测试 (vitest)                   |
+| `pnpm test:watch` | 测试 watch 模式                     |
 
 ## 环境变量
 
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `NODE_ENV` | 运行模式 (`production` / `development`) | `development` |
-| `DATABASE_PATH` | SQLite 数据库路径 | `data/manual.db` |
-| `PORT` | 服务端口 | `3000` |
-| `JWT_SECRET` | JWT 签名密钥 | 生产环境必须设置 |
-| `CORS_ORIGIN` | CORS 额外白名单（逗号分隔） | — |
-| `FEISHU_APP_ID` | 飞书应用 ID | — |
-| `FEISHU_APP_SECRET` | 飞书应用密钥 | — |
-| `ADMIN_USERNAME` | 初始管理员用户名 | `admin` |
-| `ADMIN_PASSWORD` | 初始管理员密码 | `admin123` |
+| 变量                | 说明                                    | 默认值           |
+| ------------------- | --------------------------------------- | ---------------- |
+| `NODE_ENV`          | 运行模式 (`production` / `development`) | `development`    |
+| `DATABASE_PATH`     | SQLite 数据库路径                       | `data/manual.db` |
+| `PORT`              | 服务端口                                | `3000`           |
+| `JWT_SECRET`        | JWT 签名密钥                            | 生产环境必须设置 |
+| `CORS_ORIGIN`       | CORS 额外白名单（逗号分隔）             | —                |
+| `FEISHU_APP_ID`     | 飞书应用 ID                             | —                |
+| `FEISHU_APP_SECRET` | 飞书应用密钥                            | —                |
+| `ADMIN_USERNAME`    | 初始管理员用户名                        | `admin`          |
+| `ADMIN_PASSWORD`    | 初始管理员密码                          | `admin123`       |
 
 ## 用户角色
 
-| 角色 | 权限 |
-|------|------|
-| `admin` | 全局管理：项目管理、用户管理、所有内容读写 |
-| `member` | 项目成员：可被指定为 PM（项目管理）或 writer（内容编写） |
-| `guest` | 访客：仅浏览，限 `public` / `login_required` 可见性的文档 |
+| 角色     | 权限                                                      |
+| -------- | --------------------------------------------------------- |
+| `admin`  | 全局管理：项目管理、用户管理、所有内容读写                |
+| `member` | 项目成员：可被指定为 PM（项目管理）或 writer（内容编写）  |
+| `guest`  | 访客：仅浏览，限 `public` / `login_required` 可见性的文档 |
 
 ## 文档可见性
 

@@ -20,7 +20,9 @@ interface ResourceEntry {
  * 下载/读取文件数据，替换为本地路径，
  * 最后打包为 zip 的 ReadableStream。
  */
-export async function buildMarkdownZip(manual: ManualResult): Promise<{ stream: NodeJS.ReadableStream; filename: string }> {
+export async function buildMarkdownZip(
+  manual: ManualResult,
+): Promise<{ stream: NodeJS.ReadableStream; filename: string }> {
   const resourceMap = await collectResources(manual.markdown)
   const mdWithLocalUrls = replaceResourceUrls(manual.markdown, resourceMap)
 
@@ -115,9 +117,10 @@ async function fetchRemote(url: string): Promise<Buffer | null> {
     }
 
     if (fullUrl.startsWith('/uploads/')) {
-      // 本地上传文件
+      // 本地上传文件（兼容新旧两种路径格式）
       const uploadDir = config.uploadDir
-      const filepath = join(uploadDir, fullUrl.replace(/^\/uploads\/(images|videos)\//, ''))
+      // 仅剥离 /uploads/ 前缀，保留 images/ 或 videos/ 及可选的 shard 子目录
+      const filepath = join(uploadDir, fullUrl.replace(/^\/uploads\//, ''))
       if (existsSync(filepath)) {
         return readFileSync(filepath)
       }

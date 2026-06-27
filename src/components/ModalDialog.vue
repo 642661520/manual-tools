@@ -26,7 +26,12 @@ const emit = defineEmits<{
       <!-- Header -->
       <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
         <h2 class="text-lg font-semibold">{{ title }}</h2>
-        <button class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100" @click="emit('close')"><span class="i-lucide-x w-4 h-4 inline-block align-middle" /></button>
+        <button
+          class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100"
+          @click="emit('close')"
+        >
+          <span class="i-lucide-x w-4 h-4 inline-block align-middle" />
+        </button>
       </div>
 
       <!-- Body -->

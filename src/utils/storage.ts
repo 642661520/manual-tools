@@ -6,7 +6,7 @@ import type { UserInfo } from '@shared/types'
 export function getStoredUser<T = UserInfo>(): T | null {
   try {
     const stored = localStorage.getItem('auth_user')
-    return stored ? JSON.parse(stored) as T : null
+    return stored ? (JSON.parse(stored) as T) : null
   } catch {
     return null
   }

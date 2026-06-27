@@ -53,15 +53,25 @@ async function feishuLogin() {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gradient-to-b from-blue-50/60 via-white to-slate-50 px-4 relative overflow-hidden">
+  <div
+    class="min-h-screen flex items-center justify-center bg-gradient-to-b from-blue-50/60 via-white to-slate-50 px-4 relative overflow-hidden"
+  >
     <!-- 浮动光斑 -->
     <div class="absolute inset-0 z-0 pointer-events-none" aria-hidden="true">
-      <div class="absolute w-[600px] h-[600px] rounded-full bg-gradient-to-br from-blue-300/40 via-sky-200/25 to-transparent blur-3xl float-slow" style="top: -15%; left: -10%;" />
-      <div class="absolute w-[500px] h-[500px] rounded-full bg-gradient-to-tl from-indigo-300/35 via-purple-200/20 to-transparent blur-3xl float-slower" style="bottom: -10%; right: -8%;" />
+      <div
+        class="absolute w-[600px] h-[600px] rounded-full bg-gradient-to-br from-blue-300/40 via-sky-200/25 to-transparent blur-3xl float-slow"
+        style="top: -15%; left: -10%"
+      />
+      <div
+        class="absolute w-[500px] h-[500px] rounded-full bg-gradient-to-tl from-indigo-300/35 via-purple-200/20 to-transparent blur-3xl float-slower"
+        style="bottom: -10%; right: -8%"
+      />
     </div>
 
     <!-- 卡片后方柔光 -->
-    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[400px] rounded-full bg-gradient-to-tr from-blue-100/60 via-blue-50/30 to-transparent blur-3xl z-0 pointer-events-none" />
+    <div
+      class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[400px] rounded-full bg-gradient-to-tr from-blue-100/60 via-blue-50/30 to-transparent blur-3xl z-0 pointer-events-none"
+    />
 
     <!-- 卡片 -->
     <div class="relative z-10 w-96 max-w-full">
@@ -76,25 +86,31 @@ async function feishuLogin() {
           <ErrorMessage :message="error" />
 
           <FormField label="用户名">
-            <input v-model="username" class="input" type="text" placeholder="输入用户名" autofocus />
+            <input
+              v-model="username"
+              class="input"
+              type="text"
+              placeholder="输入用户名"
+              autofocus
+            />
           </FormField>
 
           <FormField label="密码">
             <PasswordInput v-model="password" placeholder="输入密码" />
           </FormField>
 
-          <button
-            type="submit"
-            class="btn-primary w-full justify-center"
-            :disabled="loading"
-          >
+          <button type="submit" class="btn-primary w-full justify-center" :disabled="loading">
             {{ loading ? '登录中...' : '登录' }}
           </button>
         </form>
 
         <div class="relative my-3">
-          <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-200" /></div>
-          <div class="relative flex justify-center text-xs"><span class="bg-white px-2 text-gray-400">或</span></div>
+          <div class="absolute inset-0 flex items-center">
+            <div class="w-full border-t border-gray-200" />
+          </div>
+          <div class="relative flex justify-center text-xs">
+            <span class="bg-white px-2 text-gray-400">或</span>
+          </div>
         </div>
 
         <button
@@ -102,7 +118,9 @@ async function feishuLogin() {
           :disabled="feishuLoading"
           @click="feishuLogin"
         >
-          <span class="i-lucide-link w-4 h-4 inline-block align-middle mr-1" />{{ feishuLoading ? '跳转中...' : '飞书登录' }}
+          <span class="i-lucide-link w-4 h-4 inline-block align-middle mr-1" />{{
+            feishuLoading ? '跳转中...' : '飞书登录'
+          }}
         </button>
       </div>
     </div>
@@ -111,15 +129,33 @@ async function feishuLogin() {
 
 <style scoped>
 @keyframes float-slow {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(30px, -20px) scale(1.08); }
-  66% { transform: translate(-15px, 15px) scale(0.95); }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(30px, -20px) scale(1.08);
+  }
+  66% {
+    transform: translate(-15px, 15px) scale(0.95);
+  }
 }
 @keyframes float-slower {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(-25px, -15px) scale(1.05); }
-  66% { transform: translate(20px, 10px) scale(0.97); }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(-25px, -15px) scale(1.05);
+  }
+  66% {
+    transform: translate(20px, 10px) scale(0.97);
+  }
 }
-.float-slow { animation: float-slow 12s ease-in-out infinite; }
-.float-slower { animation: float-slower 15s ease-in-out infinite; }
+.float-slow {
+  animation: float-slow 12s ease-in-out infinite;
+}
+.float-slower {
+  animation: float-slower 15s ease-in-out infinite;
+}
 </style>

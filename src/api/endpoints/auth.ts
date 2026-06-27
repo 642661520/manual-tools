@@ -12,11 +12,7 @@ import type {
   OkResponse,
   CreateResponse,
 } from '@shared/types'
-import type {
-  NotifyPrefsBody,
-  CreateUserBody,
-  ChangePasswordBody,
-} from '@shared/types'
+import type { NotifyPrefsBody, CreateUserBody, ChangePasswordBody } from '@shared/types'
 
 // ---- 认证 ----
 

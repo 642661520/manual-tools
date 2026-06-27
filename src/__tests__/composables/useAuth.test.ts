@@ -20,9 +20,15 @@ describe('useAuth — 认证逻辑', () => {
 
   it('localStorage 有有效 token 时可读取', () => {
     localStorage.setItem('auth_token', 'test-token')
-    localStorage.setItem('auth_user', JSON.stringify({
-      id: '1', username: 'test', displayName: 'Test', role: 'member',
-    }))
+    localStorage.setItem(
+      'auth_user',
+      JSON.stringify({
+        id: '1',
+        username: 'test',
+        displayName: 'Test',
+        role: 'member',
+      }),
+    )
     expect(localStorage.getItem('auth_token')).toBe('test-token')
     const user = JSON.parse(localStorage.getItem('auth_user') || '{}')
     expect(user.role).toBe('member')

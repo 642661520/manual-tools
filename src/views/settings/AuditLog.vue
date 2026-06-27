@@ -8,7 +8,7 @@ import Paginator from '@/components/Paginator.vue'
 const rows = ref<AuditLogEntry[]>([])
 const total = ref(0)
 const loading = ref(false)
-const page = ref(1)  // 1-based for Paginator
+const page = ref(1) // 1-based for Paginator
 const pageSize = 30
 const filterAction = ref<SelectOption['value']>(null)
 
@@ -35,8 +35,11 @@ async function load() {
     })
     rows.value = result.rows
     total.value = result.total
-  } catch { /* ignore */ }
-  finally { loading.value = false }
+  } catch {
+    /* ignore */
+  } finally {
+    loading.value = false
+  }
 }
 
 function goPage(p: number) {
@@ -47,7 +50,9 @@ function goPage(p: number) {
 function formatDetail(detail: string): string {
   try {
     const obj = JSON.parse(detail)
-    return Object.entries(obj).map(([k, v]) => `${k}: ${v}`).join(', ')
+    return Object.entries(obj)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(', ')
   } catch {
     return detail || '-'
   }
@@ -64,13 +69,19 @@ onMounted(load)
         :options="actionOptions"
         placeholder="全部操作"
         width-class="w-40"
-        @update:model-value="filterAction = $event; page = 1; load()"
+        @update:model-value="
+          filterAction = $event
+          page = 1
+          load()
+        "
       />
       <span class="text-xs text-gray-400">共 {{ total }} 条记录</span>
     </div>
 
     <div v-if="loading" class="text-center py-8 text-gray-400 text-sm">加载中...</div>
-    <div v-else-if="rows.length === 0" class="text-center py-8 text-gray-400 text-sm">暂无操作记录</div>
+    <div v-else-if="rows.length === 0" class="text-center py-8 text-gray-400 text-sm">
+      暂无操作记录
+    </div>
     <table v-else class="w-full text-sm border-collapse">
       <thead>
         <tr class="border-b border-gray-200 text-left text-xs text-gray-500">
@@ -82,7 +93,9 @@ onMounted(load)
       </thead>
       <tbody>
         <tr v-for="r in rows" :key="r.id" class="border-b border-gray-100 hover:bg-gray-50">
-          <td class="py-2 pr-4 text-gray-500 whitespace-nowrap">{{ new Date(r.createdAt).toLocaleString() }}</td>
+          <td class="py-2 pr-4 text-gray-500 whitespace-nowrap">
+            {{ new Date(r.createdAt).toLocaleString() }}
+          </td>
           <td class="py-2 pr-4">{{ r.username }}</td>
           <td class="py-2 pr-4">
             <span class="px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-700">

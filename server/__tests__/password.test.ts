@@ -18,9 +18,13 @@ describe('validatePassword', () => {
 
   it('应拒绝不满足3/4规则的密码', () => {
     // 只有小写字母 + 数字 = 仅2类
-    expect(validatePassword('abcdefg1')).toBe('密码需包含大写字母、小写字母、数字、特殊字符中至少3种')
+    expect(validatePassword('abcdefg1')).toBe(
+      '密码需包含大写字母、小写字母、数字、特殊字符中至少3种',
+    )
     // 只有小写字母 = 仅1类
-    expect(validatePassword('abcdefgh')).toBe('密码需包含大写字母、小写字母、数字、特殊字符中至少3种')
+    expect(validatePassword('abcdefgh')).toBe(
+      '密码需包含大写字母、小写字母、数字、特殊字符中至少3种',
+    )
   })
 
   it('应接受满足3/4规则的密码', () => {

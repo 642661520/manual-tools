@@ -49,7 +49,11 @@ function close() {
 }
 
 function toggle() {
-  if (isOpen.value) { close() } else { open() }
+  if (isOpen.value) {
+    close()
+  } else {
+    open()
+  }
 }
 
 function onHover(r: number, c: number) {
@@ -64,11 +68,7 @@ function onGridLeave() {
 
 function insert(r: number, c: number) {
   if (props.editor && r > 0 && c > 0) {
-    props.editor
-      .chain()
-      .focus()
-      .insertTable({ rows: r, cols: c, withHeaderRow: true })
-      .run()
+    props.editor.chain().focus().insertTable({ rows: r, cols: c, withHeaderRow: true }).run()
   }
   close()
 }
@@ -155,7 +155,9 @@ onUnmounted(() => {
           @keydown="onPopupKeydown"
         >
           <div class="text-xs text-gray-400 text-center mb-2 leading-none">
-            插入表格：<span class="text-gray-700 font-medium">{{ displayRows() }} × {{ displayCols() }}</span>
+            插入表格：<span class="text-gray-700 font-medium"
+              >{{ displayRows() }} × {{ displayCols() }}</span
+            >
           </div>
           <div
             class="grid gap-px bg-gray-200 rounded overflow-hidden"
@@ -181,10 +183,14 @@ onUnmounted(() => {
 
 <style scoped>
 .dropdown-enter-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
 }
 .dropdown-leave-active {
-  transition: opacity 0.1s ease, transform 0.1s ease;
+  transition:
+    opacity 0.1s ease,
+    transform 0.1s ease;
 }
 .dropdown-enter-from {
   opacity: 0;

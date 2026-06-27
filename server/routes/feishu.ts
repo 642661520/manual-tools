@@ -27,17 +27,17 @@ export async function feishuRoutes(app: FastifyInstance) {
       const info = await exchangeCodeForToken(code)
       if (!info.open_id) return fail(reply, 400, '获取飞书用户信息失败')
 
-      const existing = db.prepare(
-        'SELECT id FROM users WHERE feishu_open_id = ? AND id != ?',
-      ).get(info.open_id, userId) as { id: string } | undefined
+      const existing = db
+        .prepare('SELECT id FROM users WHERE feishu_open_id = ? AND id != ?')
+        .get(info.open_id, userId) as { id: string } | undefined
 
       if (existing) {
         return fail(reply, 409, '该飞书账号已被其他用户绑定')
       }
 
-      db.prepare('UPDATE users SET display_name = ?, feishu_open_id = ?, feishu_name = ?, feishu_avatar_url = ? WHERE id = ?').run(
-        info.name, info.open_id, info.name, info.avatar_url || null, userId,
-      )
+      db.prepare(
+        'UPDATE users SET display_name = ?, feishu_open_id = ?, feishu_name = ?, feishu_avatar_url = ? WHERE id = ?',
+      ).run(info.name, info.open_id, info.name, info.avatar_url || null, userId)
 
       return success({
         openId: info.open_id,
@@ -53,7 +53,15 @@ export async function feishuRoutes(app: FastifyInstance) {
   // 查询绑定状态
   app.get('/api/v1/auth/me/feishu-binding', { preHandler: authMiddleware }, async (req) => {
     const db = getDb()
-    const user = db.prepare('SELECT feishu_open_id, feishu_name, feishu_avatar_url FROM users WHERE id = ?').get(req.user!.userId) as { feishu_open_id: string | null; feishu_name: string | null; feishu_avatar_url: string | null } | undefined
+    const user = db
+      .prepare('SELECT feishu_open_id, feishu_name, feishu_avatar_url FROM users WHERE id = ?')
+      .get(req.user!.userId) as
+      | {
+          feishu_open_id: string | null
+          feishu_name: string | null
+          feishu_avatar_url: string | null
+        }
+      | undefined
 
     if (!user?.feishu_open_id) {
       return success({ bound: false })
@@ -70,7 +78,9 @@ export async function feishuRoutes(app: FastifyInstance) {
   // 解除绑定
   app.delete('/api/v1/auth/me/feishu-binding', { preHandler: authMiddleware }, async (req) => {
     const db = getDb()
-    db.prepare('UPDATE users SET feishu_open_id = NULL, feishu_name = NULL, feishu_avatar_url = NULL WHERE id = ?').run(req.user!.userId)
+    db.prepare(
+      'UPDATE users SET feishu_open_id = NULL, feishu_name = NULL, feishu_avatar_url = NULL WHERE id = ?',
+    ).run(req.user!.userId)
     return ok()
   })
 }

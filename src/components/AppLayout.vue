@@ -36,15 +36,14 @@ function roleLabel(role: string) {
 
 async function handleProjectSwitch(id: string) {
   if (id === currentProjectId.value) return
-  const targetProject = projects.value.find(p => p.id === id)
+  const targetProject = projects.value.find((p) => p.id === id)
   const targetName = targetProject?.name || '新项目'
   const ok = await confirm(`切换到「${targetName}」？当前页面的数据将切换为该项目的对应内容。`)
   if (!ok) return
 
   const p = route.path
   const isDetailPage =
-    (p.startsWith('/features/') && p !== '/features') ||
-    (p.startsWith('/catalogs/'))
+    (p.startsWith('/features/') && p !== '/features') || p.startsWith('/catalogs/')
 
   switchProject(id)
   if (isDetailPage) {
@@ -58,7 +57,7 @@ async function handleProjectSwitch(id: string) {
 
 async function handleLogout() {
   showUserMenu.value = false
-  if (!await confirm('确定退出登录？')) return
+  if (!(await confirm('确定退出登录？'))) return
   logout()
 }
 
@@ -70,23 +69,35 @@ function closeUserMenu() {
   showUserMenu.value = false
 }
 
+function goToProfile() {
+  router.push('/profile')
+  closeUserMenu()
+}
+
+function goToSettings() {
+  router.push('/settings')
+  closeUserMenu()
+}
+
 onMounted(loadProjects)
 </script>
 
 <template>
   <div class="h-screen flex flex-col">
     <!-- 顶部导航 -->
-    <header class="flex items-center justify-between px-6 py-2 bg-white border-b border-gray-200 flex-shrink-0">
+    <header
+      class="flex items-center justify-between px-6 py-2 bg-white border-b border-gray-200 flex-shrink-0"
+    >
       <div class="flex items-center gap-1">
         <img src="/favicon.svg" alt="Logo" class="w-6 h-6 mr-2 flex-shrink-0" />
         <span class="text-sm font-semibold text-gray-400 mr-2">操作手册编写平台</span>
         <button
-          v-for="item in navItems.filter(i => !i.hideForGuest || !isGuest)"
+          v-for="item in navItems.filter((i) => !i.hideForGuest || !isGuest)"
           :key="item.path"
           class="px-3 py-1.5 rounded-md text-sm transition-colors"
-          :class="isActive(item.path)
-            ? 'bg-blue-50 text-blue-700'
-            : 'text-gray-600 hover:bg-gray-100'"
+          :class="
+            isActive(item.path) ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+          "
           @click="router.push(item.path)"
         >
           <span :class="item.icon" class="mr-1 w-4 h-4 inline-block align-middle" />{{ item.label }}
@@ -96,18 +107,22 @@ onMounted(loadProjects)
           <span class="text-gray-200 mx-1">|</span>
           <button
             class="px-3 py-1.5 rounded-md text-sm transition-colors"
-            :class="isActive('/catalogs/new')
-              ? 'bg-blue-50 text-blue-700'
-              : 'text-gray-600 hover:bg-gray-100'"
+            :class="
+              isActive('/catalogs/new')
+                ? 'bg-blue-50 text-blue-700'
+                : 'text-gray-600 hover:bg-gray-100'
+            "
             @click="router.push('/catalogs/new')"
           >
             <span class="i-lucide-pencil mr-1 w-4 h-4 inline-block align-middle" />目录
           </button>
           <button
             class="px-3 py-1.5 rounded-md text-sm transition-colors"
-            :class="route.path.startsWith('/settings/project')
-              ? 'bg-blue-50 text-blue-700'
-              : 'text-gray-600 hover:bg-gray-100'"
+            :class="
+              route.path.startsWith('/settings/project')
+                ? 'bg-blue-50 text-blue-700'
+                : 'text-gray-600 hover:bg-gray-100'
+            "
             @click="router.push('/settings/project')"
           >
             <span class="i-lucide-settings mr-1 w-4 h-4 inline-block align-middle" />设置
@@ -133,7 +148,7 @@ onMounted(loadProjects)
           width-class="w-48"
           placeholder="选择项目"
           :model-value="currentProjectId || ''"
-          :options="projects.map(p => ({ value: p.id, label: p.name }))"
+          :options="projects.map((p) => ({ value: p.id, label: p.name }))"
           @update:model-value="(val: string | number | null) => handleProjectSwitch(val as string)"
         />
 
@@ -144,7 +159,11 @@ onMounted(loadProjects)
             @click="toggleUserMenu"
             @blur="closeUserMenu"
           >
-            <UserAvatar :avatar-url="user?.avatarUrl" :name="user?.displayName || user?.username" size="sm" />
+            <UserAvatar
+              :avatar-url="user?.avatarUrl"
+              :name="user?.displayName || user?.username"
+              size="sm"
+            />
             {{ user?.feishuName || user?.displayName }}
             <span class="text-gray-300">·</span>
             {{ roleLabel(user?.role || '') }}
@@ -159,7 +178,7 @@ onMounted(loadProjects)
           >
             <button
               class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-              @click="router.push('/profile'); closeUserMenu()"
+              @click="goToProfile()"
             >
               <span class="i-lucide-user w-4 h-4" />个人中心
             </button>
@@ -174,7 +193,7 @@ onMounted(loadProjects)
             <button
               v-if="isAdmin"
               class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-              @click="router.push('/settings'); closeUserMenu()"
+              @click="goToSettings()"
             >
               <span class="i-lucide-shield w-4 h-4" />系统设置
             </button>
@@ -201,7 +220,9 @@ onMounted(loadProjects)
 
 <style>
 @media print {
-  @page { margin: 1.5cm; }
+  @page {
+    margin: 1.5cm;
+  }
   /* 隐藏顶部导航 */
   header {
     display: none !important;
@@ -211,9 +232,9 @@ onMounted(loadProjects)
     overflow: visible !important;
   }
   /* 隐藏所有浮层、下拉菜单、弹窗 */
-  body > [style*="z-index"],
+  body > [style*='z-index'],
   .dialog-container,
-  [class*="modal-overlay"] {
+  [class*='modal-overlay'] {
     display: none !important;
   }
 }

@@ -19,7 +19,7 @@ const { user, isGuest, logout, refreshUser, token, updateProfile, updateUsername
 const { confirm } = useDialog()
 
 async function handleLogout() {
-  if (!await confirm('确定退出登录？')) return
+  if (!(await confirm('确定退出登录？'))) return
   logout()
 }
 
@@ -60,8 +60,21 @@ async function saveNotifyPrefs() {
       user.value.notifyEnabled = notifyEnabled.value
       user.value.notifyPrefs = { ...notifyPrefs.value }
     }
-  } catch { /* ignore */ }
-  finally { notifySaving.value = false }
+  } catch {
+    /* ignore */
+  } finally {
+    notifySaving.value = false
+  }
+}
+
+function toggleNotifyEnabled() {
+  notifyEnabled.value = !notifyEnabled.value
+  saveNotifyPrefs()
+}
+
+function toggleNotifyPref(key: string) {
+  notifyPrefs.value[key] = !notifyPrefs.value[key]
+  saveNotifyPrefs()
 }
 
 const notifyLabels: { key: 'assign' | 'review' | 'project' | 'status'; label: string }[] = [
@@ -77,7 +90,9 @@ async function loadFeishuBinding() {
     feishuBound.value = data.bound
     feishuName.value = data.name || ''
     feishuAvatar.value = data.avatarUrl || ''
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 async function bindFeishu() {
@@ -85,12 +100,20 @@ async function bindFeishu() {
   try {
     const { url } = await getFeishuBindUrl()
 
-    const width = 600; const height = 700
+    const width = 600
+    const height = 700
     const left = window.screenX + (window.innerWidth - width) / 2
     const top = window.screenY + (window.innerHeight - height) / 2
-    const popup = window.open(url, 'feishu-bind', `width=${width},height=${height},left=${left},top=${top}`)
+    const popup = window.open(
+      url,
+      'feishu-bind',
+      `width=${width},height=${height},left=${left},top=${top}`,
+    )
 
-    if (!popup) { feishuError.value = '弹出窗口被拦截，请允许弹出窗口'; return }
+    if (!popup) {
+      feishuError.value = '弹出窗口被拦截，请允许弹出窗口'
+      return
+    }
 
     const messageHandler = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return
@@ -113,13 +136,15 @@ async function bindFeishu() {
 }
 
 async function unbindFeishu() {
-  if (!await confirm('确定解除飞书绑定？')) return
+  if (!(await confirm('确定解除飞书绑定？'))) return
   try {
     await apiUnbindFeishu()
     feishuBound.value = false
     feishuName.value = ''
     feishuAvatar.value = ''
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 function roleLabel(role: string): string {
@@ -290,8 +315,15 @@ onMounted(() => {
             <span class="text-gray-400">用户名：</span>
             <code class="bg-gray-100 px-1 rounded text-xs">{{ user?.username }}</code>
           </div>
-          <div v-if="isFeishuAutoUsername && !user?.usernameChanged" class="text-amber-500 text-xs mt-0.5">该用户名为飞书自动生成，建议修改为易记的用户名</div>
-          <div v-if="user?.usernameChanged" class="text-gray-400 text-xs mt-0.5">用户名已修改，不可再次更改</div>
+          <div
+            v-if="isFeishuAutoUsername && !user?.usernameChanged"
+            class="text-amber-500 text-xs mt-0.5"
+          >
+            该用户名为飞书自动生成，建议修改为易记的用户名
+          </div>
+          <div v-if="user?.usernameChanged" class="text-gray-400 text-xs mt-0.5">
+            用户名已修改，不可再次更改
+          </div>
           <div class="text-sm text-gray-500 mt-0.5">
             {{ roleLabel(user?.role || '') }}
             <span v-if="feishuBound" class="text-green-600 ml-2 text-xs">已绑定飞书</span>
@@ -308,7 +340,9 @@ onMounted(() => {
     <!-- 通知偏好 -->
     <div class="card mb-6">
       <h2 class="text-sm font-semibold text-gray-500 mb-3">通知偏好</h2>
-      <p class="text-xs text-gray-400 mb-4">绑定飞书后可接收通知。关闭后不再收到对应类型的飞书消息。</p>
+      <p class="text-xs text-gray-400 mb-4">
+        绑定飞书后可接收通知。关闭后不再收到对应类型的飞书消息。
+      </p>
 
       <!-- 全局开关 -->
       <label class="flex items-center justify-between py-2 cursor-pointer">
@@ -316,24 +350,33 @@ onMounted(() => {
         <button
           class="relative w-10 h-5.5 rounded-full transition-colors duration-200 flex-shrink-0"
           :class="notifyEnabled ? 'bg-blue-500' : 'bg-gray-300'"
-          @click="notifyEnabled = !notifyEnabled; saveNotifyPrefs()"
+          @click="toggleNotifyEnabled()"
         >
-          <span class="absolute top-0.5 left-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-transform duration-200"
+          <span
+            class="absolute top-0.5 left-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-transform duration-200"
             :class="notifyEnabled ? 'translate-x-4.5' : ''"
           />
         </button>
       </label>
 
       <!-- 分类开关 -->
-      <div class="border-t border-gray-100 mt-3 pt-3 space-y-2" :class="{ 'opacity-50 pointer-events-none': !notifyEnabled }">
-        <label v-for="item in notifyLabels" :key="item.key" class="flex items-center justify-between py-1.5 cursor-pointer">
+      <div
+        class="border-t border-gray-100 mt-3 pt-3 space-y-2"
+        :class="{ 'opacity-50 pointer-events-none': !notifyEnabled }"
+      >
+        <label
+          v-for="item in notifyLabels"
+          :key="item.key"
+          class="flex items-center justify-between py-1.5 cursor-pointer"
+        >
           <span class="text-sm text-gray-600">{{ item.label }}</span>
           <button
             class="relative w-10 h-5.5 rounded-full transition-colors duration-200 flex-shrink-0"
             :class="notifyPrefs[item.key] ? 'bg-blue-500' : 'bg-gray-300'"
-            @click="notifyPrefs[item.key] = !notifyPrefs[item.key]; saveNotifyPrefs()"
+            @click="toggleNotifyPref(item.key)"
           >
-            <span class="absolute top-0.5 left-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-transform duration-200"
+            <span
+              class="absolute top-0.5 left-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-transform duration-200"
               :class="notifyPrefs[item.key] ? 'translate-x-4.5' : ''"
             />
           </button>
@@ -344,7 +387,9 @@ onMounted(() => {
     <!-- 飞书账号绑定 -->
     <div class="card mb-6">
       <h2 class="text-sm font-semibold text-gray-500 mb-3">飞书账号绑定</h2>
-      <p class="text-xs text-gray-400 mb-3">绑定后可在任务指派、提交审核时接收飞书通知，平台将显示飞书头像和昵称</p>
+      <p class="text-xs text-gray-400 mb-3">
+        绑定后可在任务指派、提交审核时接收飞书通知，平台将显示飞书头像和昵称
+      </p>
 
       <div v-if="feishuBound" class="flex items-center gap-3">
         <img v-if="feishuAvatar" :src="feishuAvatar" class="w-10 h-10 rounded-full" alt="" />
@@ -399,9 +444,7 @@ onMounted(() => {
           <p v-else-if="user?.usernameChanged" class="text-gray-400 text-xs mt-1">
             用户名已修改，不可再次更改
           </p>
-          <p v-else class="text-gray-400 text-xs mt-1">
-            用户名不可修改
-          </p>
+          <p v-else class="text-gray-400 text-xs mt-1">用户名不可修改</p>
         </FormField>
       </div>
     </ModalDialog>
@@ -417,18 +460,35 @@ onMounted(() => {
       @confirm="submitChangePassword"
     >
       <div class="space-y-4">
-        <div v-if="!hasPassword" class="text-sm text-blue-500 bg-blue-50 rounded-lg px-3 py-2 space-y-1">
-          <p><span class="i-lucide-lightbulb w-4 h-4 inline-block align-middle mr-1" /> 您通过飞书登录，可直接设置密码。</p>
-          <p v-if="isFeishuAutoUsername && !user?.usernameChanged" class="text-amber-600"><span class="i-lucide-alert-triangle w-4 h-4 inline-block align-middle mr-1" /> 当前用户名 <code class="bg-amber-100 px-1 rounded text-xs">{{ user?.username }}</code> 为自动生成，建议先点击「编辑资料」修改为易记的用户名，再设置密码。</p>
+        <div
+          v-if="!hasPassword"
+          class="text-sm text-blue-500 bg-blue-50 rounded-lg px-3 py-2 space-y-1"
+        >
+          <p>
+            <span class="i-lucide-lightbulb w-4 h-4 inline-block align-middle mr-1" />
+            您通过飞书登录，可直接设置密码。
+          </p>
+          <p v-if="isFeishuAutoUsername && !user?.usernameChanged" class="text-amber-600">
+            <span class="i-lucide-alert-triangle w-4 h-4 inline-block align-middle mr-1" />
+            当前用户名
+            <code class="bg-amber-100 px-1 rounded text-xs">{{ user?.username }}</code>
+            为自动生成，建议先点击「编辑资料」修改为易记的用户名，再设置密码。
+          </p>
         </div>
         <FormField v-if="hasPassword" label="当前密码" :required="true">
           <PasswordInput v-model="changePasswordForm.currentPassword" placeholder="输入当前密码" />
         </FormField>
         <FormField label="新密码" :required="true">
-          <PasswordInput v-model="changePasswordForm.newPassword" placeholder="至少8位，含大小写字母、数字、特殊字符中至少3种" />
+          <PasswordInput
+            v-model="changePasswordForm.newPassword"
+            placeholder="至少8位，含大小写字母、数字、特殊字符中至少3种"
+          />
         </FormField>
         <FormField label="确认密码" :required="true">
-          <PasswordInput v-model="changePasswordForm.confirmPassword" placeholder="再次输入新密码" />
+          <PasswordInput
+            v-model="changePasswordForm.confirmPassword"
+            placeholder="再次输入新密码"
+          />
         </FormField>
       </div>
     </ModalDialog>

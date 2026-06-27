@@ -39,7 +39,10 @@ export const MarkdownPaste = Extension.create({
             // 若 HTML 含语义标签（网页/Word 富文本），说明渲染版更完整，不做转换
             // 排除 <html> <body> <div> <pre> <span> — 它们是容器/装饰，不代表富文本
             const html = event.clipboardData?.getData('text/html')
-            if (html && /<\/?(h[1-6]|p\b|a\b|img|table|ul|ol|blockquote|em|strong)[>\s]/.test(html)) {
+            if (
+              html &&
+              /<\/?(h[1-6]|p\b|a\b|img|table|ul|ol|blockquote|em|strong)[>\s]/.test(html)
+            ) {
               return
             }
 

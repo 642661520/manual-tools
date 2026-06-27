@@ -10,17 +10,20 @@ export interface SelectOption {
   name?: string
 }
 
-const props = withDefaults(defineProps<{
-  modelValue: string | number | null
-  options: SelectOption[]
-  placeholder?: string
-  disabled?: boolean
-  widthClass?: string
-}>(), {
-  placeholder: '请选择',
-  disabled: false,
-  widthClass: 'w-full',
-})
+const props = withDefaults(
+  defineProps<{
+    modelValue: string | number | null
+    options: SelectOption[]
+    placeholder?: string
+    disabled?: boolean
+    widthClass?: string
+  }>(),
+  {
+    placeholder: '请选择',
+    disabled: false,
+    widthClass: 'w-full',
+  },
+)
 
 const emit = defineEmits<{
   'update:modelValue': [value: string | number | null]
@@ -32,7 +35,7 @@ const triggerRef = ref<HTMLElement | null>(null)
 const dropdownRef = ref<HTMLElement | null>(null)
 const dropdownStyle = ref<Record<string, string>>({})
 
-const selectedOption = computed(() => props.options.find(o => o.value === props.modelValue))
+const selectedOption = computed(() => props.options.find((o) => o.value === props.modelValue))
 
 const selectedLabel = computed(() => {
   return selectedOption.value ? selectedOption.value.label : props.placeholder
@@ -41,7 +44,7 @@ const selectedLabel = computed(() => {
 function open() {
   if (props.disabled) return
   isOpen.value = true
-  const initIndex = props.options.findIndex(o => !o.disabled)
+  const initIndex = props.options.findIndex((o) => !o.disabled)
   highlightIndex.value = initIndex >= 0 ? initIndex : 0
   nextTick(updateDropdownPosition)
 }
@@ -76,7 +79,11 @@ function updateDropdownPosition() {
     width: `${rect.width}px`,
   }
 
-  if (rect.bottom + estimatedHeight <= window.innerHeight || rect.bottom + estimatedHeight > window.innerHeight && rect.top > window.innerHeight - rect.bottom) {
+  if (
+    rect.bottom + estimatedHeight <= window.innerHeight ||
+    (rect.bottom + estimatedHeight > window.innerHeight &&
+      rect.top > window.innerHeight - rect.bottom)
+  ) {
     // Place below
     dropdownStyle.value.top = `${rect.bottom + 4}px`
   } else {
@@ -165,7 +172,12 @@ onUnmounted(() => {
         class="truncate flex items-center gap-2"
         :class="modelValue === null || modelValue === '' ? 'text-gray-400' : 'text-gray-700'"
       >
-        <UserAvatar v-if="selectedOption?.avatar || selectedOption?.name" :avatar-url="selectedOption?.avatar" :name="selectedOption?.name" size="2xs" />
+        <UserAvatar
+          v-if="selectedOption?.avatar || selectedOption?.name"
+          :avatar-url="selectedOption?.avatar"
+          :name="selectedOption?.name"
+          size="2xs"
+        />
         <span class="truncate">{{ selectedLabel }}</span>
       </span>
       <span
@@ -202,7 +214,12 @@ onUnmounted(() => {
             @mouseenter="highlightIndex = idx"
           >
             <span class="truncate flex items-center gap-2">
-              <UserAvatar v-if="opt.avatar || opt.name" :avatar-url="opt.avatar" :name="opt.name" size="2xs" />
+              <UserAvatar
+                v-if="opt.avatar || opt.name"
+                :avatar-url="opt.avatar"
+                :name="opt.name"
+                size="2xs"
+              />
               <span class="truncate">{{ opt.label }}</span>
             </span>
             <span
@@ -210,10 +227,7 @@ onUnmounted(() => {
               class="i-lucide-check w-4 h-4 text-blue-600 flex-shrink-0 ml-2 inline-block align-middle"
             />
           </div>
-          <div
-            v-if="options.length === 0"
-            class="px-3 py-4 text-sm text-gray-400 text-center"
-          >
+          <div v-if="options.length === 0" class="px-3 py-4 text-sm text-gray-400 text-center">
             无可用选项
           </div>
         </div>
@@ -224,10 +238,14 @@ onUnmounted(() => {
 
 <style scoped>
 .dropdown-enter-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
 }
 .dropdown-leave-active {
-  transition: opacity 0.1s ease, transform 0.1s ease;
+  transition:
+    opacity 0.1s ease,
+    transform 0.1s ease;
 }
 .dropdown-enter-from {
   opacity: 0;

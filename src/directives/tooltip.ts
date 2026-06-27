@@ -96,7 +96,10 @@ function positionTooltip(
 
   // Horizontal: center over trigger, clamped to viewport
   let left = triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2
-  left = Math.max(VIEWPORT_MARGIN, Math.min(left, window.innerWidth - tooltipRect.width - VIEWPORT_MARGIN))
+  left = Math.max(
+    VIEWPORT_MARGIN,
+    Math.min(left, window.innerWidth - tooltipRect.width - VIEWPORT_MARGIN),
+  )
 
   // Vertical
   let top: number

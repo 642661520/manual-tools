@@ -30,7 +30,11 @@ export function getMembers(projectId: string): Promise<MemberInfo[]> {
   return api.get<MemberInfo[]>(`${BASE}/${projectId}/members`)
 }
 
-export function addMember(projectId: string, userId: string, projectRole?: string): Promise<OkResponse> {
+export function addMember(
+  projectId: string,
+  userId: string,
+  projectRole?: string,
+): Promise<OkResponse> {
   return api.post<OkResponse>(`${BASE}/${projectId}/members`, { userId, projectRole })
 }
 

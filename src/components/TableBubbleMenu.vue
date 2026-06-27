@@ -52,7 +52,9 @@ function deleteTable() {
     :should-show="shouldShow"
     :options="{ offset: 8, placement: 'top' }"
   >
-    <div class="flex items-center gap-0.5 px-1.5 py-1 bg-white rounded-lg shadow-lg border border-gray-200">
+    <div
+      class="flex items-center gap-0.5 px-1.5 py-1 bg-white rounded-lg shadow-lg border border-gray-200"
+    >
       <!-- 行操作 -->
       <button
         class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-sm"

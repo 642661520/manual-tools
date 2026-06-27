@@ -24,5 +24,4 @@ const showLayout = computed(() => ready.value && route.path !== '/login')
   <DialogContainer />
 </template>
 
-<style>
-</style>
+<style></style>

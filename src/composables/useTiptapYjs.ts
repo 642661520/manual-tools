@@ -29,7 +29,7 @@ const ResizableImage = Image.extend({
       ...this.parent?.(),
       imgStyle: {
         default: null,
-        parseHTML: element => element.getAttribute('style'),
+        parseHTML: (element) => element.getAttribute('style'),
         renderHTML(attributes) {
           if (!attributes.imgStyle) return {}
           return { style: attributes.imgStyle as string }
@@ -87,10 +87,14 @@ export function useTiptapYjs(
     const html = ed.getHTML()
     if (html === lastSyncedHtml) return
     lastSyncedHtml = html
-    Y.transact(ydoc, () => {
-      ytext.delete(0, ytext.length)
-      ytext.insert(0, html)
-    }, 'local')
+    Y.transact(
+      ydoc,
+      () => {
+        ytext.delete(0, ytext.length)
+        ytext.insert(0, html)
+      },
+      'local',
+    )
   }
 
   const editor = useEditor({
@@ -219,9 +223,18 @@ export function useTiptapYjs(
     if (!html || html === ed.getHTML()) return
 
     applyingRemote = true
-    if (syncTimeoutId) { clearTimeout(syncTimeoutId); syncTimeoutId = null }
-    if (syncRafId) { cancelAnimationFrame(syncRafId); syncRafId = null }
-    if (cursorTimer) { clearTimeout(cursorTimer); cursorTimer = null }
+    if (syncTimeoutId) {
+      clearTimeout(syncTimeoutId)
+      syncTimeoutId = null
+    }
+    if (syncRafId) {
+      cancelAnimationFrame(syncRafId)
+      syncRafId = null
+    }
+    if (cursorTimer) {
+      clearTimeout(cursorTimer)
+      cursorTimer = null
+    }
 
     // 保存光标上下文（文本前后各取 50 字符），用于替换后恢复到相同逻辑位置
     const savedAnchor = ed.state.selection.anchor
@@ -234,7 +247,9 @@ export function useTiptapYjs(
         before: parentText.substring(Math.max(0, offset - 50), offset),
         after: parentText.substring(offset, Math.min(parentText.length, offset + 50)),
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     const parser = DOMParser.fromSchema(ed.state.schema)
     const element = document.createElement('div')
@@ -265,7 +280,9 @@ export function useTiptapYjs(
       try {
         const pos = Math.min(savedAnchor, ed.state.doc.content.size)
         if (pos > 0) ed.commands.setTextSelection(pos)
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
 
     lastSyncedHtml = html

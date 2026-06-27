@@ -11,15 +11,29 @@ export async function profileRoutes(app: FastifyInstance) {
   // 获取当前用户信息（含 hasPassword + 通知偏好）
   app.get('/api/v1/auth/me', { preHandler: authMiddleware }, async (req) => {
     const db = getDb()
-    const row = db.prepare('SELECT password_hash, notify_enabled, notify_prefs, username_changed FROM users WHERE id = ?').get(req.user!.userId) as { password_hash: string | null; notify_enabled: number; notify_prefs: string; username_changed: number } | undefined
+    const row = db
+      .prepare(
+        'SELECT password_hash, notify_enabled, notify_prefs, username_changed FROM users WHERE id = ?',
+      )
+      .get(req.user!.userId) as
+      | {
+          password_hash: string | null
+          notify_enabled: number
+          notify_prefs: string
+          username_changed: number
+        }
+      | undefined
     return success({
       user: {
         ...req.user,
         hasPassword: row ? row.password_hash !== null && row.password_hash !== '' : false,
         notifyEnabled: row ? !!row.notify_enabled : true,
         notifyPrefs: (() => {
-          try { return JSON.parse(row?.notify_prefs || '{}') }
-          catch { return {} }
+          try {
+            return JSON.parse(row?.notify_prefs || '{}')
+          } catch {
+            return {}
+          }
         })(),
         usernameChanged: row ? !!row.username_changed : false,
       },
@@ -77,7 +91,11 @@ export async function profileRoutes(app: FastifyInstance) {
     const db = getDb()
     const userId = req.user!.userId
 
-    const user = db.prepare('SELECT feishu_open_id, username_changed, token_version FROM users WHERE id = ?').get(userId) as { feishu_open_id: string | null; username_changed: number; token_version: number } | undefined
+    const user = db
+      .prepare('SELECT feishu_open_id, username_changed, token_version FROM users WHERE id = ?')
+      .get(userId) as
+      | { feishu_open_id: string | null; username_changed: number; token_version: number }
+      | undefined
     if (!user) {
       return fail(reply, 404, '用户不存在')
     }
@@ -90,13 +108,17 @@ export async function profileRoutes(app: FastifyInstance) {
     }
 
     // 检查用户名是否已被其他用户使用
-    const existing = db.prepare('SELECT id FROM users WHERE username = ? AND id != ?').get(newUsername, userId)
+    const existing = db
+      .prepare('SELECT id FROM users WHERE username = ? AND id != ?')
+      .get(newUsername, userId)
     if (existing) {
       return fail(reply, 409, '用户名已被使用')
     }
 
     const newVersion = user.token_version + 1
-    db.prepare('UPDATE users SET username = ?, username_changed = 1, token_version = ? WHERE id = ?').run(newUsername, newVersion, userId)
+    db.prepare(
+      'UPDATE users SET username = ?, username_changed = 1, token_version = ? WHERE id = ?',
+    ).run(newUsername, newVersion, userId)
 
     const token = signToken({
       userId: req.user!.userId,
@@ -118,10 +140,16 @@ export async function profileRoutes(app: FastifyInstance) {
     const userId = req.user!.userId
 
     if (typeof body.notifyEnabled === 'number') {
-      db.prepare('UPDATE users SET notify_enabled = ? WHERE id = ?').run(body.notifyEnabled ? 1 : 0, userId)
+      db.prepare('UPDATE users SET notify_enabled = ? WHERE id = ?').run(
+        body.notifyEnabled ? 1 : 0,
+        userId,
+      )
     }
     if (typeof body.notifyPrefs === 'object' && body.notifyPrefs) {
-      db.prepare('UPDATE users SET notify_prefs = ? WHERE id = ?').run(JSON.stringify(body.notifyPrefs), userId)
+      db.prepare('UPDATE users SET notify_prefs = ? WHERE id = ?').run(
+        JSON.stringify(body.notifyPrefs),
+        userId,
+      )
     }
 
     return ok()
@@ -130,7 +158,8 @@ export async function profileRoutes(app: FastifyInstance) {
   // 修改密码
   app.put('/api/v1/auth/me/password', { preHandler: authMiddleware }, async (req, reply) => {
     const body = req.body as Record<string, unknown>
-    const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : undefined
+    const currentPassword =
+      typeof body.currentPassword === 'string' ? body.currentPassword : undefined
     const newPassword = typeof body.newPassword === 'string' ? body.newPassword : undefined
 
     if (!newPassword) {
@@ -144,7 +173,9 @@ export async function profileRoutes(app: FastifyInstance) {
     const db = getDb()
     const userId = req.user!.userId
 
-    const user = db.prepare('SELECT password_hash, token_version FROM users WHERE id = ?').get(userId) as { password_hash: string | null; token_version: number } | undefined
+    const user = db
+      .prepare('SELECT password_hash, token_version FROM users WHERE id = ?')
+      .get(userId) as { password_hash: string | null; token_version: number } | undefined
     if (!user) {
       return fail(reply, 404, '用户不存在')
     }
@@ -162,7 +193,11 @@ export async function profileRoutes(app: FastifyInstance) {
 
     const hashed = bcrypt.hashSync(newPassword, 10)
     const newVersion = user.token_version + 1
-    db.prepare('UPDATE users SET password_hash = ?, token_version = ? WHERE id = ?').run(hashed, newVersion, userId)
+    db.prepare('UPDATE users SET password_hash = ?, token_version = ? WHERE id = ?').run(
+      hashed,
+      newVersion,
+      userId,
+    )
 
     const token = signToken({
       userId: req.user!.userId,

@@ -13,11 +13,13 @@ const APP_BASE_URL = config.appBaseUrl
 
 function getSectionTitle(featureId: string, sectionKey: string): string {
   const db = getDb()
-  const feature = db.prepare('SELECT sections FROM features WHERE id = ?').get(featureId) as { sections: string } | undefined
+  const feature = db.prepare('SELECT sections FROM features WHERE id = ?').get(featureId) as
+    | { sections: string }
+    | undefined
   if (!feature) return sectionKey
   try {
     const sections = JSON.parse(feature.sections) as { key: string; title: string }[]
-    return sections.find(s => s.key === sectionKey)?.title || sectionKey
+    return sections.find((s) => s.key === sectionKey)?.title || sectionKey
   } catch {
     return sectionKey
   }
@@ -25,14 +27,18 @@ function getSectionTitle(featureId: string, sectionKey: string): string {
 
 function getFeatureTitle(featureId: string): string {
   const db = getDb()
-  const feature = db.prepare('SELECT title FROM features WHERE id = ?').get(featureId) as { title: string } | undefined
+  const feature = db.prepare('SELECT title FROM features WHERE id = ?').get(featureId) as
+    | { title: string }
+    | undefined
   return feature?.title || featureId
 }
 
 /** 检查是否应该向该用户发送某类通知 */
 function shouldNotify(userId: string, category: string): boolean {
   const db = getDb()
-  const user = db.prepare('SELECT notify_enabled, notify_prefs FROM users WHERE id = ?').get(userId) as { notify_enabled: number; notify_prefs: string } | undefined
+  const user = db
+    .prepare('SELECT notify_enabled, notify_prefs FROM users WHERE id = ?')
+    .get(userId) as { notify_enabled: number; notify_prefs: string } | undefined
   if (!user) return false
   // 全局开关
   if (!user.notify_enabled) return false
@@ -40,40 +46,56 @@ function shouldNotify(userId: string, category: string): boolean {
   try {
     const prefs = JSON.parse(user.notify_prefs || '{}') as Record<string, boolean>
     if (prefs[category] === false) return false
-  } catch { /* ignore, default to allow */ }
+  } catch {
+    /* ignore, default to allow */
+  }
   return true
 }
 
 /** 检查一批用户中哪些该收通知，返回对应的 open_id */
-function getNotifiableOpenIds(userIds: string[], category: string, excludeUserId?: string): string[] {
-  const filtered = excludeUserId ? userIds.filter(id => id !== excludeUserId) : userIds
+function getNotifiableOpenIds(
+  userIds: string[],
+  category: string,
+  excludeUserId?: string,
+): string[] {
+  const filtered = excludeUserId ? userIds.filter((id) => id !== excludeUserId) : userIds
   if (filtered.length === 0) return []
   const db = getDb()
   const placeholders = filtered.map(() => '?').join(',')
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(`
     SELECT feishu_open_id, notify_enabled, notify_prefs FROM users
     WHERE id IN (${placeholders}) AND feishu_open_id IS NOT NULL
-  `).all(...filtered) as { feishu_open_id: string; notify_enabled: number; notify_prefs: string }[]
+  `)
+    .all(...filtered) as { feishu_open_id: string; notify_enabled: number; notify_prefs: string }[]
 
-  return rows.filter(r => {
-    if (!r.notify_enabled) return false
-    try {
-      const prefs = JSON.parse(r.notify_prefs || '{}') as Record<string, boolean>
-      if (prefs[category] === false) return false
-    } catch { /* allow */ }
-    return true
-  }).map(r => r.feishu_open_id)
+  return rows
+    .filter((r) => {
+      if (!r.notify_enabled) return false
+      try {
+        const prefs = JSON.parse(r.notify_prefs || '{}') as Record<string, boolean>
+        if (prefs[category] === false) return false
+      } catch {
+        /* allow */
+      }
+      return true
+    })
+    .map((r) => r.feishu_open_id)
 }
 function getUserOpenIdById(userId: string): string | null {
   const db = getDb()
-  const user = db.prepare('SELECT feishu_open_id FROM users WHERE id = ?').get(userId) as { feishu_open_id: string | null } | undefined
+  const user = db.prepare('SELECT feishu_open_id FROM users WHERE id = ?').get(userId) as
+    | { feishu_open_id: string | null }
+    | undefined
   return user?.feishu_open_id || null
 }
 
 function getAdminOpenIds(): string[] {
   const db = getDb()
-  const admins = db.prepare("SELECT feishu_open_id FROM users WHERE role = 'admin' AND feishu_open_id IS NOT NULL").all() as { feishu_open_id: string }[]
-  return admins.map(p => p.feishu_open_id)
+  const admins = db
+    .prepare("SELECT feishu_open_id FROM users WHERE role = 'admin' AND feishu_open_id IS NOT NULL")
+    .all() as { feishu_open_id: string }[]
+  return admins.map((p) => p.feishu_open_id)
 }
 
 // ---- 通知函数 ----
@@ -100,7 +122,7 @@ export async function notifyAssignees(
       { color: 'blue', link: { url: editorUrl, title: '去编写' } },
     )
 
-    await Promise.allSettled(openIds.map(openId => sendFeishuMessage(openId, card)))
+    await Promise.allSettled(openIds.map((openId) => sendFeishuMessage(openId, card)))
   } catch (e: unknown) {
     log.error({ err: e }, '通知被指派人失败')
   }
@@ -156,7 +178,7 @@ export async function notifyWriterReviewResult(
 
     const isApproved = newStatus === 'approved'
     const title = isApproved ? '✅ 审核通过' : '↩️ 退回修改'
-    const color = isApproved ? 'green' : 'red' as 'green' | 'red'
+    const color = isApproved ? 'green' : ('red' as 'green' | 'red')
 
     let body = `${reviewerName} ${isApproved ? '通过了' : '退回了'}\n**${featureTitle}** — ${sectionTitle}`
     if (reviewNote) {
@@ -165,7 +187,7 @@ export async function notifyWriterReviewResult(
 
     const card = buildCardMessage(title, body, { color, link: { url: editorUrl, title: '查看' } })
 
-    await Promise.allSettled(openIds.map(openId => sendFeishuMessage(openId, card)))
+    await Promise.allSettled(openIds.map((openId) => sendFeishuMessage(openId, card)))
   } catch (e: unknown) {
     log.error({ err: e }, '通知审核结果失败')
   }
@@ -193,7 +215,7 @@ export async function notifyDirectApprove(
       { color: 'green', link: { url: editorUrl, title: '查看' } },
     )
 
-    await Promise.allSettled(openIds.map(openId => sendFeishuMessage(openId, card)))
+    await Promise.allSettled(openIds.map((openId) => sendFeishuMessage(openId, card)))
   } catch (e: unknown) {
     log.error({ err: e }, '通知直接通过失败')
   }
@@ -216,7 +238,8 @@ export async function notifyStatusReset(
     const sectionTitle = getSectionTitle(featureId, sectionKey)
     const editorUrl = `${APP_BASE_URL}/features/${featureId}/edit?section=${sectionKey}`
 
-    const statusLabel = newStatus === 'draft' ? '未开始' : newStatus === 'in_progress' ? '编写中' : newStatus
+    const statusLabel =
+      newStatus === 'draft' ? '未开始' : newStatus === 'in_progress' ? '编写中' : newStatus
 
     const card = buildCardMessage(
       '🔄 状态已重置',
@@ -224,7 +247,7 @@ export async function notifyStatusReset(
       { color: 'blue', link: { url: editorUrl, title: '查看' } },
     )
 
-    await Promise.allSettled(openIds.map(openId => sendFeishuMessage(openId, card)))
+    await Promise.allSettled(openIds.map((openId) => sendFeishuMessage(openId, card)))
   } catch (e: unknown) {
     log.error({ err: e }, '通知状态重置失败')
   }
@@ -244,7 +267,7 @@ export async function notifyNewGuest(displayName: string): Promise<void> {
       { color: 'blue', link: { url: settingsUrl, title: '去设置' } },
     )
 
-    await Promise.allSettled(adminOpenIds.map(openId => sendFeishuMessage(openId, card)))
+    await Promise.allSettled(adminOpenIds.map((openId) => sendFeishuMessage(openId, card)))
   } catch (e: unknown) {
     log.error({ err: e }, '通知新成员失败')
   }
@@ -265,7 +288,8 @@ export async function notifyJoinProject(
     if (!openId) return
 
     const previewUrl = `${APP_BASE_URL}/preview`
-    const projectRoleLabel = (r: string) => r === 'pm' ? '项目管理员' : r === 'writer' ? '编辑' : r === 'viewer' ? '只读' : r
+    const projectRoleLabel = (r: string) =>
+      r === 'pm' ? '项目管理员' : r === 'writer' ? '编辑' : r === 'viewer' ? '只读' : r
 
     const card = buildCardMessage(
       '👥 已加入项目',
@@ -314,7 +338,8 @@ export async function notifyRoleChange(
     const openId = getUserOpenIdById(targetUserId)
     if (!openId) return
 
-    const roleLabel = (r: string) => r === 'admin' ? '系统管理员' : r === 'member' ? '成员' : '游客'
+    const roleLabel = (r: string) =>
+      r === 'admin' ? '系统管理员' : r === 'member' ? '成员' : '游客'
 
     const card = buildCardMessage(
       '🔑 角色变更',
@@ -341,7 +366,8 @@ export async function notifyProjectRoleChange(
     const openId = getUserOpenIdById(targetUserId)
     if (!openId) return
 
-    const projectRoleLabel = (r: string) => r === 'pm' ? '项目管理员' : r === 'writer' ? '编辑' : r === 'viewer' ? '只读' : r
+    const projectRoleLabel = (r: string) =>
+      r === 'pm' ? '项目管理员' : r === 'writer' ? '编辑' : r === 'viewer' ? '只读' : r
 
     const card = buildCardMessage(
       '🔑 项目角色变更',

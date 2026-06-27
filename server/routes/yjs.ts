@@ -2,7 +2,12 @@ import * as Y from 'yjs'
 import { encoding, decoding } from 'lib0'
 import { FastifyInstance } from 'fastify'
 import type { WebSocket as WsSocket } from 'ws'
-import { Awareness, removeAwarenessStates, encodeAwarenessUpdate, applyAwarenessUpdate } from 'y-protocols/awareness'
+import {
+  Awareness,
+  removeAwarenessStates,
+  encodeAwarenessUpdate,
+  applyAwarenessUpdate,
+} from 'y-protocols/awareness'
 import { authMiddleware } from '../auth/middleware.js'
 import { verifyToken } from '../auth/jwt.js'
 import { isProjectMember } from '../auth/membership.js'
@@ -35,7 +40,12 @@ export async function yjsRoutes(app: FastifyInstance) {
     return awarenesses.get(docId)!
   }
 
-  function broadcastAwareness(awareness: Awareness, clients: Set<WsSocket>, clientIds: number[], exclude?: WsSocket) {
+  function broadcastAwareness(
+    awareness: Awareness,
+    clients: Set<WsSocket>,
+    clientIds: number[],
+    exclude?: WsSocket,
+  ) {
     const update = encodeAwarenessUpdate(awareness, clientIds)
     const enc = encoding.createEncoder()
     encoding.writeVarUint(enc, messageAwareness)
@@ -55,11 +65,13 @@ export async function yjsRoutes(app: FastifyInstance) {
       const dec = decoding.createDecoder(update)
       const count = decoding.readVarUint(dec)
       for (let i = 0; i < count; i++) {
-        ids.push(decoding.readVarUint(dec))   // clientId
-        decoding.readVarUint(dec)             // clock
-        decoding.readVarString(dec)           // state JSON
+        ids.push(decoding.readVarUint(dec)) // clientId
+        decoding.readVarUint(dec) // clock
+        decoding.readVarString(dec) // state JSON
       }
-    } catch { /* malformed update */ }
+    } catch {
+      /* malformed update */
+    }
     return ids
   }
 
@@ -91,7 +103,9 @@ export async function yjsRoutes(app: FastifyInstance) {
             // 校验项目成员身份：从 docId 提取 featureId 查询项目归属
             const featureId = docId.includes('/') ? docId.split('/')[0] : docId
             const db = getDb()
-            const feature = db.prepare('SELECT project_id FROM features WHERE id = ?').get(featureId) as { project_id: string } | undefined
+            const feature = db
+              .prepare('SELECT project_id FROM features WHERE id = ?')
+              .get(featureId) as { project_id: string } | undefined
             if (!feature || !isProjectMember(payload.userId, payload.role, feature.project_id)) {
               socket.close(4003, '无权访问此文档')
               return
@@ -126,7 +140,12 @@ export async function yjsRoutes(app: FastifyInstance) {
           }
           applyAwarenessUpdate(awareness, awarenessUpdate, 'remote')
           // 广播时包含所有已知的 awareness clientID（含刚加入的）
-          broadcastAwareness(awareness, state.clients, Array.from(awareness.getStates().keys()), socket)
+          broadcastAwareness(
+            awareness,
+            state.clients,
+            Array.from(awareness.getStates().keys()),
+            socket,
+          )
           return
         }
 
@@ -210,7 +229,9 @@ export async function yjsRoutes(app: FastifyInstance) {
     }
     // 检查项目成员身份
     const db = getDb()
-    const feature = db.prepare('SELECT project_id FROM features WHERE id = ?').get(featureId) as { project_id: string } | undefined
+    const feature = db.prepare('SELECT project_id FROM features WHERE id = ?').get(featureId) as
+      | { project_id: string }
+      | undefined
     if (!feature || !isProjectMember(req.user!.userId, req.user!.role, feature.project_id)) {
       return fail(reply, 403, '无权访问此项目')
     }

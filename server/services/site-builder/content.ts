@@ -1,6 +1,13 @@
 import type { FeatureData } from '../../types.js'
 import type { SitePage, PartMeta, TocItem } from './shared.js'
-import { escHtml, rewriteCrossLinks, pad, buildFeaturePartMap, stripHtml, slugify } from './shared.js'
+import {
+  escHtml,
+  rewriteCrossLinks,
+  pad,
+  buildFeaturePartMap,
+  stripHtml,
+  slugify,
+} from './shared.js'
 
 /** 构建封面页 HTML（标题 + TOC） */
 export function buildCoverContentHtml(
@@ -129,21 +136,25 @@ export function buildChapterContentHtml(
 
   // 上一章 / 下一章导航
   html += `<nav class="vp-chapter-nav">
-    ${chNum > 1
-      ? `<a href="ch${pad(chNum - 1)}.html" class="vp-chapter-nav-link">
+    ${
+      chNum > 1
+        ? `<a href="ch${pad(chNum - 1)}.html" class="vp-chapter-nav-link">
            <svg class="vp-chapter-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
            上一章</a>`
-      : `<span class="vp-chapter-nav-link disabled">
+        : `<span class="vp-chapter-nav-link disabled">
            <svg class="vp-chapter-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
-           上一章</span>`}
+           上一章</span>`
+    }
     <span class="vp-chapter-nav-pos">${chNum} / ${totalChapters}</span>
-    ${chNum < totalChapters
-      ? `<a href="ch${pad(chNum + 1)}.html" class="vp-chapter-nav-link">
+    ${
+      chNum < totalChapters
+        ? `<a href="ch${pad(chNum + 1)}.html" class="vp-chapter-nav-link">
            下一章
            <svg class="vp-chapter-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></a>`
-      : `<span class="vp-chapter-nav-link disabled">
+        : `<span class="vp-chapter-nav-link disabled">
            下一章
-           <svg class="vp-chapter-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></span>`}
+           <svg class="vp-chapter-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></span>`
+    }
   </nav>`
 
   return html
@@ -157,36 +168,39 @@ export function processContentHeadings(html: string): {
   const headings: { level: number; id: string; text: string }[] = []
   const seenIds = new Set<string>()
 
-  const processed = html.replace(/<h([1-4])(\s[^>]*)?>([\s\S]*?)<\/h\1>/gi, (_full, tagNum, attrs, innerHtml) => {
-    const attrStr = (attrs || '').trim()
-    const text = stripHtml(innerHtml).trim()
-    if (!text) return _full
+  const processed = html.replace(
+    /<h([1-4])(\s[^>]*)?>([\s\S]*?)<\/h\1>/gi,
+    (_full, tagNum, attrs, innerHtml) => {
+      const attrStr = (attrs || '').trim()
+      const text = stripHtml(innerHtml).trim()
+      if (!text) return _full
 
-    let id: string
-    const idMatch = attrStr.match(/\bid\s*=\s*["']([^"']+)["']/)
-    if (idMatch) {
-      id = idMatch[1]
-    } else {
-      id = slugify(text)
-      // 去重
-      let dedupe = id
-      let n = 1
-      while (seenIds.has(dedupe)) {
-        dedupe = `${id}-${n++}`
+      let id: string
+      const idMatch = attrStr.match(/\bid\s*=\s*["']([^"']+)["']/)
+      if (idMatch) {
+        id = idMatch[1]
+      } else {
+        id = slugify(text)
+        // 去重
+        let dedupe = id
+        let n = 1
+        while (seenIds.has(dedupe)) {
+          dedupe = `${id}-${n++}`
+        }
+        id = dedupe
       }
-      id = dedupe
-    }
-    seenIds.add(id)
+      seenIds.add(id)
 
-    // TOC level: h1→L2, h2→L3, h3→L4, h4→L5
-    const level = parseInt(tagNum) + 1
-    headings.push({ level, id, text })
+      // TOC level: h1→L2, h2→L3, h3→L4, h4→L5
+      const level = parseInt(tagNum) + 1
+      headings.push({ level, id, text })
 
-    // 重建标签（保留原有属性 + 注入 id）
-    if (idMatch) return _full
-    const newAttrs = attrStr ? ` ${attrStr} id="${id}"` : ` id="${id}"`
-    return `<h${tagNum}${newAttrs}>${innerHtml}</h${tagNum}>`
-  })
+      // 重建标签（保留原有属性 + 注入 id）
+      if (idMatch) return _full
+      const newAttrs = attrStr ? ` ${attrStr} id="${id}"` : ` id="${id}"`
+      return `<h${tagNum}${newAttrs}>${innerHtml}</h${tagNum}>`
+    },
+  )
 
   return { html: processed, headings }
 }
@@ -214,11 +228,7 @@ function extractSubHeadings(html: string): { level: number; id: string; text: st
 }
 
 /** 构建右侧本页目录 HTML */
-export function buildTocHtml(
-  feature: FeatureData,
-  chNum: number,
-  pages: SitePage[],
-): string {
+export function buildTocHtml(feature: FeatureData, chNum: number, pages: SitePage[]): string {
   const items: TocItem[] = []
   const isLeaf = feature.sections.length === 1 && feature.sections[0].key === '_default'
 

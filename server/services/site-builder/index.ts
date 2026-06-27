@@ -5,9 +5,24 @@ import { fileURLToPath } from 'url'
 import { getDb } from '../../db/index.js'
 import * as Y from 'yjs'
 import { isCatalogPart } from '../../types.js'
-import type { CatalogRow, CatalogFeatureEntry, CatalogEntry, FeatureRow, FeatureData, ManualResult, SnapshotRow, UpdateRow, HeadingEntry } from '../../types.js'
+import type {
+  CatalogRow,
+  CatalogFeatureEntry,
+  CatalogEntry,
+  FeatureRow,
+  FeatureData,
+  ManualResult,
+  SnapshotRow,
+  UpdateRow,
+  HeadingEntry,
+} from '../../types.js'
 import { buildSidebarHtml } from './sidebar.js'
-import { buildCoverContentHtml, buildChapterContentHtml, buildTocHtml, processContentHeadings } from './content.js'
+import {
+  buildCoverContentHtml,
+  buildChapterContentHtml,
+  buildTocHtml,
+  processContentHeadings,
+} from './content.js'
 import { buildSearchIndex } from './search.ts'
 import type { SitePage, PartMeta } from './shared.js'
 
@@ -20,7 +35,10 @@ const SCRIPTS_JS = readFileSync(join(__dirname, 'script.js'), 'utf-8')
 const SEARCH_JS = readFileSync(join(__dirname, 'search.js'), 'utf-8')
 
 /** 构建静态文档站点，返回输出目录路径 */
-export async function buildStaticSite(catalogId: string, versionLabel: string): Promise<string | null> {
+export async function buildStaticSite(
+  catalogId: string,
+  versionLabel: string,
+): Promise<string | null> {
   const manual = assembleManualForSite(catalogId)
   if (!manual) return null
 
@@ -41,7 +59,10 @@ export async function buildStaticSite(catalogId: string, versionLabel: string): 
     for (const sec of f.sections) {
       const docId = `${f.id}/${sec.key}`
       const rawContent = getDocumentContent(docId)
-      if (!rawContent) { secNum++; continue }
+      if (!rawContent) {
+        secNum++
+        continue
+      }
       // 注入 heading id 以支持 TOC 锚点
       const { html: content } = processContentHeadings(rawContent)
       pages.push({
@@ -64,7 +85,9 @@ export async function buildStaticSite(catalogId: string, versionLabel: string): 
   const coverSidebarHtml = buildSidebarHtml(features, parts, hasParts, 0)
   const coverContentHtml = buildCoverContentHtml(features, parts, hasParts, catalogTitle)
   const coverPageHtml = wrapTemplate({
-    catalogId, title: catalogTitle, versionLabel,
+    catalogId,
+    title: catalogTitle,
+    versionLabel,
     sidebarHtml: coverSidebarHtml,
     contentHtml: coverContentHtml,
     tocHtml: '', // 封面页不显示右侧 TOC
@@ -83,7 +106,9 @@ export async function buildStaticSite(catalogId: string, versionLabel: string): 
     const tocHtml = buildTocHtml(f, chNum, pages)
     const filename = `ch${String(chNum).padStart(2, '0')}.html`
     const chPageHtml = wrapTemplate({
-      catalogId, title: catalogTitle, versionLabel,
+      catalogId,
+      title: catalogTitle,
+      versionLabel,
       sidebarHtml: chSidebarHtml,
       contentHtml: chContentHtml,
       tocHtml,
@@ -103,7 +128,9 @@ export async function buildStaticSite(catalogId: string, versionLabel: string): 
 
 function assembleManualForSite(catalogId: string): ManualResult | null {
   const db = getDb()
-  const catalog = db.prepare('SELECT * FROM catalogs WHERE id = ?').get(catalogId) as CatalogRow | undefined
+  const catalog = db.prepare('SELECT * FROM catalogs WHERE id = ?').get(catalogId) as
+    | CatalogRow
+    | undefined
   if (!catalog) return null
 
   const entries: CatalogEntry[] = JSON.parse(catalog.features)
@@ -131,12 +158,20 @@ function assembleManualForSite(catalogId: string): ManualResult | null {
 
   const features: FeatureData[] = []
   for (const fe of flatFeatureEntries) {
-    const f = db.prepare('SELECT * FROM features WHERE id = ?').get(fe.featureId) as FeatureRow | undefined
+    const f = db.prepare('SELECT * FROM features WHERE id = ?').get(fe.featureId) as
+      | FeatureRow
+      | undefined
     if (!f) continue
-    const rawSections = JSON.parse(f.sections || '[]') as { key: string; title: string; description?: string }[]
+    const rawSections = JSON.parse(f.sections || '[]') as {
+      key: string
+      title: string
+      description?: string
+    }[]
     const source = rawSections.length > 0 ? rawSections : [{ key: '_default', title: f.title }]
     const ordered = fe.sectionOrder
-      ? fe.sectionOrder.map(k => source.find(s => s.key === k)).filter(Boolean) as typeof source
+      ? (fe.sectionOrder
+          .map((k) => source.find((s) => s.key === k))
+          .filter(Boolean) as typeof source)
       : source
 
     features.push({ id: f.id, title: f.title, description: f.description, sections: ordered })
@@ -154,14 +189,16 @@ function assembleManualForSite(catalogId: string): ManualResult | null {
 
 function getDocumentContent(docId: string): string {
   const db = getDb()
-  const updates = db.prepare(
-    'SELECT update_data FROM document_updates WHERE document_id = ? ORDER BY id ASC',
-  ).all(docId) as UpdateRow[]
+  const updates = db
+    .prepare('SELECT update_data FROM document_updates WHERE document_id = ? ORDER BY id ASC')
+    .all(docId) as UpdateRow[]
 
   if (updates.length === 0) {
-    const snapshot = db.prepare(
-      'SELECT snapshot_data FROM document_snapshots WHERE document_id = ? ORDER BY id DESC LIMIT 1',
-    ).get(docId) as SnapshotRow | undefined
+    const snapshot = db
+      .prepare(
+        'SELECT snapshot_data FROM document_snapshots WHERE document_id = ? ORDER BY id DESC LIMIT 1',
+      )
+      .get(docId) as SnapshotRow | undefined
     if (!snapshot) return ''
     const doc = new Y.Doc()
     Y.applyUpdate(doc, new Uint8Array(snapshot.snapshot_data))
@@ -185,25 +222,28 @@ function wrapTemplate(params: {
   currentChapter: number
   pageTitle: string
 }): string {
-  const scripts = SCRIPTS_JS
-    .replaceAll('{{CATALOG_ID}}', params.catalogId)
-    .replaceAll('{{CURRENT_CHAPTER}}', String(params.currentChapter))
-    .replaceAll('{{VERSION_LABEL}}', params.versionLabel)
-    + '\n' + SEARCH_JS
+  const scripts =
+    SCRIPTS_JS.replaceAll('{{CATALOG_ID}}', params.catalogId)
+      .replaceAll('{{CURRENT_CHAPTER}}', String(params.currentChapter))
+      .replaceAll('{{VERSION_LABEL}}', params.versionLabel) +
+    '\n' +
+    SEARCH_JS
 
-  return TEMPLATE
-    .replaceAll('{{CATALOG_ID}}', params.catalogId)
-    .replaceAll('{{TITLE}}', params.title)
-    .replaceAll('{{VERSION_LABEL}}', params.versionLabel)
-    .replaceAll('{{VERSION}}', params.versionLabel)
-    .replaceAll('{{CURRENT_CHAPTER}}', String(params.currentChapter))
-    .replaceAll('{{PAGE_TITLE}}', params.pageTitle)
-    .replaceAll('{{STYLES}}', STYLES)
-    .replaceAll('{{SIDEBAR}}', params.sidebarHtml)
-    .replaceAll('{{CONTENT}}', params.contentHtml)
-    .replaceAll('{{TOC}}', params.tocHtml)
-    // 使用 split/join 避免 $& 等特殊替换模式被错误解释
-    .split('{{SCRIPTS}}').join(scripts)
+  return (
+    TEMPLATE.replaceAll('{{CATALOG_ID}}', params.catalogId)
+      .replaceAll('{{TITLE}}', params.title)
+      .replaceAll('{{VERSION_LABEL}}', params.versionLabel)
+      .replaceAll('{{VERSION}}', params.versionLabel)
+      .replaceAll('{{CURRENT_CHAPTER}}', String(params.currentChapter))
+      .replaceAll('{{PAGE_TITLE}}', params.pageTitle)
+      .replaceAll('{{STYLES}}', STYLES)
+      .replaceAll('{{SIDEBAR}}', params.sidebarHtml)
+      .replaceAll('{{CONTENT}}', params.contentHtml)
+      .replaceAll('{{TOC}}', params.tocHtml)
+      // 使用 split/join 避免 $& 等特殊替换模式被错误解释
+      .split('{{SCRIPTS}}')
+      .join(scripts)
+  )
 }
 
 export type { SitePage }

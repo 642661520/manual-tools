@@ -16,7 +16,11 @@ import { config } from '../config.js'
 import { loginRequestSchema, loginResponseSchema, errorResponseSchema } from '../lib/swagger.js'
 
 /** 同时设置 auth_token + csrf_token，避免 Set-Cookie 被覆盖 */
-function setLoginCookies(reply: { header: (name: string, value: string | string[]) => void }, token: string, csrfToken: string) {
+function setLoginCookies(
+  reply: { header: (name: string, value: string | string[]) => void },
+  token: string,
+  csrfToken: string,
+) {
   const secure = config.isProduction ? '; Secure' : ''
   reply.header('Set-Cookie', [
     `auth_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400${secure}`,
@@ -26,65 +30,72 @@ function setLoginCookies(reply: { header: (name: string, value: string | string[
 
 export async function authRoutes(app: FastifyInstance) {
   // 密码登录（严格限速：1分钟最多5次）
-  app.post('/api/v1/auth/login', {
-    config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
-    schema: {
-      tags: ['auth'],
-      description: '用户名密码登录，返回 JWT token',
-      body: loginRequestSchema,
-      response: {
-        200: loginResponseSchema,
-        401: errorResponseSchema,
+  app.post(
+    '/api/v1/auth/login',
+    {
+      config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+      schema: {
+        tags: ['auth'],
+        description: '用户名密码登录，返回 JWT token',
+        body: loginRequestSchema,
+        response: {
+          200: loginResponseSchema,
+          401: errorResponseSchema,
+        },
       },
     },
-  }, async (req, reply) => {
-    const { username, password } = req.body as { username: string; password: string }
+    async (req, reply) => {
+      const { username, password } = req.body as { username: string; password: string }
 
-    if (!username || !password) {
-      return fail(reply, 400, '请输入用户名和密码')
-    }
-    const db = getDb()
-    const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as UserRow | undefined
-    if (!user) {
-      return fail(reply, 401, '用户名或密码错误')
-    }
-    if (!user.password_hash) {
-      return fail(reply, 401, '该账号未设置密码，请使用飞书登录')
-    }
+      if (!username || !password) {
+        return fail(reply, 400, '请输入用户名和密码')
+      }
+      const db = getDb()
+      const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as
+        | UserRow
+        | undefined
+      if (!user) {
+        return fail(reply, 401, '用户名或密码错误')
+      }
+      if (!user.password_hash) {
+        return fail(reply, 401, '该账号未设置密码，请使用飞书登录')
+      }
 
-    const passwordMatch = bcrypt.compareSync(password, user.password_hash)
-    if (!passwordMatch) {
-      return fail(reply, 401, '用户名或密码错误')
-    }
-    const token = signToken({
-      userId: user.id,
-      username: user.username,
-      displayName: user.display_name,
-      role: user.role as 'admin' | 'member' | 'guest',
-      tokenVersion: user.token_version,
-      avatarUrl: user.feishu_avatar_url || undefined,
-      feishuName: user.feishu_name || undefined,
-    })
-    // 设置 cookie，供文档站点页面导航鉴权 + CSRF 保护
-    setLoginCookies(reply, token, generateCsrfToken())
-    return success({
-      token,
-      user: {
-        id: user.id,
+      const passwordMatch = bcrypt.compareSync(password, user.password_hash)
+      if (!passwordMatch) {
+        return fail(reply, 401, '用户名或密码错误')
+      }
+      const token = signToken({
+        userId: user.id,
         username: user.username,
         displayName: user.display_name,
-        role: user.role,
-        avatarUrl: user.feishu_avatar_url || '',
-        feishuName: user.feishu_name || '',
-      },
-    })
-  })
+        role: user.role as 'admin' | 'member' | 'guest',
+        tokenVersion: user.token_version,
+        avatarUrl: user.feishu_avatar_url || undefined,
+        feishuName: user.feishu_name || undefined,
+      })
+      // 设置 cookie，供文档站点页面导航鉴权 + CSRF 保护
+      setLoginCookies(reply, token, generateCsrfToken())
+      return success({
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          displayName: user.display_name,
+          role: user.role,
+          avatarUrl: user.feishu_avatar_url || '',
+          feishuName: user.feishu_name || '',
+        },
+      })
+    },
+  )
 
   // 登出：递增 token_version 使所有 JWT 失效
   app.post('/api/v1/auth/logout', { preHandler: authMiddleware }, async (req) => {
     const db = getDb()
-    db.prepare('UPDATE users SET token_version = token_version + 1 WHERE id = ?')
-      .run(req.user!.userId)
+    db.prepare('UPDATE users SET token_version = token_version + 1 WHERE id = ?').run(
+      req.user!.userId,
+    )
     return success({ ok: true })
   })
 
@@ -111,7 +122,9 @@ export async function authRoutes(app: FastifyInstance) {
       const info = await exchangeCodeForToken(code)
       if (!info.open_id) return fail(reply, 400, '获取飞书用户信息失败')
 
-      let user = db.prepare('SELECT * FROM users WHERE feishu_open_id = ?').get(info.open_id) as UserRow | undefined
+      let user = db.prepare('SELECT * FROM users WHERE feishu_open_id = ?').get(info.open_id) as
+        | UserRow
+        | undefined
 
       if (!user) {
         const id = uuid()
@@ -135,13 +148,15 @@ export async function authRoutes(app: FastifyInstance) {
           created_at: new Date().toISOString(),
         }
       } else {
-        db.prepare('UPDATE users SET display_name = ?, feishu_name = ?, feishu_avatar_url = ? WHERE id = ?').run(
-          info.name, info.name, info.avatar_url || null, user.id,
-        )
+        db.prepare(
+          'UPDATE users SET display_name = ?, feishu_name = ?, feishu_avatar_url = ? WHERE id = ?',
+        ).run(info.name, info.name, info.avatar_url || null, user.id)
       }
 
       if (user.role === 'member') {
-        notifyNewGuest(user.display_name).catch((e: unknown) => app.log.error(`通知新成员失败: ${e instanceof Error ? e.message : e}`))
+        notifyNewGuest(user.display_name).catch((e: unknown) =>
+          app.log.error(`通知新成员失败: ${e instanceof Error ? e.message : e}`),
+        )
       }
 
       const token = signToken({

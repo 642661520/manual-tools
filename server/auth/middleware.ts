@@ -24,7 +24,9 @@ export async function authMiddleware(req: FastifyRequest, reply: FastifyReply) {
   // 验证 token_version：与数据库比对，不一致则令牌已失效（角色/密码变更后强制下线）
   const { getDb } = await import('../db/index.js')
   const db = getDb()
-  const user = db.prepare('SELECT role, token_version FROM users WHERE id = ?').get(payload.userId) as { role: string; token_version: number } | undefined
+  const user = db
+    .prepare('SELECT role, token_version FROM users WHERE id = ?')
+    .get(payload.userId) as { role: string; token_version: number } | undefined
 
   if (!user) {
     return reply.status(401).send({ ok: false, error: '用户不存在' })

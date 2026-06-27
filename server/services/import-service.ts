@@ -9,32 +9,76 @@ import { createHash } from 'crypto'
 import unzipper from 'unzipper'
 import { config } from '../config.js'
 import type {
-  ImportDiffReport, ImportApplyOptions, ImportApplyResult,
+  ImportDiffReport,
+  ImportApplyOptions,
+  ImportApplyResult,
 } from '../../shared/types/models.js'
 import type { FeatureRow, CatalogRow, CategoryRow } from '../types.js'
 
 const UPLOAD_BASE = config.uploadDir
+
+/** 标准化上传文件引用路径为分片格式
+ *  新格式: images/ab/hash.ext → 保持不变
+ *  旧格式: images/hash.ext → 转换为 images/ab/hash.ext */
+function normalizeUploadRef(ref: string): string {
+  const parts = ref.split('/')
+  // parts[0] = images|videos, parts[1] = shard(2 hex) 或 filename(hash.ext)
+  if (parts.length === 3) return ref // 已是分片格式
+  if (parts.length === 2) {
+    const filename = parts[1]
+    const hash = filename.replace(/\.[^.]+$/, '')
+    if (/^[a-f0-9]{64}$/.test(hash)) {
+      return `${parts[0]}/${hash.slice(0, 2)}/${filename}`
+    }
+  }
+  return ref
+}
 
 interface ExportData {
   data: {
     project: { id: string; name: string; description: string }
     categories: Array<{ id: string; name: string; color: string; sort_order: number }>
     features: Array<{
-      id: string; title: string; description: string
-      sections: string; is_custom: number; category_id: string | null
+      id: string
+      title: string
+      description: string
+      sections: string
+      is_custom: number
+      category_id: string | null
     }>
-    documents: Record<string, {
-      row: { id: string; feature_id: string; section_key: string; status: string
-        assignees: string; review_note: string; review_step: number; status_log: string }
-      snapshot: string | null
-      updates: string[]
-    }>
+    documents: Record<
+      string,
+      {
+        row: {
+          id: string
+          feature_id: string
+          section_key: string
+          status: string
+          assignees: string
+          review_note: string
+          review_step: number
+          status_log: string
+        }
+        snapshot: string | null
+        updates: string[]
+      }
+    >
     catalogs: Array<{
       row: { id: string; title: string; targets: string; features: string; cover_info: string }
       versions: Array<{
-        id: string; catalog_id: string; version_major: number; version_minor: number; title: string
-        features_snapshot: string; change_notes: string; markdown: string
-        status_snapshot: string; visibility: string; features_json: string; headings_json: string; created_at: string
+        id: string
+        catalog_id: string
+        version_major: number
+        version_minor: number
+        title: string
+        features_snapshot: string
+        change_notes: string
+        markdown: string
+        status_snapshot: string
+        visibility: string
+        features_json: string
+        headings_json: string
+        created_at: string
       }>
     }>
     projectMembers: string[]
@@ -45,9 +89,7 @@ interface ExportData {
 /** 从 ZIP 中读取并解析 data.json */
 async function parseDataJson(zipPath: string): Promise<ExportData> {
   const directory = await unzipper.Open.file(zipPath)
-  const dataFile = directory.files.find(
-    (f: unzipper.File) => f.path === 'data.json',
-  )
+  const dataFile = directory.files.find((f: unzipper.File) => f.path === 'data.json')
   if (!dataFile) throw new Error('ZIP 文件中缺少 data.json')
 
   const buf = await dataFile.buffer()
@@ -64,21 +106,24 @@ async function listZipUploads(zipPath: string): Promise<string[]> {
 }
 
 /** 差异分析 */
-export async function analyzeImport(zipPath: string, targetProjectId: string): Promise<ImportDiffReport> {
+export async function analyzeImport(
+  zipPath: string,
+  targetProjectId: string,
+): Promise<ImportDiffReport> {
   const db = getDb()
   const data = await parseDataJson(zipPath)
 
   const sourceProject = data.data.project
-  const targetProject = db.prepare('SELECT id, name FROM projects WHERE id = ?').get(
-    targetProjectId,
-  ) as { id: string; name: string } | undefined
+  const targetProject = db
+    .prepare('SELECT id, name FROM projects WHERE id = ?')
+    .get(targetProjectId) as { id: string; name: string } | undefined
   if (!targetProject) throw new Error('目标项目不存在')
 
   // ---- 分类 ----
-  const existingCategories = db.prepare(
-    'SELECT * FROM categories WHERE project_id = ?',
-  ).all(targetProjectId) as CategoryRow[]
-  const existingCatMap = new Map(existingCategories.map(c => [c.id, c]))
+  const existingCategories = db
+    .prepare('SELECT * FROM categories WHERE project_id = ?')
+    .all(targetProjectId) as CategoryRow[]
+  const existingCatMap = new Map(existingCategories.map((c) => [c.id, c]))
 
   const catAdded: string[] = []
   const catConflicted: { id: string; sourceName: string; targetName: string }[] = []
@@ -92,10 +137,10 @@ export async function analyzeImport(zipPath: string, targetProjectId: string): P
   }
 
   // ---- 功能 ----
-  const existingFeatures = db.prepare(
-    'SELECT * FROM features WHERE project_id = ?',
-  ).all(targetProjectId) as FeatureRow[]
-  const existingFeatMap = new Map(existingFeatures.map(f => [f.id, f]))
+  const existingFeatures = db
+    .prepare('SELECT * FROM features WHERE project_id = ?')
+    .all(targetProjectId) as FeatureRow[]
+  const existingFeatMap = new Map(existingFeatures.map((f) => [f.id, f]))
 
   const featAdded: string[] = []
   const featConflicted: { id: string; sourceTitle: string; targetTitle: string }[] = []
@@ -109,10 +154,10 @@ export async function analyzeImport(zipPath: string, targetProjectId: string): P
   }
 
   // ---- 目录 ----
-  const existingCatalogs = db.prepare(
-    'SELECT * FROM catalogs WHERE project_id = ?',
-  ).all(targetProjectId) as CatalogRow[]
-  const existingCatlMap = new Map(existingCatalogs.map(c => [c.id, c]))
+  const existingCatalogs = db
+    .prepare('SELECT * FROM catalogs WHERE project_id = ?')
+    .all(targetProjectId) as CatalogRow[]
+  const existingCatlMap = new Map(existingCatalogs.map((c) => [c.id, c]))
 
   const catlAdded: string[] = []
   const catlConflicted: { id: string; sourceTitle: string; targetTitle: string }[] = []
@@ -128,7 +173,7 @@ export async function analyzeImport(zipPath: string, targetProjectId: string): P
   // ---- 文档 ----
   const docIds = Object.keys(data.data.documents)
   const existingDocIds = new Set(
-    (db.prepare('SELECT id FROM documents').all() as { id: string }[]).map(r => r.id),
+    (db.prepare('SELECT id FROM documents').all() as { id: string }[]).map((r) => r.id),
   )
   let docAdded = 0
   let docConflicted = 0
@@ -142,12 +187,14 @@ export async function analyzeImport(zipPath: string, targetProjectId: string): P
 
   // ---- 成员 ----
   const existingMemberIds = new Set(
-    (db.prepare(
-      'SELECT user_id FROM project_members WHERE project_id = ?',
-    ).all(targetProjectId) as { user_id: string }[]).map(r => r.user_id),
+    (
+      db
+        .prepare('SELECT user_id FROM project_members WHERE project_id = ?')
+        .all(targetProjectId) as { user_id: string }[]
+    ).map((r) => r.user_id),
   )
   const existingUserIds = new Set(
-    (db.prepare('SELECT id FROM users').all() as { id: string }[]).map(r => r.id),
+    (db.prepare('SELECT id FROM users').all() as { id: string }[]).map((r) => r.id),
   )
 
   const memberAdded: string[] = []
@@ -163,7 +210,7 @@ export async function analyzeImport(zipPath: string, targetProjectId: string): P
   }
 
   // ---- 上传文件 ----
-  const zipUploads = await listZipUploads(zipPath)
+  const zipUploads = (await listZipUploads(zipPath)).map(normalizeUploadRef)
   let uploadsTotalSize = 0
   let uploadDuplicates = 0
   for (const ref of zipUploads) {
@@ -171,7 +218,7 @@ export async function analyzeImport(zipPath: string, targetProjectId: string): P
     if (fs.existsSync(fp)) {
       uploadDuplicates++
     }
-    const manifest = data.uploadsManifest.find(m => m.path === ref)
+    const manifest = data.uploadsManifest.find((m) => normalizeUploadRef(m.path) === ref)
     if (manifest) uploadsTotalSize += manifest.size
   }
 
@@ -182,7 +229,11 @@ export async function analyzeImport(zipPath: string, targetProjectId: string): P
     catalogs: { added: catlAdded, conflicted: catlConflicted },
     documents: { added: docAdded, conflicted: docConflicted, skipped: 0 },
     projectMembers: { added: memberAdded, unknownUsers },
-    uploads: { total: zipUploads.length, totalSize: uploadsTotalSize, duplicates: uploadDuplicates },
+    uploads: {
+      total: zipUploads.length,
+      totalSize: uploadsTotalSize,
+      duplicates: uploadDuplicates,
+    },
   }
 }
 
@@ -211,7 +262,9 @@ export async function applyImport(
       VALUES (?, ?, ?, ?, ?)
     `)
     for (const c of data.data.categories) {
-      const existing = db.prepare('SELECT id FROM categories WHERE id = ? AND project_id = ?').get(c.id, targetProjectId)
+      const existing = db
+        .prepare('SELECT id FROM categories WHERE id = ? AND project_id = ?')
+        .get(c.id, targetProjectId)
       if (existing) {
         // 安全默认：只有用户明确选择 'overwrite' 才覆盖，否则跳过
         if (options.strategies.categories[c.id] !== 'overwrite') {
@@ -231,7 +284,9 @@ export async function applyImport(
       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `)
     for (const f of data.data.features) {
-      const existing = db.prepare('SELECT id FROM features WHERE id = ? AND project_id = ?').get(f.id, targetProjectId)
+      const existing = db
+        .prepare('SELECT id FROM features WHERE id = ? AND project_id = ?')
+        .get(f.id, targetProjectId)
       if (existing) {
         if (options.strategies.features[f.id] !== 'overwrite') {
           result.features.skipped++
@@ -241,7 +296,15 @@ export async function applyImport(
       } else {
         result.features.inserted++
       }
-      insertFeat.run(f.id, f.title, f.description, f.sections, f.is_custom, f.category_id, targetProjectId)
+      insertFeat.run(
+        f.id,
+        f.title,
+        f.description,
+        f.sections,
+        f.is_custom,
+        f.category_id,
+        targetProjectId,
+      )
     }
 
     // ---- 目录 + 版本 ----
@@ -255,7 +318,9 @@ export async function applyImport(
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     for (const c of data.data.catalogs) {
-      const existing = db.prepare('SELECT id FROM catalogs WHERE id = ? AND project_id = ?').get(c.row.id, targetProjectId)
+      const existing = db
+        .prepare('SELECT id FROM catalogs WHERE id = ? AND project_id = ?')
+        .get(c.row.id, targetProjectId)
       if (existing) {
         if (options.strategies.catalogs[c.row.id] !== 'overwrite') {
           result.catalogs.skipped++
@@ -265,11 +330,30 @@ export async function applyImport(
       } else {
         result.catalogs.inserted++
       }
-      insertCatl.run(c.row.id, c.row.title, c.row.targets, c.row.features, c.row.cover_info, targetProjectId)
+      insertCatl.run(
+        c.row.id,
+        c.row.title,
+        c.row.targets,
+        c.row.features,
+        c.row.cover_info,
+        targetProjectId,
+      )
       for (const v of c.versions) {
-        insertVer.run(v.id, v.catalog_id, v.version_major, v.version_minor, v.title,
-          v.features_snapshot, v.change_notes, v.markdown, v.status_snapshot, v.visibility,
-          v.features_json || '[]', v.headings_json || '[]', v.created_at)
+        insertVer.run(
+          v.id,
+          v.catalog_id,
+          v.version_major,
+          v.version_minor,
+          v.title,
+          v.features_snapshot,
+          v.change_notes,
+          v.markdown,
+          v.status_snapshot,
+          v.visibility,
+          v.features_json || '[]',
+          v.headings_json || '[]',
+          v.created_at,
+        )
       }
     }
 
@@ -297,7 +381,16 @@ export async function applyImport(
       } else {
         result.documents.inserted++
       }
-      insertDoc.run(r.id, r.feature_id, r.section_key, r.status, r.assignees, r.review_note, r.review_step, r.status_log)
+      insertDoc.run(
+        r.id,
+        r.feature_id,
+        r.section_key,
+        r.status,
+        r.assignees,
+        r.review_note,
+        r.review_step,
+        r.status_log,
+      )
 
       // 先清理旧的 updates/snapshots（覆盖模式下）
       if (existing) {
@@ -333,7 +426,7 @@ export async function applyImport(
   const directory = await unzipper.Open.file(zipPath)
   for (const file of directory.files) {
     if (!file.path.startsWith('uploads/') || file.type !== 'File') continue
-    const ref: string = file.path.replace(/^uploads\//, '')
+    const ref: string = normalizeUploadRef(file.path.replace(/^uploads\//, ''))
     const destPath = path.join(UPLOAD_BASE, ref)
 
     // SHA-256 去重

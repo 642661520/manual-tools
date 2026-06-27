@@ -4,7 +4,10 @@ import { useAuth } from '@/composables/useAuth'
 import { useProject } from '@/composables/useProject'
 import * as dataApi from '@/api/endpoints/data-tasks'
 import type {
-  ExportEstimate, ImportDiffReport, ImportApplyOptions, DataTaskInfo,
+  ExportEstimate,
+  ImportDiffReport,
+  ImportApplyOptions,
+  DataTaskInfo,
 } from '@shared/types'
 
 const { isAdmin } = useAuth()
@@ -19,8 +22,11 @@ async function loadEstimate() {
   estimateLoading.value = true
   try {
     estimate.value = await dataApi.getExportEstimate(currentProjectId.value)
-  } catch { estimate.value = null }
-  finally { estimateLoading.value = false }
+  } catch {
+    estimate.value = null
+  } finally {
+    estimateLoading.value = false
+  }
 }
 
 watch(currentProjectId, loadEstimate)
@@ -38,8 +44,10 @@ async function loadExportHistory() {
   if (!currentProjectId.value) return
   try {
     const tasks = await dataApi.listTasks(`project:${currentProjectId.value}`)
-    exportHistory.value = tasks.filter(t => t.type === 'export')
-  } catch { /* ignore */ }
+    exportHistory.value = tasks.filter((t) => t.type === 'export')
+  } catch {
+    /* ignore */
+  }
 }
 
 async function startExport() {
@@ -49,7 +57,9 @@ async function startExport() {
     const { taskId } = await dataApi.startExport(currentProjectId.value)
     exportTaskId.value = taskId
     pollExportTask()
-  } catch { exporting.value = false }
+  } catch {
+    exporting.value = false
+  }
 }
 
 function pollExportTask(attempt = 0) {
@@ -83,18 +93,26 @@ function pollExportTask(attempt = 0) {
         exporting.value = false
         exportTaskId.value = null
       }
-    } catch { stopPolling(); exporting.value = false }
+    } catch {
+      stopPolling()
+      exporting.value = false
+    }
   }, interval)
 }
 
 function stopPolling() {
-  if (exportPollTimer) { clearTimeout(exportPollTimer); exportPollTimer = null }
+  if (exportPollTimer) {
+    clearTimeout(exportPollTimer)
+    exportPollTimer = null
+  }
 }
 
 async function downloadTaskFile(taskId: string) {
   try {
     await dataApi.downloadExport(taskId)
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 async function removeTask(taskId: string) {
@@ -102,7 +120,9 @@ async function removeTask(taskId: string) {
     await dataApi.deleteTask(taskId)
     await loadExportHistory()
     await loadImportHistory()
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 // ---- 导入 ----
@@ -124,8 +144,10 @@ async function loadImportHistory() {
   if (!currentProjectId.value) return
   try {
     const tasks = await dataApi.listTasks(`project:${currentProjectId.value}`)
-    importHistory.value = tasks.filter(t => t.type === 'import')
-  } catch { /* ignore */ }
+    importHistory.value = tasks.filter((t) => t.type === 'import')
+  } catch {
+    /* ignore */
+  }
 }
 
 function triggerFileSelect() {
@@ -164,17 +186,22 @@ function initDefaultStrategies(diff: ImportDiffReport) {
   strategies.value = { categories: {}, features: {}, catalogs: {}, documents: {} }
   // 新增的不需要策略（直接导入）
   // 冲突的默认 skip
-  for (const c of diff.categories.conflicted) { strategies.value.categories[c.id] = 'skip' }
-  for (const f of diff.features.conflicted) { strategies.value.features[f.id] = 'skip' }
-  for (const c of diff.catalogs.conflicted) { strategies.value.catalogs[c.id] = 'skip' }
+  for (const c of diff.categories.conflicted) {
+    strategies.value.categories[c.id] = 'skip'
+  }
+  for (const f of diff.features.conflicted) {
+    strategies.value.features[f.id] = 'skip'
+  }
+  for (const c of diff.catalogs.conflicted) {
+    strategies.value.catalogs[c.id] = 'skip'
+  }
   // 文档冲突
-  for (let i = 0; i < diff.documents.conflicted; i++) { /* 需要具体 docId，但 diff 只返回数字，实际 apply 时处理 */ }
+  for (let i = 0; i < diff.documents.conflicted; i++) {
+    /* 需要具体 docId，但 diff 只返回数字，实际 apply 时处理 */
+  }
 }
 
-function toggleStrategy(
-  target: 'categories' | 'features' | 'catalogs',
-  id: string,
-) {
+function toggleStrategy(target: 'categories' | 'features' | 'catalogs', id: string) {
   const current = strategies.value[target][id]
   strategies.value[target][id] = current === 'overwrite' ? 'skip' : 'overwrite'
 }
@@ -224,8 +251,13 @@ function formatSize(bytes: number): string {
 
 function statusLabel(s: string): string {
   const labels: Record<string, string> = {
-    pending: '等待中', processing: '处理中', uploaded: '已上传',
-    analyzed: '已分析', applying: '应用中', completed: '已完成', failed: '失败',
+    pending: '等待中',
+    processing: '处理中',
+    uploaded: '已上传',
+    analyzed: '已分析',
+    applying: '应用中',
+    completed: '已完成',
+    failed: '失败',
   }
   return labels[s] || s
 }
@@ -254,17 +286,11 @@ onUnmounted(() => {
     <div class="border-t border-gray-100 pt-4 mb-4">
       <h3 class="text-sm font-medium mb-2">项目导出</h3>
       <div v-if="estimate" class="text-xs text-gray-400 mb-2">
-        预估: {{ estimate.features }} 功能 ·
-        {{ estimate.catalogs }} 目录 ·
-        {{ estimate.documents }} 文档 ·
-        {{ estimate.uploads }} 附件 ·
-        约 {{ formatSize(estimate.totalSize) }}
+        预估: {{ estimate.features }} 功能 · {{ estimate.catalogs }} 目录 ·
+        {{ estimate.documents }} 文档 · {{ estimate.uploads }} 附件 · 约
+        {{ formatSize(estimate.totalSize) }}
       </div>
-      <button
-        class="btn-primary text-sm"
-        :disabled="exporting || !estimate"
-        @click="startExport"
-      >
+      <button class="btn-primary text-sm" :disabled="exporting || !estimate" @click="startExport">
         {{ exporting ? `导出中 ${exportProgress}%...` : '导出此项目' }}
       </button>
       <span v-if="exportLabel" class="text-xs text-gray-400 ml-2">{{ exportLabel }}</span>
@@ -273,7 +299,15 @@ onUnmounted(() => {
       <div v-if="exportHistory.length > 0" class="mt-3">
         <h4 class="text-xs font-medium text-gray-400 mb-1">导出历史</h4>
         <div v-for="t in exportHistory" :key="t.id" class="flex items-center gap-2 py-1 text-xs">
-          <span :class="t.status === 'completed' ? 'text-green-500' : t.status === 'failed' ? 'text-red-400' : 'text-yellow-500'">
+          <span
+            :class="
+              t.status === 'completed'
+                ? 'text-green-500'
+                : t.status === 'failed'
+                  ? 'text-red-400'
+                  : 'text-yellow-500'
+            "
+          >
             {{ statusLabel(t.status) }}
           </span>
           <span class="text-gray-400">{{ timeLabel(t.completedAt || t.createdAt) }}</span>
@@ -282,11 +316,10 @@ onUnmounted(() => {
             v-if="t.status === 'completed'"
             class="text-blue-400 hover:text-blue-600 ml-auto"
             @click="downloadTaskFile(t.id)"
-          >下载</button>
-          <button
-            class="text-red-300 hover:text-red-500 ml-1"
-            @click="removeTask(t.id)"
-          >删</button>
+          >
+            下载
+          </button>
+          <button class="text-red-300 hover:text-red-500 ml-1" @click="removeTask(t.id)">删</button>
         </div>
       </div>
     </div>
@@ -304,11 +337,7 @@ onUnmounted(() => {
         @change="onFileSelected"
       />
 
-      <button
-        class="btn-secondary text-sm"
-        :disabled="importing"
-        @click="triggerFileSelect"
-      >
+      <button class="btn-secondary text-sm" :disabled="importing" @click="triggerFileSelect">
         {{ importing ? '正在分析...' : '选择 ZIP 文件' }}
       </button>
 
@@ -328,10 +357,16 @@ onUnmounted(() => {
               <div v-for="c in importDiff.categories.conflicted" :key="c.id" class="ml-4 mt-1">
                 <span class="text-gray-500">{{ c.sourceName }} → {{ c.targetName }}</span>
                 <button
-                  :class="strategies.categories[c.id] === 'overwrite' ? 'text-orange-500' : 'text-gray-400'"
+                  :class="
+                    strategies.categories[c.id] === 'overwrite'
+                      ? 'text-orange-500'
+                      : 'text-gray-400'
+                  "
                   class="ml-2 hover:underline"
                   @click="toggleStrategy('categories', c.id)"
-                >{{ strategyLabel(strategies.categories[c.id]) }}</button>
+                >
+                  {{ strategyLabel(strategies.categories[c.id]) }}
+                </button>
               </div>
             </template>
           </div>
@@ -345,10 +380,14 @@ onUnmounted(() => {
               <div v-for="f in importDiff.features.conflicted" :key="f.id" class="ml-4 mt-1">
                 <span class="text-gray-500">{{ f.sourceTitle }} → {{ f.targetTitle }}</span>
                 <button
-                  :class="strategies.features[f.id] === 'overwrite' ? 'text-orange-500' : 'text-gray-400'"
+                  :class="
+                    strategies.features[f.id] === 'overwrite' ? 'text-orange-500' : 'text-gray-400'
+                  "
                   class="ml-2 hover:underline"
                   @click="toggleStrategy('features', f.id)"
-                >{{ strategyLabel(strategies.features[f.id]) }}</button>
+                >
+                  {{ strategyLabel(strategies.features[f.id]) }}
+                </button>
               </div>
             </template>
           </div>
@@ -362,10 +401,14 @@ onUnmounted(() => {
               <div v-for="c in importDiff.catalogs.conflicted" :key="c.id" class="ml-4 mt-1">
                 <span class="text-gray-500">{{ c.sourceTitle }} → {{ c.targetTitle }}</span>
                 <button
-                  :class="strategies.catalogs[c.id] === 'overwrite' ? 'text-orange-500' : 'text-gray-400'"
+                  :class="
+                    strategies.catalogs[c.id] === 'overwrite' ? 'text-orange-500' : 'text-gray-400'
+                  "
                   class="ml-2 hover:underline"
                   @click="toggleStrategy('catalogs', c.id)"
-                >{{ strategyLabel(strategies.catalogs[c.id]) }}</button>
+                >
+                  {{ strategyLabel(strategies.catalogs[c.id]) }}
+                </button>
               </div>
             </template>
           </div>
@@ -407,14 +450,21 @@ onUnmounted(() => {
       <div v-if="importHistory.length > 0" class="mt-3">
         <h4 class="text-xs font-medium text-gray-400 mb-1">导入历史</h4>
         <div v-for="t in importHistory" :key="t.id" class="flex items-center gap-2 py-1 text-xs">
-          <span :class="t.status === 'completed' ? 'text-green-500' : t.status === 'failed' ? 'text-red-400' : 'text-yellow-500'">
+          <span
+            :class="
+              t.status === 'completed'
+                ? 'text-green-500'
+                : t.status === 'failed'
+                  ? 'text-red-400'
+                  : 'text-yellow-500'
+            "
+          >
             {{ statusLabel(t.status) }}
           </span>
           <span class="text-gray-400">{{ timeLabel(t.completedAt || t.createdAt) }}</span>
-          <button
-            class="text-red-300 hover:text-red-500 ml-auto"
-            @click="removeTask(t.id)"
-          >删</button>
+          <button class="text-red-300 hover:text-red-500 ml-auto" @click="removeTask(t.id)">
+            删
+          </button>
         </div>
       </div>
     </div>

@@ -2,8 +2,8 @@
 import MarkdownIt from 'markdown-it'
 
 const md = new MarkdownIt({
-  html: true,       // 需要保留服务端生成的 <a class="crossref-link"> 等内联 HTML
-  linkify: true,    // 自动识别 URL 并转为链接
+  html: true, // 需要保留服务端生成的 <a class="crossref-link"> 等内联 HTML
+  linkify: true, // 自动识别 URL 并转为链接
   typographer: true, // 美化引号、破折号等
 })
 

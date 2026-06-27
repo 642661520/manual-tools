@@ -5,7 +5,17 @@ import { useProject } from '@/composables/useProject'
 import { useAuth } from '@/composables/useAuth'
 import { useDialog } from '@/composables/useDialog'
 import { useSidebarTree } from '@/composables/useSidebarTree'
-import { getCatalogs, getPreview, getVersions, getVersionPreview, publishCatalog, updateVersionVisibility, getMarkdownExportUrl, getPdfExportUrl, getVersionPdfExportUrl } from '@/api/endpoints/catalogs'
+import {
+  getCatalogs,
+  getPreview,
+  getVersions,
+  getVersionPreview,
+  publishCatalog,
+  updateVersionVisibility,
+  getMarkdownExportUrl,
+  getPdfExportUrl,
+  getVersionPdfExportUrl,
+} from '@/api/endpoints/catalogs'
 import { api } from '@/api/client'
 import type { CatalogInfo, CatalogVersionInfo, CatalogEntry } from '@shared/types'
 import SelectDropdown from '@/components/SelectDropdown.vue'
@@ -42,7 +52,9 @@ async function loadCatalogs() {
       selectedCatalogId.value = null
       router.replace({ query: {} })
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 function selectCatalog(id: string | number | null) {
@@ -57,17 +69,24 @@ const versions = ref<CatalogVersionInfo[]>([])
 const selectedVersionId = ref<string | null>(null)
 
 async function loadVersions() {
-  if (!selectedCatalogId.value) { versions.value = []; selectedVersionId.value = null; return }
+  if (!selectedCatalogId.value) {
+    versions.value = []
+    selectedVersionId.value = null
+    return
+  }
   try {
     const data = await getVersions(selectedCatalogId.value)
     versions.value = data
     const fromUrl = route.query.version as string | undefined
-    selectedVersionId.value = (fromUrl && versions.value.some((v: CatalogVersionInfo) => v.id === fromUrl)) ? fromUrl : null
-  } catch { /* ignore */ }
+    selectedVersionId.value =
+      fromUrl && versions.value.some((v: CatalogVersionInfo) => v.id === fromUrl) ? fromUrl : null
+  } catch {
+    /* ignore */
+  }
 }
 
 function selectVersion(id: string | number | null) {
-  selectedVersionId.value = id ? id as string : null
+  selectedVersionId.value = id ? (id as string) : null
   const query: Record<string, string> = { catalog: selectedCatalogId.value! }
   if (id) query.version = id as string
   router.replace({ query })
@@ -154,7 +173,11 @@ async function loadPreview() {
   notFound.value = false
   try {
     if (selectedVersionId.value) {
-      const data = await getVersionPreview(selectedCatalogId.value, selectedVersionId.value, previewMode.value)
+      const data = await getVersionPreview(
+        selectedCatalogId.value,
+        selectedVersionId.value,
+        previewMode.value,
+      )
       catalogTitle.value = data.title
       previewData.value = {
         title: data.title,
@@ -222,13 +245,15 @@ async function loadReviewStats() {
     // 取 approval stats
     const allData = await getPreview(selectedCatalogId.value)
     const approvedSet = new Set(
-      data.features.flatMap(f => f.sections.map(s => `${f.id}/${s.key}`))
+      data.features.flatMap((f) => f.sections.map((s) => `${f.id}/${s.key}`)),
     )
     const allSet = new Set(
-      allData.features.flatMap(f => f.sections.map(s => `${f.id}/${s.key}`))
+      allData.features.flatMap((f) => f.sections.map((s) => `${f.id}/${s.key}`)),
     )
     reviewStats.value = { approved: approvedSet.size, total: allSet.size }
-  } catch { reviewStats.value = null }
+  } catch {
+    reviewStats.value = null
+  }
 }
 
 async function doPublish() {
@@ -240,8 +265,10 @@ async function doPublish() {
   publishError.value = ''
   try {
     const data = await publishCatalog(
-      selectedCatalogId.value!, publishChangeNotes.value.trim(),
-      publishVisibility.value, publishApprovedOnly.value,
+      selectedCatalogId.value!,
+      publishChangeNotes.value.trim(),
+      publishVisibility.value,
+      publishApprovedOnly.value,
     )
     publishDialogVisible.value = false
     await loadVersions()
@@ -249,7 +276,9 @@ async function doPublish() {
     await alert(`版本 v${data.versionMajor}.${data.versionMinor} 已发布 ${approvedMsg}`)
   } catch (e: unknown) {
     publishError.value = e instanceof Error ? e.message : '网络错误'
-  } finally { publishing.value = false }
+  } finally {
+    publishing.value = false
+  }
 }
 
 async function updateVisibility(versionId: string, visibility: string) {
@@ -267,8 +296,11 @@ async function exportMarkdown() {
   try {
     const url = getMarkdownExportUrl(selectedCatalogId.value)
     await api.download(url)
-  } catch (e: unknown) { await alert('导出失败: ' + (e instanceof Error ? e.message : '网络错误')) }
-  finally { exportingMd.value = false }
+  } catch (e: unknown) {
+    await alert('导出失败: ' + (e instanceof Error ? e.message : '网络错误'))
+  } finally {
+    exportingMd.value = false
+  }
 }
 
 async function exportPdf() {
@@ -283,8 +315,11 @@ async function exportPdf() {
       url = getPdfExportUrl(selectedCatalogId.value, mode)
     }
     await api.download(url)
-  } catch (e: unknown) { await alert('导出失败: ' + (e instanceof Error ? e.message : '网络错误')) }
-  finally { exportingPdf.value = false }
+  } catch (e: unknown) {
+    await alert('导出失败: ' + (e instanceof Error ? e.message : '网络错误'))
+  } finally {
+    exportingPdf.value = false
+  }
 }
 
 // ====== 变更记录 ======
@@ -292,9 +327,10 @@ const changelogVersions = computed(() => {
   if (!selectedVersionId.value) return versions.value
   const t = versions.value.find((v: CatalogVersionInfo) => v.id === selectedVersionId.value)
   if (!t) return versions.value
-  return versions.value.filter((v: CatalogVersionInfo) =>
-    v.versionMajor < t.versionMajor ||
-    (v.versionMajor === t.versionMajor && v.versionMinor <= t.versionMinor),
+  return versions.value.filter(
+    (v: CatalogVersionInfo) =>
+      v.versionMajor < t.versionMajor ||
+      (v.versionMajor === t.versionMajor && v.versionMinor <= t.versionMinor),
   )
 })
 
@@ -315,7 +351,11 @@ const docUrl = computed(() => {
 })
 
 // ====== 生命周期 ======
-async function reloadAll() { await loadCatalogs(); await loadVersions(); await loadPreview() }
+async function reloadAll() {
+  await loadCatalogs()
+  await loadVersions()
+  await loadPreview()
+}
 
 function onHashChange() {
   syncChapterFromHash()
@@ -326,10 +366,18 @@ onMounted(() => {
   window.addEventListener('hashchange', onHashChange)
 })
 
-watch(currentProjectId, () => { reloadAll() })
-watch(selectedCatalogId, () => { loadVersions().then(loadPreview) })
-watch([selectedVersionId, previewMode], () => { loadPreview() })
-watch(catalogTitle, (t) => { if (t) document.title = t })
+watch(currentProjectId, () => {
+  reloadAll()
+})
+watch(selectedCatalogId, () => {
+  loadVersions().then(loadPreview)
+})
+watch([selectedVersionId, previewMode], () => {
+  loadPreview()
+})
+watch(catalogTitle, (t) => {
+  if (t) document.title = t
+})
 onUnmounted(() => {
   document.title = '操作手册编写平台'
   window.removeEventListener('hashchange', onHashChange)
@@ -339,14 +387,16 @@ onUnmounted(() => {
 <template>
   <div class="h-full flex flex-col bg-gray-100">
     <!-- 顶部操作栏 -->
-    <header class="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between z-10">
+    <header
+      class="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between z-10"
+    >
       <div class="flex items-center gap-4 min-w-0">
         <SelectDropdown
           v-if="catalogs.length > 0"
           width-class="w-48"
           placeholder="选择目录"
           :model-value="selectedCatalogId || ''"
-          :options="catalogs.map(c => ({ value: c.id, label: c.title }))"
+          :options="catalogs.map((c) => ({ value: c.id, label: c.title }))"
           @update:model-value="selectCatalog"
         />
         <h1 v-else class="text-lg font-semibold flex-shrink-0">{{ catalogTitle || '手册预览' }}</h1>
@@ -358,10 +408,13 @@ onUnmounted(() => {
           :model-value="selectedVersionId || ''"
           :options="[
             { value: '', label: '当前最新（实时内容）' },
-            ...versions.map(v => {
+            ...versions.map((v) => {
               const vis = visibilityLabels[v.visibility] || '项目成员'
               const scope = v.publishScope === 'approved_only' ? ' · 仅已审核' : ' · 含未审核'
-              return { value: v.id, label: `v${v.versionMajor}.${v.versionMinor} · ${new Date(v.createdAt).toLocaleDateString()} · ${vis}${scope}` }
+              return {
+                value: v.id,
+                label: `v${v.versionMajor}.${v.versionMinor} · ${new Date(v.createdAt).toLocaleDateString()} · ${vis}${scope}`,
+              }
             }),
           ]"
           @update:model-value="selectVersion"
@@ -370,24 +423,48 @@ onUnmounted(() => {
 
       <div class="flex items-center gap-3 flex-shrink-0">
         <SelectDropdown
-          width-class="w-36" placeholder="全部" :model-value="previewMode"
-          :options="[{ value: 'all', label: '全部章节' }, { value: 'approved', label: '仅已审核' }]"
-          @update:model-value="(val: string | number | null) => previewMode = (val as 'all' | 'approved') || 'all'"
+          width-class="w-36"
+          placeholder="全部"
+          :model-value="previewMode"
+          :options="[
+            { value: 'all', label: '全部章节' },
+            { value: 'approved', label: '仅已审核' },
+          ]"
+          @update:model-value="
+            (val: string | number | null) => (previewMode = (val as 'all' | 'approved') || 'all')
+          "
         />
 
         <!-- PM：实时内容 → 发布 + 编排 -->
         <template v-if="canManageProject && selectedCatalogId && !selectedVersionId">
           <button class="btn-secondary text-sm" :disabled="publishing" @click="openPublishDialog">
-            <span v-if="publishing" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />发布版本
+            <span
+              v-if="publishing"
+              class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1"
+            />发布版本
           </button>
           <button class="btn-secondary text-sm" :disabled="exportingMd" @click="exportMarkdown">
-            <span v-if="exportingMd" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />下载 MD
+            <span
+              v-if="exportingMd"
+              class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1"
+            />下载 MD
           </button>
           <button class="btn-secondary text-sm" :disabled="exportingPdf" @click="exportPdf">
-            <span v-if="exportingPdf" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />下载 PDF
+            <span
+              v-if="exportingPdf"
+              class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1"
+            />下载 PDF
           </button>
-          <router-link :to="`/catalogs/${selectedCatalogId}`" class="btn-secondary text-sm">编排</router-link>
-          <button v-if="versions.length >= 2" class="btn-secondary text-sm" @click="diffVisible = true">对比</button>
+          <router-link :to="`/catalogs/${selectedCatalogId}`" class="btn-secondary text-sm"
+            >编排</router-link
+          >
+          <button
+            v-if="versions.length >= 2"
+            class="btn-secondary text-sm"
+            @click="diffVisible = true"
+          >
+            对比
+          </button>
         </template>
 
         <!-- PM：历史版本 → 下载 + 编排 -->
@@ -396,38 +473,75 @@ onUnmounted(() => {
             width-class="w-28"
             :model-value="currentVersionVis"
             :options="visibilityOptions"
-            @update:model-value="(val: string | number | null) => updateVisibility(selectedVersionId!, val as string)"
+            @update:model-value="
+              (val: string | number | null) => updateVisibility(selectedVersionId!, val as string)
+            "
           />
-          <span v-if="currentVersionPublishScope === 'all'" class="text-xs px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 flex-shrink-0" title="此版本发布时包含了未审核内容">
+          <span
+            v-if="currentVersionPublishScope === 'all'"
+            class="text-xs px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 flex-shrink-0"
+            title="此版本发布时包含了未审核内容"
+          >
             含未审核
           </span>
           <div class="w-px h-5 bg-gray-300 mx-1" />
-          <a v-if="selectedVersionId" :href="docUrl" target="_blank" class="btn-secondary text-sm">在线文档</a>
+          <a v-if="selectedVersionId" :href="docUrl" target="_blank" class="btn-secondary text-sm"
+            >在线文档</a
+          >
           <button class="btn-secondary text-sm" :disabled="exportingMd" @click="exportMarkdown">
-            <span v-if="exportingMd" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />下载 MD
+            <span
+              v-if="exportingMd"
+              class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1"
+            />下载 MD
           </button>
           <button class="btn-secondary text-sm" :disabled="exportingPdf" @click="exportPdf">
-            <span v-if="exportingPdf" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />下载 PDF
+            <span
+              v-if="exportingPdf"
+              class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1"
+            />下载 PDF
           </button>
-          <router-link :to="`/catalogs/${selectedCatalogId}`" class="btn-secondary text-sm">编排</router-link>
+          <router-link :to="`/catalogs/${selectedCatalogId}`" class="btn-secondary text-sm"
+            >编排</router-link
+          >
         </template>
 
         <!-- 运维：仅历史版本可下载 -->
         <template v-if="!canManageProject && selectedCatalogId">
-          <span v-if="selectedVersionId" class="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0"
-            :class="currentVersionVis === 'public' ? 'bg-green-100 text-green-700' : currentVersionVis === 'login_required' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'">
+          <span
+            v-if="selectedVersionId"
+            class="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0"
+            :class="
+              currentVersionVis === 'public'
+                ? 'bg-green-100 text-green-700'
+                : currentVersionVis === 'login_required'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-gray-100 text-gray-600'
+            "
+          >
             {{ visibilityLabels[currentVersionVis] || '项目成员' }}
           </span>
-          <span v-if="selectedVersionId && currentVersionPublishScope === 'all'" class="text-xs px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 flex-shrink-0" title="此版本发布时包含了未审核内容">
+          <span
+            v-if="selectedVersionId && currentVersionPublishScope === 'all'"
+            class="text-xs px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 flex-shrink-0"
+            title="此版本发布时包含了未审核内容"
+          >
             含未审核
           </span>
           <div v-if="selectedVersionId" class="w-px h-5 bg-gray-300 mx-1" />
-          <a v-if="selectedVersionId" :href="docUrl" target="_blank" class="btn-secondary text-sm">在线文档</a>
+          <a v-if="selectedVersionId" :href="docUrl" target="_blank" class="btn-secondary text-sm"
+            >在线文档</a
+          >
           <button class="btn-secondary text-sm" :disabled="exportingMd" @click="exportMarkdown">
-            <span v-if="exportingMd" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />下载 MD
+            <span
+              v-if="exportingMd"
+              class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1"
+            />下载 MD
           </button>
           <button class="btn-secondary text-sm" :disabled="exportingPdf" @click="exportPdf">
-            <span v-if="exportingPdf" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1" />下载 PDF
+            <span
+              v-if="exportingPdf"
+              class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin mr-1"
+            />下载 PDF
           </button>
         </template>
       </div>
@@ -440,12 +554,20 @@ onUnmounted(() => {
       <div class="text-center">
         <span class="i-lucide-book-open text-4xl text-gray-300 mb-3 block mx-auto" />
         <p class="text-gray-500 text-sm">当前项目暂无目录</p>
-        <router-link v-if="canManageProject" to="/catalogs/new" class="btn-primary text-sm mt-3 inline-block">新建目录</router-link>
+        <router-link
+          v-if="canManageProject"
+          to="/catalogs/new"
+          class="btn-primary text-sm mt-3 inline-block"
+          >新建目录</router-link
+        >
       </div>
     </div>
 
     <!-- 手册内容：左右布局 -->
-    <div v-else-if="previewData.entries.length > 0 || previewData.features.length > 0" class="flex-1 flex overflow-hidden">
+    <div
+      v-else-if="previewData.entries.length > 0 || previewData.features.length > 0"
+      class="flex-1 flex overflow-hidden"
+    >
       <PreviewSidebar
         :tree="tree"
         :active-chapter="activeChapter"
@@ -502,16 +624,27 @@ onUnmounted(() => {
               v-for="opt in visibilityOptions"
               :key="opt.value"
               class="px-3 py-1.5 rounded border text-xs transition-colors"
-              :class="publishVisibility === opt.value ? 'bg-blue-100 border-blue-300 text-blue-700' : 'border-gray-300 hover:bg-gray-100'"
+              :class="
+                publishVisibility === opt.value
+                  ? 'bg-blue-100 border-blue-300 text-blue-700'
+                  : 'border-gray-300 hover:bg-gray-100'
+              "
               @click="publishVisibility = opt.value"
-            >{{ opt.label }}</button>
+            >
+              {{ opt.label }}
+            </button>
           </div>
         </div>
         <!-- 审核状态 -->
         <div v-if="reviewStats" class="flex items-center justify-between text-xs">
           <span>
             审核状态：
-            <span class="font-medium" :class="reviewStats.approved === reviewStats.total ? 'text-green-600' : 'text-yellow-600'">
+            <span
+              class="font-medium"
+              :class="
+                reviewStats.approved === reviewStats.total ? 'text-green-600' : 'text-yellow-600'
+              "
+            >
               {{ reviewStats.approved }} / {{ reviewStats.total }}
             </span>
             个章节已通过
@@ -535,6 +668,8 @@ onUnmounted(() => {
 
 <style scoped>
 @media print {
-  header { display: none !important; }
+  header {
+    display: none !important;
+  }
 }
 </style>

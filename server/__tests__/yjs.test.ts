@@ -7,9 +7,9 @@ const TEST_DOC_ID = `${TEST_FEATURE_ID}/section`
 
 beforeAll(async () => {
   const db = getDb()
-  db.prepare('INSERT OR IGNORE INTO features (id, title, description, sections, is_custom, project_id) VALUES (?, ?, ?, ?, ?, ?)').run(
-    TEST_FEATURE_ID, 'Test Feature', '', '[]', 0, 'default',
-  )
+  db.prepare(
+    'INSERT OR IGNORE INTO features (id, title, description, sections, is_custom, project_id) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(TEST_FEATURE_ID, 'Test Feature', '', '[]', 0, 'default')
 })
 
 afterEach(() => {
@@ -19,7 +19,9 @@ afterEach(() => {
   db.prepare('DELETE FROM document_updates WHERE document_id = ?').run(TEST_DOC_ID)
   db.prepare('DELETE FROM documents WHERE id = ?').run(TEST_DOC_ID)
   // 重新创建干净的 document 记录给下一个测试
-  db.prepare('INSERT OR IGNORE INTO documents (id, feature_id, section_key, status) VALUES (?, ?, ?, ?)').run(TEST_DOC_ID, TEST_FEATURE_ID, 'section', 'draft')
+  db.prepare(
+    'INSERT OR IGNORE INTO documents (id, feature_id, section_key, status) VALUES (?, ?, ?, ?)',
+  ).run(TEST_DOC_ID, TEST_FEATURE_ID, 'section', 'draft')
 })
 
 afterAll(async () => {
@@ -54,10 +56,14 @@ describe('Yjs Doc 持久化', () => {
     createSnapshot(TEST_DOC_ID)
 
     const db = getDb()
-    const snapshots = db.prepare('SELECT * FROM document_snapshots WHERE document_id = ?').all(TEST_DOC_ID)
+    const snapshots = db
+      .prepare('SELECT * FROM document_snapshots WHERE document_id = ?')
+      .all(TEST_DOC_ID)
     expect(snapshots.length).toBeGreaterThan(0)
 
-    const updates = db.prepare('SELECT * FROM document_updates WHERE document_id = ?').all(TEST_DOC_ID)
+    const updates = db
+      .prepare('SELECT * FROM document_updates WHERE document_id = ?')
+      .all(TEST_DOC_ID)
     expect(updates.length).toBe(0)
 
     state.doc.destroy()

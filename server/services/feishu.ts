@@ -39,10 +39,12 @@ export async function getTenantAccessToken(): Promise<string> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(`获取 tenant_access_token 失败: ${(body as Record<string, unknown>).code || res.status}`)
+    throw new Error(
+      `获取 tenant_access_token 失败: ${(body as Record<string, unknown>).code || res.status}`,
+    )
   }
 
-  const data = await res.json() as { code: number; tenant_access_token: string; expire: number }
+  const data = (await res.json()) as { code: number; tenant_access_token: string; expire: number }
   if (data.code !== 0) {
     throw new Error(`飞书 API 错误: ${data.code}`)
   }
@@ -75,7 +77,7 @@ export async function getAppAccessToken(): Promise<string> {
     throw new Error(`获取 app_access_token 失败: ${res.status}`)
   }
 
-  const data = await res.json() as FeishuTokenResponse
+  const data = (await res.json()) as FeishuTokenResponse
   return data.app_access_token
 }
 
@@ -128,24 +130,21 @@ export function buildCardMessage(
 export async function sendFeishuMessage(openId: string, content: FeishuCardContent): Promise<void> {
   const token = await getTenantAccessToken()
 
-  const res = await fetch(
-    `${FEISHU_HOST}/open-apis/im/v1/messages?receive_id_type=open_id`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        receive_id: openId,
-        msg_type: 'interactive',
-        content: JSON.stringify(content),
-      }),
+  const res = await fetch(`${FEISHU_HOST}/open-apis/im/v1/messages?receive_id_type=open_id`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
     },
-  )
+    body: JSON.stringify({
+      receive_id: openId,
+      msg_type: 'interactive',
+      content: JSON.stringify(content),
+    }),
+  })
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({})) as { code?: number; msg?: string }
+    const body = (await res.json().catch(() => ({}))) as { code?: number; msg?: string }
     // Token 过期，清除缓存重试一次
     if (body.code === 99991663) {
       clearTenantTokenCache()
@@ -156,7 +155,7 @@ export async function sendFeishuMessage(openId: string, content: FeishuCardConte
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${newToken}`,
+            Authorization: `Bearer ${newToken}`,
           },
           body: JSON.stringify({
             receive_id: openId,
@@ -166,7 +165,10 @@ export async function sendFeishuMessage(openId: string, content: FeishuCardConte
         },
       )
       if (!retryRes.ok) {
-        const retryBody = await retryRes.json().catch(() => ({})) as { code?: number; msg?: string }
+        const retryBody = (await retryRes.json().catch(() => ({}))) as {
+          code?: number
+          msg?: string
+        }
         throw new Error(`飞书消息发送失败: ${retryBody.code} ${retryBody.msg || ''}`)
       }
       return
@@ -201,18 +203,18 @@ export async function exchangeCodeForToken(code: string): Promise<FeishuUserInfo
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${appAccessToken}`,
+      Authorization: `Bearer ${appAccessToken}`,
     },
     body: JSON.stringify({ grant_type: 'authorization_code', code }),
   })
-  const userData = await userRes.json() as FeishuUserResponse
+  const userData = (await userRes.json()) as FeishuUserResponse
 
   // 获取用户信息
   if (userData.data?.access_token) {
     const infoRes = await fetch(`${FEISHU_HOST}/open-apis/authen/v1/user_info`, {
-      headers: { 'Authorization': `Bearer ${userData.data.access_token}` },
+      headers: { Authorization: `Bearer ${userData.data.access_token}` },
     })
-    const infoData = await infoRes.json() as FeishuUserInfoResponse
+    const infoData = (await infoRes.json()) as FeishuUserInfoResponse
     return {
       open_id: infoData.data?.open_id || '',
       name: infoData.data?.name || '',

@@ -6,11 +6,7 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 import { resolve } from 'path'
 
 export default defineConfig({
-  plugins: [
-    vue(),
-    vueDevTools(),
-    UnoCSS(),
-  ],
+  plugins: [vue(), vueDevTools(), UnoCSS()],
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),

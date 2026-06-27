@@ -33,18 +33,10 @@ const textClass: Record<string, string> = {
 </script>
 
 <template>
-  <span
-    v-if="variant === 'text'"
-    class="text-xs"
-    :class="textClass[status]"
-  >
+  <span v-if="variant === 'text'" class="text-xs" :class="textClass[status]">
     {{ labels[status] }}
   </span>
-  <span
-    v-else
-    class="px-2 py-0.5 rounded-full text-xs font-medium"
-    :class="badgeClass[status]"
-  >
+  <span v-else class="px-2 py-0.5 rounded-full text-xs font-medium" :class="badgeClass[status]">
     {{ labels[status] }}
   </span>
 </template>

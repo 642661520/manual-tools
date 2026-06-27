@@ -11,7 +11,9 @@ interface UserState {
 
 export const CursorAwareness = (awareness: Awareness) => {
   const cursorPluginKey = new PluginKey('collaboration-cursor')
-  let awarenessHandler: ((changes: { added: number[]; updated: number[]; removed: number[] }) => void) | null = null
+  let awarenessHandler:
+    | ((changes: { added: number[]; updated: number[]; removed: number[] }) => void)
+    | null = null
 
   return Extension.create({
     name: 'cursorAwareness',

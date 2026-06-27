@@ -17,7 +17,7 @@
     "paths": {
       "@/*": ["./src/*"],
       "@shared/*": ["./shared/*"]
-    },
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "src/vite-env.d.ts", "shared/**/*.ts"]
 }

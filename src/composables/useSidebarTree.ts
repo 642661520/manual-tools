@@ -14,7 +14,7 @@ export interface SidebarChapter {
   title: string
   chNum: number
   sections: SidebarSection[]
-  isLeaf: boolean  // 仅默认小节时无展开
+  isLeaf: boolean // 仅默认小节时无展开
 }
 
 export interface SidebarPart {
@@ -34,12 +34,9 @@ export interface FeatureMeta {
   sections: Array<{ key: string; title: string; description?: string }>
 }
 
-export function useSidebarTree(
-  catalogEntries: Ref<CatalogEntry[]>,
-  features: Ref<FeatureMeta[]>,
-) {
+export function useSidebarTree(catalogEntries: Ref<CatalogEntry[]>, features: Ref<FeatureMeta[]>) {
   const tree = computed<SidebarNode[]>(() => {
-    const featureMap = new Map(features.value.map(f => [f.id, f]))
+    const featureMap = new Map(features.value.map((f) => [f.id, f]))
     const nodes: SidebarNode[] = []
     let chNum = 1
     let partIdx = 0
@@ -89,9 +86,7 @@ export function useSidebarTree(
     return map
   })
 
-  const hasParts = computed(() =>
-    catalogEntries.value.some(e => isCatalogPart(e)),
-  )
+  const hasParts = computed(() => catalogEntries.value.some((e) => isCatalogPart(e)))
 
   const totalChapters = computed(() => chapterMap.value.size)
 

@@ -13,9 +13,19 @@ const loading = ref(true)
 
 const statusGroups: { key: string; label: string; color: string; bg: string }[] = [
   { key: 'rejected', label: '需修改', color: 'text-red-600', bg: 'bg-red-50 border-red-200' },
-  { key: 'in_progress', label: '编写中', color: 'text-amber-600', bg: 'bg-amber-50 border-amber-200' },
+  {
+    key: 'in_progress',
+    label: '编写中',
+    color: 'text-amber-600',
+    bg: 'bg-amber-50 border-amber-200',
+  },
   { key: 'draft', label: '待开始', color: 'text-gray-500', bg: 'bg-gray-50 border-gray-200' },
-  { key: 'pending_review', label: '待审核', color: 'text-blue-600', bg: 'bg-blue-50 border-blue-200' },
+  {
+    key: 'pending_review',
+    label: '待审核',
+    color: 'text-blue-600',
+    bg: 'bg-blue-50 border-blue-200',
+  },
   { key: 'approved', label: '已完成', color: 'text-green-600', bg: 'bg-green-50 border-green-200' },
 ]
 
@@ -26,20 +36,24 @@ const groupedTodos = computed(() => {
     if (!groups[key]) groups[key] = []
     groups[key].push(t)
   }
-  return statusGroups.filter(g => groups[g.key]?.length > 0).map(g => ({
-    ...g,
-    items: groups[g.key],
-  }))
+  return statusGroups
+    .filter((g) => groups[g.key]?.length > 0)
+    .map((g) => ({
+      ...g,
+      items: groups[g.key],
+    }))
 })
 
 const totalCount = computed(() => todos.value.length)
-const activeCount = computed(() => todos.value.filter(t => t.status !== 'approved').length)
+const activeCount = computed(() => todos.value.filter((t) => t.status !== 'approved').length)
 
 async function loadTodos() {
   loading.value = true
   try {
     todos.value = await getTodos(currentProjectId.value ?? undefined)
-  } finally { loading.value = false }
+  } finally {
+    loading.value = false
+  }
 }
 
 function openEditor(t: TodoItem) {
@@ -58,7 +72,9 @@ watch(currentProjectId, loadTodos)
         <h1 class="text-2xl font-bold">待办清单</h1>
         <p class="text-sm text-gray-500 mt-1">
           <template v-if="totalCount === 0">暂无待办任务</template>
-          <template v-else>{{ activeCount }} 项待处理，{{ totalCount - activeCount }} 项已完成</template>
+          <template v-else
+            >{{ activeCount }} 项待处理，{{ totalCount - activeCount }} 项已完成</template
+          >
         </p>
       </div>
     </div>
@@ -83,15 +99,22 @@ watch(currentProjectId, loadTodos)
               <div class="flex-1 min-w-0">
                 <div class="text-sm font-medium truncate">
                   {{ t.featureTitle }} › {{ t.sectionTitle }}
-                  <span v-if="t.todoType === 'review'" class="text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded ml-1.5 font-normal">审核</span>
+                  <span
+                    v-if="t.todoType === 'review'"
+                    class="text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded ml-1.5 font-normal"
+                    >审核</span
+                  >
                 </div>
-                <div class="text-xs text-gray-400 mt-0.5 font-mono">{{ t.featureId }}/{{ t.sectionKey }}</div>
+                <div class="text-xs text-gray-400 mt-0.5 font-mono">
+                  {{ t.featureId }}/{{ t.sectionKey }}
+                </div>
               </div>
               <span
                 v-if="t.reviewNote"
                 class="text-xs text-gray-500 truncate max-w-[12rem] hidden sm:inline"
                 v-tooltip="t.reviewNote"
-              >{{ t.reviewNote }}</span>
+                >{{ t.reviewNote }}</span
+              >
               <span class="i-lucide-arrow-right w-4 h-4 text-gray-300 flex-shrink-0" />
             </div>
           </div>

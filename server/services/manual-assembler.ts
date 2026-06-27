@@ -2,8 +2,13 @@ import * as Y from 'yjs'
 import { getDb } from '../db/index.js'
 import { isCatalogPart } from '../types.js'
 import type {
-  CatalogRow, CatalogFeatureEntry, CatalogEntry, FeatureRow, FeatureData,
-  HeadingEntry, ManualResult,
+  CatalogRow,
+  CatalogFeatureEntry,
+  CatalogEntry,
+  FeatureRow,
+  FeatureData,
+  HeadingEntry,
+  ManualResult,
 } from '../types.js'
 
 // ================ 手册组装 =================================================
@@ -17,10 +22,10 @@ function resolveSections(
 ): SectionDef[] {
   const raw: SectionDef[] = Array.isArray(sectionsJson)
     ? sectionsJson
-    : JSON.parse(sectionsJson || '[]') as SectionDef[]
+    : (JSON.parse(sectionsJson || '[]') as SectionDef[])
   const source = raw.length > 0 ? raw : [{ key: '_default', title: featureTitle }]
   if (sectionOrder) {
-    return sectionOrder.map(k => source.find(s => s.key === k)).filter(Boolean) as SectionDef[]
+    return sectionOrder.map((k) => source.find((s) => s.key === k)).filter(Boolean) as SectionDef[]
   }
   return source
 }
@@ -38,7 +43,9 @@ export function assembleManual(
   const statusOverride = opts?.statusOverride
   const featuresData = opts?.featuresData
   const db = getDb()
-  const catalog = db.prepare('SELECT * FROM catalogs WHERE id = ?').get(catalogId) as CatalogRow | undefined
+  const catalog = db.prepare('SELECT * FROM catalogs WHERE id = ?').get(catalogId) as
+    | CatalogRow
+    | undefined
   if (!catalog) return null
 
   const entries: CatalogEntry[] = JSON.parse(opts?.featureOverride || catalog.features)
@@ -59,15 +66,16 @@ export function assembleManual(
   // 构建 featureMap：优先使用传入的快照数据，否则查询 DB
   let featureMap: Map<string, FeatureRow | FeatureData>
   if (featuresData) {
-    featureMap = new Map(featuresData.map(f => [f.id, f]))
+    featureMap = new Map(featuresData.map((f) => [f.id, f]))
   } else {
-    const featureIds = flatFeatureEntries.map(e => e.featureId)
-    const featureRows = featureIds.length > 0
-      ? db.prepare(
-        `SELECT * FROM features WHERE id IN (${featureIds.map(() => '?').join(',')})`,
-      ).all(...featureIds) as FeatureRow[]
-      : []
-    featureMap = new Map<string, FeatureRow | FeatureData>(featureRows.map(f => [f.id, f]))
+    const featureIds = flatFeatureEntries.map((e) => e.featureId)
+    const featureRows =
+      featureIds.length > 0
+        ? (db
+            .prepare(`SELECT * FROM features WHERE id IN (${featureIds.map(() => '?').join(',')})`)
+            .all(...featureIds) as FeatureRow[])
+        : []
+    featureMap = new Map<string, FeatureRow | FeatureData>(featureRows.map((f) => [f.id, f]))
   }
 
   // 收集所有待查的 document ID
@@ -84,10 +92,12 @@ export function assembleManual(
   // 批量查询 document 状态（approvedOnly 过滤用）
   let approvedDocIds: Set<string> | null = null
   if (approvedOnly && allDocIds.length > 0) {
-    const statusRows = db.prepare(
-      `SELECT id, status FROM documents WHERE id IN (${allDocIds.map(() => '?').join(',')})`,
-    ).all(...allDocIds) as { id: string; status: string }[]
-    approvedDocIds = new Set(statusRows.filter(r => r.status === 'approved').map(r => r.id))
+    const statusRows = db
+      .prepare(
+        `SELECT id, status FROM documents WHERE id IN (${allDocIds.map(() => '?').join(',')})`,
+      )
+      .all(...allDocIds) as { id: string; status: string }[]
+    approvedDocIds = new Set(statusRows.filter((r) => r.status === 'approved').map((r) => r.id))
   }
 
   // 批量获取所有 document 内容（避免逐条 N+1）
@@ -101,7 +111,7 @@ export function assembleManual(
       const ordered = resolveSections(f.sections, f.title, fe.sectionOrder)
 
       const sections = approvedOnly
-        ? ordered.filter(s => {
+        ? ordered.filter((s) => {
             const docId = `${f.id}/${s.key}`
             if (statusOverride && docId in statusOverride) {
               return statusOverride[docId] === 'approved'
@@ -136,12 +146,15 @@ export function assembleManual(
   }
 
   // 构建 featureId → 章节信息 映射（用于交叉引用解析）
-  const chapterMap = new Map<string, {
-    num: number
-    anchorId: string
-    title: string
-    sections: Record<string, { anchorId: string; title: string }>
-  }>()
+  const chapterMap = new Map<
+    string,
+    {
+      num: number
+      anchorId: string
+      title: string
+      sections: Record<string, { anchorId: string; title: string }>
+    }
+  >()
   let chNum = 1
   for (const f of features) {
     const sectionAnchors: Record<string, { anchorId: string; title: string }> = {}
@@ -162,7 +175,7 @@ export function assembleManual(
   }
 
   // 构建 featureId → FeatureData 映射（用于 TOC/正文按 entry 顺序查找）
-  const featuresMap = new Map(features.map(f => [f.id, f]))
+  const featuresMap = new Map(features.map((f) => [f.id, f]))
 
   // 收集标题树
   const headings: HeadingEntry[] = []
@@ -208,7 +221,7 @@ export function assembleManual(
       chapterNum++
     }
   }
-  md += tocLines.map(l => l + '  ').join('\n')
+  md += tocLines.map((l) => l + '  ').join('\n')
   md += `\n\n---\n\n`
 
   // 正文
@@ -323,20 +336,32 @@ export function assembleChapter(
   const statusOverride = opts?.statusOverride
   const featuresData = opts?.featuresData
   const db = getDb()
-  const catalog = db.prepare('SELECT * FROM catalogs WHERE id = ?').get(catalogId) as CatalogRow | undefined
+  const catalog = db.prepare('SELECT * FROM catalogs WHERE id = ?').get(catalogId) as
+    | CatalogRow
+    | undefined
   if (!catalog) return null
 
   const entries: CatalogEntry[] = JSON.parse(opts?.featureOverride || catalog.features)
   const hasParts = entries.some(isCatalogPart)
 
   // 展平 entries 并维护 chNum → feature 映射
-  const flat: { featureId: string; sectionOrder?: string[]; partTitle?: string; partIdx?: number }[] = []
+  const flat: {
+    featureId: string
+    sectionOrder?: string[]
+    partTitle?: string
+    partIdx?: number
+  }[] = []
   let partIdx = 0
   for (const entry of entries) {
     if (isCatalogPart(entry)) {
       partIdx++
       for (const fe of entry.features) {
-        flat.push({ featureId: fe.featureId, sectionOrder: fe.sectionOrder, partTitle: entry.title, partIdx })
+        flat.push({
+          featureId: fe.featureId,
+          sectionOrder: fe.sectionOrder,
+          partTitle: entry.title,
+          partIdx,
+        })
       }
     } else {
       flat.push({ featureId: entry.featureId, sectionOrder: entry.sectionOrder })
@@ -349,13 +374,13 @@ export function assembleChapter(
   // 构建 featureMap：优先使用传入的快照数据，否则查询 DB
   let featureMap: Map<string, FeatureRow | FeatureData>
   if (featuresData) {
-    featureMap = new Map(featuresData.map(f => [f.id, f]))
+    featureMap = new Map(featuresData.map((f) => [f.id, f]))
   } else {
-    const allFeatureIds = flat.map(e => e.featureId)
-    const featureRows = db.prepare(
-      `SELECT * FROM features WHERE id IN (${allFeatureIds.map(() => '?').join(',')})`,
-    ).all(...allFeatureIds) as FeatureRow[]
-    featureMap = new Map<string, FeatureRow | FeatureData>(featureRows.map(f => [f.id, f]))
+    const allFeatureIds = flat.map((e) => e.featureId)
+    const featureRows = db
+      .prepare(`SELECT * FROM features WHERE id IN (${allFeatureIds.map(() => '?').join(',')})`)
+      .all(...allFeatureIds) as FeatureRow[]
+    featureMap = new Map<string, FeatureRow | FeatureData>(featureRows.map((f) => [f.id, f]))
   }
 
   // 构建 chapterMap
@@ -368,20 +393,22 @@ export function assembleChapter(
   const ordered = resolveSections(f.sections, f.title, target.sectionOrder)
 
   // 收集本章的 document IDs
-  const chapterDocIds = ordered.map(s => `${f.id}/${s.key}`)
+  const chapterDocIds = ordered.map((s) => `${f.id}/${s.key}`)
 
   // approvedOnly 过滤
   let approvedDocIds: Set<string> | null = null
   if (approvedOnly && chapterDocIds.length > 0) {
-    const statusRows = db.prepare(
-      `SELECT id, status FROM documents WHERE id IN (${chapterDocIds.map(() => '?').join(',')})`,
-    ).all(...chapterDocIds) as { id: string; status: string }[]
-    approvedDocIds = new Set(statusRows.filter(r => r.status === 'approved').map(r => r.id))
+    const statusRows = db
+      .prepare(
+        `SELECT id, status FROM documents WHERE id IN (${chapterDocIds.map(() => '?').join(',')})`,
+      )
+      .all(...chapterDocIds) as { id: string; status: string }[]
+    approvedDocIds = new Set(statusRows.filter((r) => r.status === 'approved').map((r) => r.id))
   }
 
   // 过滤 sections
   const sections = approvedOnly
-    ? ordered.filter(s => {
+    ? ordered.filter((s) => {
         const docId = `${f.id}/${s.key}`
         if (statusOverride && docId in statusOverride) return statusOverride[docId] === 'approved'
         return approvedDocIds?.has(docId) ?? false
@@ -389,10 +416,9 @@ export function assembleChapter(
     : ordered
 
   // 获取本章 document 内容
-  const sectionDocIds = sections.map(s => `${f.id}/${s.key}`)
-  const contentMap = sectionDocIds.length > 0
-    ? batchGetDocumentContents(sectionDocIds)
-    : new Map<string, string>()
+  const sectionDocIds = sections.map((s) => `${f.id}/${s.key}`)
+  const contentMap =
+    sectionDocIds.length > 0 ? batchGetDocumentContents(sectionDocIds) : new Map<string, string>()
 
   // 组装 markdown
   let md = ''
@@ -452,8 +478,24 @@ export function assembleChapter(
 function buildChapterMap(
   flat: { featureId: string }[],
   featureMap: Map<string, FeatureRow | FeatureData>,
-): Map<string, { num: number; anchorId: string; title: string; sections: Record<string, { anchorId: string; title: string }> }> {
-  const map = new Map<string, { num: number; anchorId: string; title: string; sections: Record<string, { anchorId: string; title: string }> }>()
+): Map<
+  string,
+  {
+    num: number
+    anchorId: string
+    title: string
+    sections: Record<string, { anchorId: string; title: string }>
+  }
+> {
+  const map = new Map<
+    string,
+    {
+      num: number
+      anchorId: string
+      title: string
+      sections: Record<string, { anchorId: string; title: string }>
+    }
+  >()
   let chNum = 1
   for (const fe of flat) {
     const f = featureMap.get(fe.featureId)
@@ -480,10 +522,7 @@ function buildChapterMap(
 // ================ 从存储 Markdown 提取章节 ====================================
 
 /** 从完整 markdown 中提取指定章节的内容（用于历史版本预览，避免重组装） */
-export function extractChapterMarkdown(
-  fullMarkdown: string,
-  chNum: number,
-): string | null {
+export function extractChapterMarkdown(fullMarkdown: string, chNum: number): string | null {
   const chAnchor = `<a id="ch${chNum}"></a>`
   const startIdx = fullMarkdown.indexOf(chAnchor)
   if (startIdx === -1) return null
@@ -517,13 +556,17 @@ function batchGetDocumentContents(docIds: string[]): Map<string, string> {
 
   const placeholders = docIds.map(() => '?').join(',')
 
-  const allUpdates = db.prepare(
-    `SELECT document_id, update_data FROM document_updates WHERE document_id IN (${placeholders}) ORDER BY id ASC`,
-  ).all(...docIds) as Array<{ document_id: string; update_data: Buffer }>
+  const allUpdates = db
+    .prepare(
+      `SELECT document_id, update_data FROM document_updates WHERE document_id IN (${placeholders}) ORDER BY id ASC`,
+    )
+    .all(...docIds) as Array<{ document_id: string; update_data: Buffer }>
 
-  const allSnapshots = db.prepare(
-    `SELECT document_id, snapshot_data FROM document_snapshots WHERE document_id IN (${placeholders}) ORDER BY id DESC`,
-  ).all(...docIds) as Array<{ document_id: string; snapshot_data: Buffer }>
+  const allSnapshots = db
+    .prepare(
+      `SELECT document_id, snapshot_data FROM document_snapshots WHERE document_id IN (${placeholders}) ORDER BY id DESC`,
+    )
+    .all(...docIds) as Array<{ document_id: string; snapshot_data: Buffer }>
 
   const updatesByDoc = new Map<string, Buffer[]>()
   for (const row of allUpdates) {
@@ -560,12 +603,15 @@ function batchGetDocumentContents(docIds: string[]): Map<string, string> {
 
 function resolveCrossReferences(
   html: string,
-  chapterMap: Map<string, {
-    num: number
-    anchorId: string
-    title: string
-    sections: Record<string, { anchorId: string; title: string }>
-  }>,
+  chapterMap: Map<
+    string,
+    {
+      num: number
+      anchorId: string
+      title: string
+      sections: Record<string, { anchorId: string; title: string }>
+    }
+  >,
 ): string {
   if (!html) return html
   return html.replace(

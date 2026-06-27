@@ -99,7 +99,9 @@ function reportFrontendError(payload: { message: string; stack?: string }) {
       url: window.location.href,
       userAgent: navigator.userAgent,
     }),
-  }).catch(() => { /* 上报失败不影响用户 */ })
+  }).catch(() => {
+    /* 上报失败不影响用户 */
+  })
 }
 
 // JS 运行时错误

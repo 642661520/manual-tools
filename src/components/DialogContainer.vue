@@ -21,9 +21,23 @@ function fillDangerPhrase() {
   <ModalDialog
     :visible="dialogVisible"
     :title="dialogState.title || '提示'"
-    :confirm-text="dialogState.type === 'alert' ? '确定' : dialogState.type === 'prompt' ? '确认' : dialogState.type === 'danger' ? '我确认删除' : '确定'"
+    :confirm-text="
+      dialogState.type === 'alert'
+        ? '确定'
+        : dialogState.type === 'prompt'
+          ? '确认'
+          : dialogState.type === 'danger'
+            ? '我确认删除'
+            : '确定'
+    "
     :cancel-text="dialogState.type === 'alert' ? '' : '取消'"
-    :confirm-variant="dialogState.type === 'danger' ? 'danger' : dialogState.type === 'confirm' ? 'danger' : 'primary'"
+    :confirm-variant="
+      dialogState.type === 'danger'
+        ? 'danger'
+        : dialogState.type === 'confirm'
+          ? 'danger'
+          : 'primary'
+    "
     :confirm-disabled="confirmDisabled"
     @close="dialogCancel"
     @confirm="dialogConfirm"

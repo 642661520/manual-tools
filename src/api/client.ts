@@ -89,7 +89,7 @@ async function request<T>(
   }
 
   const data = toCamelCase<Record<string, unknown>>(
-    await res.json().catch(() => ({} as Record<string, unknown>)),
+    await res.json().catch(() => ({}) as Record<string, unknown>),
   )
 
   if (!res.ok) {

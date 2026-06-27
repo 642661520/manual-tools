@@ -42,8 +42,11 @@ async function doSearch() {
     results.value = res.results
     total.value = res.total
     selectedIndex.value = -1
-  } catch { results.value = [] }
-  finally { searching.value = false }
+  } catch {
+    results.value = []
+  } finally {
+    searching.value = false
+  }
 }
 
 watch(query, () => {
@@ -52,9 +55,20 @@ watch(query, () => {
 })
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') { close(); return }
-  if (e.key === 'ArrowDown') { e.preventDefault(); selectedIndex.value = Math.min(selectedIndex.value + 1, results.value.length - 1); return }
-  if (e.key === 'ArrowUp') { e.preventDefault(); selectedIndex.value = Math.max(selectedIndex.value - 1, -1); return }
+  if (e.key === 'Escape') {
+    close()
+    return
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    selectedIndex.value = Math.min(selectedIndex.value + 1, results.value.length - 1)
+    return
+  }
+  if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    selectedIndex.value = Math.max(selectedIndex.value - 1, -1)
+    return
+  }
   if (e.key === 'Enter' && selectedIndex.value >= 0) {
     e.preventDefault()
     goTo(results.value[selectedIndex.value])
@@ -83,7 +97,11 @@ defineExpose({ open })
 
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-black/30" @click.self="close">
+    <div
+      v-if="visible"
+      class="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-black/30"
+      @click.self="close"
+    >
       <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl mx-4 overflow-hidden">
         <!-- Search input -->
         <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-200">
@@ -96,15 +114,24 @@ defineExpose({ open })
             :placeholder="currentProjectId ? '搜索当前项目中的手册内容...' : '请先选择一个项目'"
             @keydown="onKeydown"
           />
-          <kbd class="hidden sm:inline-block text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">Esc</kbd>
+          <kbd
+            class="hidden sm:inline-block text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded"
+            >Esc</kbd
+          >
         </div>
 
         <!-- Results -->
         <div class="max-h-80 overflow-y-auto">
-          <div v-if="searching" class="flex items-center gap-2 px-4 py-8 text-sm text-gray-400 justify-center">
+          <div
+            v-if="searching"
+            class="flex items-center gap-2 px-4 py-8 text-sm text-gray-400 justify-center"
+          >
             <span class="i-lucide-loader-2 w-4 h-4 animate-spin" />搜索中...
           </div>
-          <div v-else-if="query && results.length === 0" class="px-4 py-8 text-sm text-gray-400 text-center">
+          <div
+            v-else-if="query && results.length === 0"
+            class="px-4 py-8 text-sm text-gray-400 text-center"
+          >
             未找到相关结果
           </div>
           <template v-else-if="results.length > 0">
@@ -124,7 +151,10 @@ defineExpose({ open })
             </div>
           </template>
         </div>
-        <div v-if="results.length > 0" class="px-4 py-2 text-xs text-gray-400 border-t border-gray-100">
+        <div
+          v-if="results.length > 0"
+          class="px-4 py-2 text-xs text-gray-400 border-t border-gray-100"
+        >
           共 {{ total }} 条结果
         </div>
       </div>

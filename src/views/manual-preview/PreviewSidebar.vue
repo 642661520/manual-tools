@@ -15,7 +15,7 @@ const emit = defineEmits<{
 }>()
 
 // 展开状态：part 默认展开，chapter 折叠
-const expandedParts = ref<Set<string>>(new Set(props.tree.filter(isPart).map(p => p.id)))
+const expandedParts = ref<Set<string>>(new Set(props.tree.filter(isPart).map((p) => p.id)))
 const expandedChapters = ref<Set<number>>(new Set())
 
 function isPart(node: SidebarNode): node is SidebarPart {
@@ -75,11 +75,17 @@ const totalChapters = computed(() => {
       <!-- 概览 -->
       <button
         class="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded transition-colors mb-1"
-        :class="activeChapter === 0 ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50'"
+        :class="
+          activeChapter === 0
+            ? 'bg-blue-50 text-blue-700 font-medium'
+            : 'text-gray-700 hover:bg-gray-50'
+        "
         @click="emit('select-cover')"
       >
-        <span class="i-lucide-book-open w-4 h-4 inline-block align-middle flex-shrink-0"
-          :class="activeChapter === 0 ? 'text-blue-400' : 'text-gray-400'" />
+        <span
+          class="i-lucide-book-open w-4 h-4 inline-block align-middle flex-shrink-0"
+          :class="activeChapter === 0 ? 'text-blue-400' : 'text-gray-400'"
+        />
         <span>概览</span>
       </button>
       <div class="border-b border-gray-100 mb-2" />
@@ -91,10 +97,16 @@ const totalChapters = computed(() => {
             @click="togglePart((node as SidebarPart).id)"
           >
             <span
-              :class="expandedParts.has((node as SidebarPart).id) ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
+              :class="
+                expandedParts.has((node as SidebarPart).id)
+                  ? 'i-lucide-chevron-down'
+                  : 'i-lucide-chevron-right'
+              "
               class="w-3 h-3 inline-block align-middle flex-shrink-0 text-gray-400"
             />
-            <span class="i-lucide-book-open w-3.5 h-3.5 inline-block align-middle flex-shrink-0 text-indigo-400" />
+            <span
+              class="i-lucide-book-open w-3.5 h-3.5 inline-block align-middle flex-shrink-0 text-indigo-400"
+            />
             <span class="truncate">{{ (node as SidebarPart).title }}</span>
           </button>
           <ul v-show="expandedParts.has((node as SidebarPart).id)" class="ml-3 mt-0.5 space-y-0.5">
@@ -103,40 +115,68 @@ const totalChapters = computed(() => {
               <button
                 v-if="ch.isLeaf"
                 class="w-full flex items-center gap-1.5 px-2 py-1 text-xs rounded transition-colors"
-                :class="activeChapter === ch.chNum ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-50'"
+                :class="
+                  activeChapter === ch.chNum
+                    ? 'bg-blue-50 text-blue-700 font-medium'
+                    : 'text-gray-600 hover:bg-gray-50'
+                "
                 @click="emit('select-chapter', ch.chNum)"
               >
                 <span class="w-3 h-3 flex-shrink-0" />
-                <span class="text-gray-400 font-mono w-5 text-right flex-shrink-0">{{ ch.chNum }}</span>
-                <span class="i-lucide-file-text w-3.5 h-3.5 inline-block align-middle flex-shrink-0"
-                  :class="activeChapter === ch.chNum ? 'text-blue-400' : 'text-gray-300'" />
+                <span class="text-gray-400 font-mono w-5 text-right flex-shrink-0">{{
+                  ch.chNum
+                }}</span>
+                <span
+                  class="i-lucide-file-text w-3.5 h-3.5 inline-block align-middle flex-shrink-0"
+                  :class="activeChapter === ch.chNum ? 'text-blue-400' : 'text-gray-300'"
+                />
                 <span class="truncate text-left">{{ ch.title }}</span>
               </button>
               <!-- 多小节：可展开 -->
               <template v-else>
                 <button
                   class="w-full flex items-center gap-1.5 px-2 py-1 text-xs rounded transition-colors"
-                  :class="activeChapter === ch.chNum ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-50'"
+                  :class="
+                    activeChapter === ch.chNum
+                      ? 'bg-blue-50 text-blue-700 font-medium'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  "
                   @click="toggleChapter(ch.chNum)"
                 >
                   <span
-                    :class="expandedChapters.has(ch.chNum) ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
+                    :class="
+                      expandedChapters.has(ch.chNum)
+                        ? 'i-lucide-chevron-down'
+                        : 'i-lucide-chevron-right'
+                    "
                     class="w-3 h-3 inline-block align-middle flex-shrink-0 text-gray-400"
                   />
-                  <span class="text-gray-400 font-mono w-5 text-right flex-shrink-0">{{ ch.chNum }}</span>
-                  <span class="i-lucide-file-text w-3.5 h-3.5 inline-block align-middle flex-shrink-0"
-                    :class="activeChapter === ch.chNum ? 'text-blue-400' : 'text-gray-300'" />
+                  <span class="text-gray-400 font-mono w-5 text-right flex-shrink-0">{{
+                    ch.chNum
+                  }}</span>
+                  <span
+                    class="i-lucide-file-text w-3.5 h-3.5 inline-block align-middle flex-shrink-0"
+                    :class="activeChapter === ch.chNum ? 'text-blue-400' : 'text-gray-300'"
+                  />
                   <span class="truncate text-left">{{ ch.title }}</span>
                 </button>
                 <ul v-show="expandedChapters.has(ch.chNum)" class="ml-5 mt-0.5 space-y-0">
                   <li v-for="(sec, i) in ch.sections" :key="sec.key">
                     <button
                       class="w-full flex items-center gap-1.5 px-2 py-0.5 text-xs transition-colors rounded"
-                      :class="activeChapter === ch.chNum ? 'text-gray-500 hover:text-gray-700 hover:bg-gray-50' : 'text-gray-400 hover:text-gray-600'"
+                      :class="
+                        activeChapter === ch.chNum
+                          ? 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                          : 'text-gray-400 hover:text-gray-600'
+                      "
                       @click="onSectionClick(ch.chNum, sec.anchorId)"
                     >
-                      <span class="i-lucide-hash w-3 h-3 inline-block align-middle flex-shrink-0 text-gray-300" />
-                      <span class="truncate text-left">{{ ch.chNum }}.{{ i + 1 }} {{ sec.title }}</span>
+                      <span
+                        class="i-lucide-hash w-3 h-3 inline-block align-middle flex-shrink-0 text-gray-300"
+                      />
+                      <span class="truncate text-left"
+                        >{{ ch.chNum }}.{{ i + 1 }} {{ sec.title }}</span
+                      >
                     </button>
                   </li>
                 </ul>
@@ -151,36 +191,66 @@ const totalChapters = computed(() => {
           <button
             v-if="(node as SidebarChapter).isLeaf"
             class="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded transition-colors"
-            :class="activeChapter === (node as SidebarChapter).chNum ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50'"
+            :class="
+              activeChapter === (node as SidebarChapter).chNum
+                ? 'bg-blue-50 text-blue-700 font-medium'
+                : 'text-gray-700 hover:bg-gray-50'
+            "
             @click="emit('select-chapter', (node as SidebarChapter).chNum)"
           >
             <span class="w-3.5 h-3.5 flex-shrink-0" />
-            <span class="text-gray-400 font-mono text-xs w-6 text-right flex-shrink-0">{{ (node as SidebarChapter).chNum }}</span>
+            <span class="text-gray-400 font-mono text-xs w-6 text-right flex-shrink-0">{{
+              (node as SidebarChapter).chNum
+            }}</span>
             <span class="truncate text-left">{{ (node as SidebarChapter).title }}</span>
           </button>
           <!-- 多小节：可展开 -->
           <template v-else>
             <button
               class="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded transition-colors"
-              :class="activeChapter === (node as SidebarChapter).chNum ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50'"
+              :class="
+                activeChapter === (node as SidebarChapter).chNum
+                  ? 'bg-blue-50 text-blue-700 font-medium'
+                  : 'text-gray-700 hover:bg-gray-50'
+              "
               @click="toggleChapter((node as SidebarChapter).chNum)"
             >
               <span
-                :class="expandedChapters.has((node as SidebarChapter).chNum) ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
+                :class="
+                  expandedChapters.has((node as SidebarChapter).chNum)
+                    ? 'i-lucide-chevron-down'
+                    : 'i-lucide-chevron-right'
+                "
                 class="w-3.5 h-3.5 inline-block align-middle flex-shrink-0 text-gray-400"
               />
-              <span class="text-gray-400 font-mono text-xs w-6 text-right flex-shrink-0">{{ (node as SidebarChapter).chNum }}</span>
+              <span class="text-gray-400 font-mono text-xs w-6 text-right flex-shrink-0">{{
+                (node as SidebarChapter).chNum
+              }}</span>
               <span class="truncate text-left">{{ (node as SidebarChapter).title }}</span>
             </button>
-            <ul v-show="expandedChapters.has((node as SidebarChapter).chNum)" class="ml-6 mt-0.5 space-y-0">
+            <ul
+              v-show="expandedChapters.has((node as SidebarChapter).chNum)"
+              class="ml-6 mt-0.5 space-y-0"
+            >
               <li v-for="sec in (node as SidebarChapter).sections" :key="sec.key">
                 <button
                   class="w-full flex items-center gap-1.5 px-2 py-0.5 text-xs transition-colors rounded"
-                  :class="activeChapter === (node as SidebarChapter).chNum ? 'text-gray-500 hover:text-gray-700 hover:bg-gray-50' : 'text-gray-400 hover:text-gray-600'"
+                  :class="
+                    activeChapter === (node as SidebarChapter).chNum
+                      ? 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                      : 'text-gray-400 hover:text-gray-600'
+                  "
                   @click="onSectionClick((node as SidebarChapter).chNum, sec.anchorId)"
                 >
-                  <span class="i-lucide-hash w-3 h-3 inline-block align-middle flex-shrink-0 text-gray-300" />
-                  <span class="truncate text-left">{{ (node as SidebarChapter).chNum }}.{{ (node as SidebarChapter).sections.indexOf(sec) + 1 }} {{ sec.title }}</span>
+                  <span
+                    class="i-lucide-hash w-3 h-3 inline-block align-middle flex-shrink-0 text-gray-300"
+                  />
+                  <span class="truncate text-left"
+                    >{{ (node as SidebarChapter).chNum }}.{{
+                      (node as SidebarChapter).sections.indexOf(sec) + 1
+                    }}
+                    {{ sec.title }}</span
+                  >
                 </button>
               </li>
             </ul>

@@ -16,8 +16,12 @@ export interface JwtPayload {
   iat?: number
 }
 
-export function signToken(payload: Omit<JwtPayload, 'tokenVersion'> & { tokenVersion?: number }): string {
-  return jwt.sign({ ...payload, tokenVersion: payload.tokenVersion ?? 0 }, JWT_SECRET, { expiresIn: JWT_EXPIRES })
+export function signToken(
+  payload: Omit<JwtPayload, 'tokenVersion'> & { tokenVersion?: number },
+): string {
+  return jwt.sign({ ...payload, tokenVersion: payload.tokenVersion ?? 0 }, JWT_SECRET, {
+    expiresIn: JWT_EXPIRES,
+  })
 }
 
 export function verifyToken(token: string): JwtPayload {

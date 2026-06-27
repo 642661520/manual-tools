@@ -33,10 +33,10 @@ export interface DocumentRow {
   feature_id: string
   section_key: string
   status: string
-  assignees: string  // JSON user ID 数组
+  assignees: string // JSON user ID 数组
   review_note: string
   review_step: number
-  status_log: string  // JSON StatusLogEntry 数组
+  status_log: string // JSON StatusLogEntry 数组
   updated_at: string
 }
 
@@ -150,7 +150,13 @@ export interface UpdateSectionStatusBody {
 
 // 状态变更日志条目
 export interface StatusLogEntry {
-  action: 'submitted' | 'approved' | 'rejected' | 'direct_approved' | 'reset_to_draft' | 'reset_to_in_progress'
+  action:
+    | 'submitted'
+    | 'approved'
+    | 'rejected'
+    | 'direct_approved'
+    | 'reset_to_draft'
+    | 'reset_to_in_progress'
   userId: string
   note: string
   step: number

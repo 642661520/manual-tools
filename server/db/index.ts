@@ -23,7 +23,12 @@ export function getDb(): Database.Database {
       for (const ext of ['-wal', '-shm']) {
         const p = DB_PATH + ext
         if (fs.existsSync(p)) {
-          try { fs.unlinkSync(p); cleaned.push(ext) } catch { /* 文件被锁定 */ }
+          try {
+            fs.unlinkSync(p)
+            cleaned.push(ext)
+          } catch {
+            /* 文件被锁定 */
+          }
         }
       }
       if (cleaned.length > 0) {
@@ -67,7 +72,7 @@ const log = getLogger()
 /** 检查列是否存在（用于幂等迁移） */
 function columnExists(conn: ReturnType<typeof getDb>, table: string, column: string): boolean {
   const rows = conn.pragma(`table_info(${table})`) as { name: string }[]
-  return rows.some(r => r.name === column)
+  return rows.some((r) => r.name === column)
 }
 
 export function initDatabase() {
@@ -231,9 +236,9 @@ export function initDatabase() {
   `)
 
   // 种子默认项目
-  conn.prepare(
-    "INSERT OR IGNORE INTO projects (id, name, description) VALUES (?, ?, ?)"
-  ).run('default', '默认项目', '系统初始化创建')
+  conn
+    .prepare('INSERT OR IGNORE INTO projects (id, name, description) VALUES (?, ?, ?)')
+    .run('default', '默认项目', '系统初始化创建')
 
   // 常用查询索引
   conn.exec(`
@@ -280,37 +285,37 @@ export function initDatabase() {
 
   // 幂等迁移：review_log 列重命名为 status_log
   if (columnExists(conn, 'documents', 'review_log')) {
-    conn.exec("ALTER TABLE documents RENAME COLUMN review_log TO status_log")
+    conn.exec('ALTER TABLE documents RENAME COLUMN review_log TO status_log')
   }
 
   // 种子系统管理员账号
-  const admin = conn.prepare('SELECT id FROM users WHERE username = ?').get(
-    config.adminUsername,
-  )
+  const admin = conn.prepare('SELECT id FROM users WHERE username = ?').get(config.adminUsername)
   if (!admin) {
     const hashed = bcrypt.hashSync(config.adminPassword, 10)
-    conn.prepare(
-      'INSERT INTO users (id, username, display_name, password_hash, role) VALUES (?, ?, ?, ?, ?)',
-    ).run(
-      'seed-admin-001',
-      config.adminUsername,
-      '系统管理员',
-      hashed,
-      'admin',
-    )
+    conn
+      .prepare(
+        'INSERT INTO users (id, username, display_name, password_hash, role) VALUES (?, ?, ?, ?, ?)',
+      )
+      .run('seed-admin-001', config.adminUsername, '系统管理员', hashed, 'admin')
     // 将管理员加入默认项目
-    conn.prepare(
-      "INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)"
-    ).run('default', 'seed-admin-001', 'pm')
+    conn
+      .prepare('INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)')
+      .run('default', 'seed-admin-001', 'pm')
     log.info('admin user seeded')
   }
 
   // 清理过期的导出/导入任务文件
-  const expiredTasks = conn.prepare(
-    "SELECT id, file_path FROM data_tasks WHERE expires_at < datetime('now') AND file_path IS NOT NULL",
-  ).all() as { id: string; file_path: string }[]
+  const expiredTasks = conn
+    .prepare(
+      "SELECT id, file_path FROM data_tasks WHERE expires_at < datetime('now') AND file_path IS NOT NULL",
+    )
+    .all() as { id: string; file_path: string }[]
   for (const task of expiredTasks) {
-    try { fs.unlinkSync(task.file_path) } catch { /* 文件可能已被手动删除 */ }
+    try {
+      fs.unlinkSync(task.file_path)
+    } catch {
+      /* 文件可能已被手动删除 */
+    }
     conn.prepare('DELETE FROM data_tasks WHERE id = ?').run(task.id)
   }
   if (expiredTasks.length > 0) {

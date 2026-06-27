@@ -5,8 +5,12 @@ import { success, fail, ok, created } from '../lib/response.js'
 function mockReply() {
   const state = { statusCode: 200, body: '' }
   const reply = {
-    get statusCode() { return state.statusCode },
-    get body() { return state.body },
+    get statusCode() {
+      return state.statusCode
+    },
+    get body() {
+      return state.body
+    },
     status(code: number) {
       state.statusCode = code
       return reply

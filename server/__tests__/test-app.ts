@@ -38,14 +38,24 @@ export async function buildTestApp() {
 export function cleanupTestData(db: ReturnType<typeof getDb>, prefix: string) {
   const like = `%__test_${prefix}%`
   // 按 FK 依赖顺序删除：子表 → 父表
-  db.prepare('DELETE FROM document_updates WHERE document_id IN (SELECT id FROM documents WHERE feature_id IN (SELECT id FROM features WHERE title LIKE ?))').run(like)
-  db.prepare('DELETE FROM document_snapshots WHERE document_id IN (SELECT id FROM documents WHERE feature_id IN (SELECT id FROM features WHERE title LIKE ?))').run(like)
-  db.prepare('DELETE FROM documents WHERE feature_id IN (SELECT id FROM features WHERE title LIKE ?)').run(like)
-  db.prepare('DELETE FROM catalog_versions WHERE catalog_id IN (SELECT id FROM catalogs WHERE title LIKE ?)').run(like)
+  db.prepare(
+    'DELETE FROM document_updates WHERE document_id IN (SELECT id FROM documents WHERE feature_id IN (SELECT id FROM features WHERE title LIKE ?))',
+  ).run(like)
+  db.prepare(
+    'DELETE FROM document_snapshots WHERE document_id IN (SELECT id FROM documents WHERE feature_id IN (SELECT id FROM features WHERE title LIKE ?))',
+  ).run(like)
+  db.prepare(
+    'DELETE FROM documents WHERE feature_id IN (SELECT id FROM features WHERE title LIKE ?)',
+  ).run(like)
+  db.prepare(
+    'DELETE FROM catalog_versions WHERE catalog_id IN (SELECT id FROM catalogs WHERE title LIKE ?)',
+  ).run(like)
   db.prepare('DELETE FROM catalogs WHERE title LIKE ?').run(like)
   db.prepare('DELETE FROM features WHERE title LIKE ?').run(like)
   db.prepare('DELETE FROM categories WHERE name LIKE ?').run(like)
-  db.prepare('DELETE FROM project_members WHERE project_id IN (SELECT id FROM projects WHERE name LIKE ?)').run(like)
+  db.prepare(
+    'DELETE FROM project_members WHERE project_id IN (SELECT id FROM projects WHERE name LIKE ?)',
+  ).run(like)
   db.prepare('DELETE FROM projects WHERE name LIKE ?').run(like)
   db.prepare('DELETE FROM users WHERE username LIKE ?').run(like)
 }

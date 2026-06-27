@@ -52,17 +52,26 @@ export function queryAuditLogs(q: AuditLogQuery): { rows: AuditLogRow[]; total: 
   const conditions: string[] = []
   const params: unknown[] = []
 
-  if (q.userId) { conditions.push('user_id = ?'); params.push(q.userId) }
-  if (q.action) { conditions.push('action = ?'); params.push(q.action) }
-  if (q.targetType) { conditions.push('target_type = ?'); params.push(q.targetType) }
+  if (q.userId) {
+    conditions.push('user_id = ?')
+    params.push(q.userId)
+  }
+  if (q.action) {
+    conditions.push('action = ?')
+    params.push(q.action)
+  }
+  if (q.targetType) {
+    conditions.push('target_type = ?')
+    params.push(q.targetType)
+  }
 
   const where = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : ''
   const limit = Math.min(q.limit || 50, 200)
   const offset = q.offset || 0
 
-  const rows = db.prepare(
-    `SELECT * FROM audit_log${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-  ).all(...params, limit, offset) as AuditLogRow[]
+  const rows = db
+    .prepare(`SELECT * FROM audit_log${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
+    .all(...params, limit, offset) as AuditLogRow[]
 
   for (const row of rows) {
     if (row.created_at && !row.created_at.endsWith('Z')) {
@@ -70,9 +79,9 @@ export function queryAuditLogs(q: AuditLogQuery): { rows: AuditLogRow[]; total: 
     }
   }
 
-  const totalRow = db.prepare(
-    `SELECT COUNT(*) as cnt FROM audit_log${where}`,
-  ).get(...params) as { cnt: number }
+  const totalRow = db.prepare(`SELECT COUNT(*) as cnt FROM audit_log${where}`).get(...params) as {
+    cnt: number
+  }
 
   return { rows, total: totalRow.cnt }
 }

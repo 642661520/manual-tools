@@ -27,7 +27,10 @@ const visible = ref(false)
       class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
       @click="visible = !visible"
     >
-      <span :class="visible ? 'i-lucide-eye-off' : 'i-lucide-eye'" class="w-4 h-4 inline-block align-middle" />
+      <span
+        :class="visible ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+        class="w-4 h-4 inline-block align-middle"
+      />
     </button>
   </div>
 </template>

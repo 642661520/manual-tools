@@ -20,7 +20,9 @@ export function useYjsDoc(docId: string) {
       color: colors[Math.floor(Math.random() * colors.length)],
       avatar: user?.avatarUrl || null,
     })
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   const token = localStorage.getItem('auth_token')
   const wsUrl = `ws://${location.host}/ws/doc/${encodeURIComponent(docId)}`
   let ws: WebSocket | null = null
@@ -127,14 +129,20 @@ export function useYjsDoc(docId: string) {
   // 监听本地 awareness 变更 → 发送到服务端
   // 注意：必须过滤掉 origin === 'remote' 的回声，否则远程状态被发回服务端
   // 会覆盖 clientIdToSocket 映射，导致断线时无法清理残留光标
-  awareness.on('update', ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) => {
-    if (origin === 'remote') return
-    const changedClients = added.concat(updated).concat(removed)
-    const enc = encoding.createEncoder()
-    encoding.writeVarUint(enc, messageAwareness)
-    encoding.writeVarUint8Array(enc, encodeAwarenessUpdate(awareness, changedClients))
-    sendRaw(encoding.toUint8Array(enc))
-  })
+  awareness.on(
+    'update',
+    (
+      { added, updated, removed }: { added: number[]; updated: number[]; removed: number[] },
+      origin: unknown,
+    ) => {
+      if (origin === 'remote') return
+      const changedClients = added.concat(updated).concat(removed)
+      const enc = encoding.createEncoder()
+      encoding.writeVarUint(enc, messageAwareness)
+      encoding.writeVarUint8Array(enc, encodeAwarenessUpdate(awareness, changedClients))
+      sendRaw(encoding.toUint8Array(enc))
+    },
+  )
 
   connect()
 

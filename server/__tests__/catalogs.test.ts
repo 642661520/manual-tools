@@ -15,14 +15,16 @@ beforeAll(async () => {
   app = await buildTestApp()
   // admin 登录
   const loginRes = await app.inject({
-    method: 'POST', url: '/api/v1/auth/login',
+    method: 'POST',
+    url: '/api/v1/auth/login',
     payload: { username: 'admin', password: 'admin123' },
   })
   adminToken = loginRes.json().data.token
 
   // 创建测试项目和成员
   const projRes = await app.inject({
-    method: 'POST', url: '/api/v1/projects',
+    method: 'POST',
+    url: '/api/v1/projects',
     headers: { authorization: `Bearer ${adminToken}` },
     payload: { name: `__test_${PREFIX}_proj`, description: 'test' },
   })
@@ -30,12 +32,19 @@ beforeAll(async () => {
 
   // 创建普通用户
   await app.inject({
-    method: 'POST', url: '/api/v1/auth/users',
+    method: 'POST',
+    url: '/api/v1/auth/users',
     headers: { authorization: `Bearer ${adminToken}` },
-    payload: { username: `__test_${PREFIX}_mbr`, displayName: 'M', password: 'TestPass1!', role: 'member' },
+    payload: {
+      username: `__test_${PREFIX}_mbr`,
+      displayName: 'M',
+      password: 'TestPass1!',
+      role: 'member',
+    },
   })
   const memberLogin = await app.inject({
-    method: 'POST', url: '/api/v1/auth/login',
+    method: 'POST',
+    url: '/api/v1/auth/login',
     payload: { username: `__test_${PREFIX}_mbr`, password: 'TestPass1!' },
   })
   memberToken = memberLogin.json().data.token
@@ -49,7 +58,8 @@ afterAll(async () => {
 describe('Catalog CRUD', () => {
   it('可创建 catalog', async () => {
     const res = await app.inject({
-      method: 'POST', url: '/api/v1/catalogs',
+      method: 'POST',
+      url: '/api/v1/catalogs',
       headers: { authorization: `Bearer ${adminToken}` },
       payload: { title: '__test_cat_temp', features: [], targets: [], projectId },
     })
@@ -60,7 +70,8 @@ describe('Catalog CRUD', () => {
 
   it('可按项目过滤 catalog', async () => {
     const res = await app.inject({
-      method: 'GET', url: `/api/v1/catalogs?projectId=${projectId}`,
+      method: 'GET',
+      url: `/api/v1/catalogs?projectId=${projectId}`,
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(res.statusCode).toBe(200)
@@ -70,7 +81,8 @@ describe('Catalog CRUD', () => {
 
   it('非成员不可访问', async () => {
     const res = await app.inject({
-      method: 'GET', url: `/api/v1/catalogs/${catalogId}/preview`,
+      method: 'GET',
+      url: `/api/v1/catalogs/${catalogId}/preview`,
       headers: { authorization: `Bearer ${memberToken}` },
     })
     expect([404, 403]).toContain(res.statusCode)
@@ -78,7 +90,8 @@ describe('Catalog CRUD', () => {
 
   it('404 不存在的 catalog', async () => {
     const res = await app.inject({
-      method: 'GET', url: '/api/v1/catalogs/nonexistent-id/preview',
+      method: 'GET',
+      url: '/api/v1/catalogs/nonexistent-id/preview',
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(res.statusCode).toBe(404)
@@ -88,7 +101,8 @@ describe('Catalog CRUD', () => {
 describe('Catalog 预览', () => {
   it('返回预览数据', async () => {
     const res = await app.inject({
-      method: 'GET', url: `/api/v1/catalogs/${catalogId}/preview`,
+      method: 'GET',
+      url: `/api/v1/catalogs/${catalogId}/preview`,
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(res.statusCode).toBe(200)
@@ -99,7 +113,8 @@ describe('Catalog 预览', () => {
 
   it('预览模式可指定 approved', async () => {
     const res = await app.inject({
-      method: 'GET', url: `/api/v1/catalogs/${catalogId}/preview?mode=approved`,
+      method: 'GET',
+      url: `/api/v1/catalogs/${catalogId}/preview?mode=approved`,
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(res.statusCode).toBe(200)
@@ -109,7 +124,8 @@ describe('Catalog 预览', () => {
 describe('Catalog 版本', () => {
   it('未发布时返回空版本列表', async () => {
     const res = await app.inject({
-      method: 'GET', url: `/api/v1/catalogs/${catalogId}/versions`,
+      method: 'GET',
+      url: `/api/v1/catalogs/${catalogId}/versions`,
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(res.statusCode).toBe(200)

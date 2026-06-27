@@ -59,9 +59,9 @@ export function buildSidebarHtml(
       }
       if (partInfo) {
         // 检查当前 Part 是否包含当前激活的章节
-        const isActivePart = partInfo.featureIds.some(fid => {
-          const idx = features.findIndex(ff => ff.id === fid)
-          return idx >= 0 && (idx + 1) === currentChapter
+        const isActivePart = partInfo.featureIds.some((fid) => {
+          const idx = features.findIndex((ff) => ff.id === fid)
+          return idx >= 0 && idx + 1 === currentChapter
         })
         html += `<li class="vp-nav-part${isActivePart ? '' : ' collapsed'}">`
         html += `<button class="vp-nav-part-btn" onclick="togglePart(this)" aria-expanded="${isActivePart}">${escHtml(partInfo.title)}</button>`

@@ -37,9 +37,10 @@ export async function aiChat(req: AiRequest): Promise<string> {
     expand: `请将以下简要说明扩展为详细的中文操作步骤，包含必要的背景说明和注意事项：\n\n${req.content}`,
   }
 
-  const prompt = req.action === 'custom'
-    ? `${req.instruction}\n\n原文：\n${req.content}`
-    : (prompts[req.action] || prompts.polish)
+  const prompt =
+    req.action === 'custom'
+      ? `${req.instruction}\n\n原文：\n${req.content}`
+      : prompts[req.action] || prompts.polish
 
   const resp = await client.chat.completions.create({
     model: config.aiModel,

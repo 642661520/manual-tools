@@ -156,9 +156,7 @@ export async function registerSwagger(app: FastifyInstance) {
         description: '多项目操作手册编写与发布平台 RESTful API 文档',
         version: '0.1.0',
       },
-      servers: [
-        { url: 'http://localhost:3000', description: '本地开发服务器' },
-      ],
+      servers: [{ url: 'http://localhost:3000', description: '本地开发服务器' }],
       components: {
         securitySchemes: {
           bearerAuth: {

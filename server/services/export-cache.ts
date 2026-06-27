@@ -36,8 +36,9 @@ interface ExportOptions {
  */
 export function computeFingerprint(catalogId: string): string {
   const db = getDb()
-  const catalog = db.prepare('SELECT features, targets, cover_info FROM catalogs WHERE id = ?').get(catalogId) as
-    { features: string; targets: string; cover_info: string } | undefined
+  const catalog = db
+    .prepare('SELECT features, targets, cover_info FROM catalogs WHERE id = ?')
+    .get(catalogId) as { features: string; targets: string; cover_info: string } | undefined
   if (!catalog) return ''
 
   // 收集 catalog 中所有 feature 的 document 更新信息
@@ -49,7 +50,8 @@ export function computeFingerprint(catalogId: string): string {
   const docIds: string[] = []
   for (const fe of flatFeatures) {
     const f = db.prepare('SELECT sections FROM features WHERE id = ?').get(fe.featureId) as
-      { sections: string } | undefined
+      | { sections: string }
+      | undefined
     if (!f) continue
     const sections = JSON.parse(f.sections || '[]') as { key: string }[]
     for (const s of sections) {
@@ -59,18 +61,13 @@ export function computeFingerprint(catalogId: string): string {
 
   if (docIds.length > 0) {
     const placeholders = docIds.map(() => '?').join(',')
-    const row = db.prepare(
-      `SELECT MAX(updated_at) as max_updated FROM documents WHERE id IN (${placeholders})`,
-    ).get(...docIds) as { max_updated: string | null }
+    const row = db
+      .prepare(`SELECT MAX(updated_at) as max_updated FROM documents WHERE id IN (${placeholders})`)
+      .get(...docIds) as { max_updated: string | null }
     maxDocUpdatedAt = row?.max_updated || ''
   }
 
-  const content = [
-    catalog.features,
-    catalog.targets,
-    catalog.cover_info,
-    maxDocUpdatedAt,
-  ].join('|')
+  const content = [catalog.features, catalog.targets, catalog.cover_info, maxDocUpdatedAt].join('|')
 
   return createHash('sha256').update(content).digest('hex').slice(0, 16)
 }
@@ -98,12 +95,15 @@ export function getCachedExport(
   optionsHash: string,
 ): CacheResult | null {
   const db = getDb()
-  const row = db.prepare(
-    `SELECT file_path, file_name FROM export_cache
+  const row = db
+    .prepare(
+      `SELECT file_path, file_name FROM export_cache
      WHERE catalog_id = ? AND type = ? AND fingerprint = ? AND options_hash = ?
      ORDER BY created_at DESC LIMIT 1`,
-  ).get(catalogId, type, fingerprint, optionsHash) as
-    { file_path: string; file_name: string } | undefined
+    )
+    .get(catalogId, type, fingerprint, optionsHash) as
+    | { file_path: string; file_name: string }
+    | undefined
   if (!row) return null
 
   if (!existsSync(row.file_path)) {
@@ -151,15 +151,21 @@ export function saveCachedExport(
   ).run(id, catalogId, type, fingerprint, optionsHash, filePath, fileName, buffer.length)
 
   // 保留每个 catalog+type 最新 5 个缓存，删除更旧的
-  const oldEntries = db.prepare(
-    `SELECT id, file_path FROM export_cache
+  const oldEntries = db
+    .prepare(
+      `SELECT id, file_path FROM export_cache
      WHERE catalog_id = ? AND type = ? AND id != ?
      ORDER BY created_at DESC`,
-  ).all(catalogId, type, id) as { id: string; file_path: string }[]
+    )
+    .all(catalogId, type, id) as { id: string; file_path: string }[]
 
   // 跳过最新 4 个（保留当前 + 4 个旧的 = 5 个）
   for (let i = 4; i < oldEntries.length; i++) {
-    try { unlinkSync(oldEntries[i].file_path) } catch { /* ok */ }
+    try {
+      unlinkSync(oldEntries[i].file_path)
+    } catch {
+      /* ok */
+    }
     db.prepare('DELETE FROM export_cache WHERE id = ?').run(oldEntries[i].id)
   }
 }
@@ -173,13 +179,19 @@ export function cleanExpiredExportCache(): number {
   const ttlDays = config.exportCacheTtlDays
 
   // 清理过期记录
-  const expired = db.prepare(
-    `SELECT id, file_path FROM export_cache
+  const expired = db
+    .prepare(
+      `SELECT id, file_path FROM export_cache
      WHERE datetime(created_at, '+' || ? || ' days') < datetime('now')`,
-  ).all(ttlDays) as { id: string; file_path: string }[]
+    )
+    .all(ttlDays) as { id: string; file_path: string }[]
 
   for (const row of expired) {
-    try { unlinkSync(row.file_path) } catch { /* ok */ }
+    try {
+      unlinkSync(row.file_path)
+    } catch {
+      /* ok */
+    }
     db.prepare('DELETE FROM export_cache WHERE id = ?').run(row.id)
   }
 
@@ -190,8 +202,8 @@ export function cleanExpiredExportCache(): number {
     let catalogDirs: string[]
     try {
       catalogDirs = readdirSync(exportsDir, { withFileTypes: true })
-        .filter(d => d.isDirectory())
-        .map(d => d.name)
+        .filter((d) => d.isDirectory())
+        .map((d) => d.name)
     } catch {
       catalogDirs = []
     }
@@ -199,7 +211,11 @@ export function cleanExpiredExportCache(): number {
       const catalog = db.prepare('SELECT id FROM catalogs WHERE id = ?').get(dir)
       if (!catalog) {
         // catalog 已删除 → 清理整个目录
-        try { rmSync(join(exportsDir, dir), { recursive: true, force: true }) } catch { /* ok */ }
+        try {
+          rmSync(join(exportsDir, dir), { recursive: true, force: true })
+        } catch {
+          /* ok */
+        }
       }
     }
   }
@@ -215,9 +231,9 @@ export function cleanExpiredExportCache(): number {
  */
 export function getExportCacheStats(): { count: number; totalSize: number } {
   const db = getDb()
-  const row = db.prepare(
-    'SELECT COUNT(*) as count, COALESCE(SUM(file_size), 0) as totalSize FROM export_cache',
-  ).get() as { count: number; totalSize: number }
+  const row = db
+    .prepare('SELECT COUNT(*) as count, COALESCE(SUM(file_size), 0) as totalSize FROM export_cache')
+    .get() as { count: number; totalSize: number }
   return row
 }
 

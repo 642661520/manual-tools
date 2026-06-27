@@ -72,9 +72,11 @@ function ensureDocumentRecord(docId: string) {
     const idx = docId.indexOf('/')
     const featureId = idx >= 0 ? docId.slice(0, idx) : docId
     const sectionKey = idx >= 0 ? docId.slice(idx + 1) : 'main'
-    db.prepare(
-      'INSERT INTO documents (id, feature_id, section_key) VALUES (?, ?, ?)',
-    ).run(docId, featureId, sectionKey)
+    db.prepare('INSERT INTO documents (id, feature_id, section_key) VALUES (?, ?, ?)').run(
+      docId,
+      featureId,
+      sectionKey,
+    )
   }
 }
 
@@ -83,7 +85,9 @@ function loadFromDb(docId: string, doc: Y.Doc) {
 
   // 先尝试加载最新快照
   const snapshot = db
-    .prepare('SELECT snapshot_data FROM document_snapshots WHERE document_id = ? ORDER BY id DESC LIMIT 1')
+    .prepare(
+      'SELECT snapshot_data FROM document_snapshots WHERE document_id = ? ORDER BY id DESC LIMIT 1',
+    )
     .get(docId) as { snapshot_data: Buffer } | undefined
 
   if (snapshot) {
@@ -108,13 +112,17 @@ function persistUpdate(docId: string, update: Uint8Array) {
   const featureId = idx >= 0 ? docId.slice(0, idx) : docId
   const sectionKey = idx >= 0 ? docId.slice(idx + 1) : 'main'
 
-  const existing = db.prepare('SELECT status FROM documents WHERE id = ?').get(docId) as { status: string } | undefined
+  const existing = db.prepare('SELECT status FROM documents WHERE id = ?').get(docId) as
+    | { status: string }
+    | undefined
   if (!existing) {
     db.prepare(
       'INSERT INTO documents (id, feature_id, section_key, status) VALUES (?, ?, ?, ?)',
     ).run(docId, featureId, sectionKey, 'in_progress')
   } else if (existing.status === 'draft') {
-    db.prepare("UPDATE documents SET status = 'in_progress', updated_at = datetime('now') WHERE id = ?").run(docId)
+    db.prepare(
+      "UPDATE documents SET status = 'in_progress', updated_at = datetime('now') WHERE id = ?",
+    ).run(docId)
   }
 
   db.prepare('INSERT INTO document_updates (document_id, update_data) VALUES (?, ?)').run(
@@ -134,9 +142,11 @@ export function ensureDocument(docId: string, featureId: string, sectionKey: str
   const db = getDb()
   const existing = db.prepare('SELECT id FROM documents WHERE id = ?').get(docId)
   if (!existing) {
-    db.prepare(
-      'INSERT INTO documents (id, feature_id, section_key) VALUES (?, ?, ?)',
-    ).run(docId, featureId, sectionKey)
+    db.prepare('INSERT INTO documents (id, feature_id, section_key) VALUES (?, ?, ?)').run(
+      docId,
+      featureId,
+      sectionKey,
+    )
   }
 }
 
@@ -192,11 +202,9 @@ export function createSnapshot(docId: string) {
   const db = getDb()
   const snapshot = Y.encodeStateAsUpdate(state.doc)
 
-  db.prepare('INSERT INTO document_snapshots (document_id, snapshot_data, update_count) VALUES (?, ?, ?)').run(
-    docId,
-    Buffer.from(snapshot),
-    state.updateCount,
-  )
+  db.prepare(
+    'INSERT INTO document_snapshots (document_id, snapshot_data, update_count) VALUES (?, ?, ?)',
+  ).run(docId, Buffer.from(snapshot), state.updateCount)
 
   // 删除快照时间点之前的 update 记录
   db.prepare('DELETE FROM document_updates WHERE document_id = ?').run(docId)
@@ -211,19 +219,26 @@ const indexTimers = new Map<string, ReturnType<typeof setTimeout>>()
 function scheduleIndexUpdate(docId: string, featureId: string) {
   const existing = indexTimers.get(docId)
   if (existing) clearTimeout(existing)
-  indexTimers.set(docId, setTimeout(async () => {
-    indexTimers.delete(docId)
-    try {
-      const state = docs.get(docId)
-      if (!state) return
-      const db = getDb()
-      const feature = db.prepare('SELECT project_id, title FROM features WHERE id = ?').get(featureId) as { project_id: string; title: string } | undefined
-      if (!feature) return
-      const content = state.doc.getText('content').toString()
-      const { indexDocument } = await import('./search.js')
-      indexDocument(docId, feature.project_id, feature.title, content)
-    } catch { /* 索引更新失败不影响主流程 */ }
-  }, 5000))
+  indexTimers.set(
+    docId,
+    setTimeout(async () => {
+      indexTimers.delete(docId)
+      try {
+        const state = docs.get(docId)
+        if (!state) return
+        const db = getDb()
+        const feature = db
+          .prepare('SELECT project_id, title FROM features WHERE id = ?')
+          .get(featureId) as { project_id: string; title: string } | undefined
+        if (!feature) return
+        const content = state.doc.getText('content').toString()
+        const { indexDocument } = await import('./search.js')
+        indexDocument(docId, feature.project_id, feature.title, content)
+      } catch {
+        /* 索引更新失败不影响主流程 */
+      }
+    }, 5000),
+  )
 }
 
 // 优雅关闭：为所有内存中的活跃文档创建快照

@@ -26,14 +26,18 @@ export async function searchRoutes(app: FastifyInstance) {
   })
 
   // 重建项目索引（admin only）
-  app.post('/api/v1/search/rebuild', { preHandler: [authMiddleware, requireRole('admin')] }, async (req, reply) => {
-    const { projectId } = req.body as { projectId?: string }
-    if (!projectId) return fail(reply, 400, '缺少 projectId')
-    try {
-      rebuildProjectIndex(projectId)
-      return success({ ok: true })
-    } catch (e: unknown) {
-      return fail(reply, 500, e instanceof Error ? e.message : '重建失败')
-    }
-  })
+  app.post(
+    '/api/v1/search/rebuild',
+    { preHandler: [authMiddleware, requireRole('admin')] },
+    async (req, reply) => {
+      const { projectId } = req.body as { projectId?: string }
+      if (!projectId) return fail(reply, 400, '缺少 projectId')
+      try {
+        rebuildProjectIndex(projectId)
+        return success({ ok: true })
+      } catch (e: unknown) {
+        return fail(reply, 500, e instanceof Error ? e.message : '重建失败')
+      }
+    },
+  )
 }

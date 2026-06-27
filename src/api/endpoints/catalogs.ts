@@ -23,7 +23,15 @@ export function getCatalogs(projectId?: string): Promise<CatalogInfo[]> {
   return api.get<CatalogInfo[]>(`${BASE}${q(projectId)}`)
 }
 
-export function getCatalog(id: string): Promise<CatalogInfo & { features: Array<{ featureId: string; sectionOrder?: string[]; feature: Record<string, unknown> }> }> {
+export function getCatalog(id: string): Promise<
+  CatalogInfo & {
+    features: Array<{
+      featureId: string
+      sectionOrder?: string[]
+      feature: Record<string, unknown>
+    }>
+  }
+> {
   return api.get(`${BASE}/${id}`)
 }
 
@@ -52,7 +60,11 @@ export function getVersions(id: string): Promise<CatalogVersionInfo[]> {
   return api.get<CatalogVersionInfo[]>(`${BASE}/${id}/versions`)
 }
 
-export function getVersionPreview(id: string, versionId: string, mode?: string): Promise<VersionPreviewResponse> {
+export function getVersionPreview(
+  id: string,
+  versionId: string,
+  mode?: string,
+): Promise<VersionPreviewResponse> {
   const m = mode ? `?mode=${mode}` : ''
   return api.get<VersionPreviewResponse>(`${BASE}/${id}/versions/${versionId}/preview${m}`)
 }
@@ -62,21 +74,41 @@ export function getChapter(id: string, chNum: number, mode?: string): Promise<Ch
   return api.get<ChapterResponse>(`${BASE}/${id}/chapters/${chNum}${m}`)
 }
 
-export function getVersionChapter(id: string, versionId: string, chNum: number, mode?: string): Promise<ChapterResponse> {
+export function getVersionChapter(
+  id: string,
+  versionId: string,
+  chNum: number,
+  mode?: string,
+): Promise<ChapterResponse> {
   const m = mode ? `?mode=${mode}` : ''
   return api.get<ChapterResponse>(`${BASE}/${id}/versions/${versionId}/chapters/${chNum}${m}`)
 }
 
 // ---- 发布 ----
 
-export function publishCatalog(id: string, changeNotes: string, visibility?: string, approvedOnly?: boolean): Promise<PublishResponse> {
-  return api.post<PublishResponse>(`${BASE}/${id}/publish`, { changeNotes, visibility, approvedOnly })
+export function publishCatalog(
+  id: string,
+  changeNotes: string,
+  visibility?: string,
+  approvedOnly?: boolean,
+): Promise<PublishResponse> {
+  return api.post<PublishResponse>(`${BASE}/${id}/publish`, {
+    changeNotes,
+    visibility,
+    approvedOnly,
+  })
 }
 
 // ---- 可见性 ----
 
-export function updateVersionVisibility(catalogId: string, versionId: string, visibility: string): Promise<{ ok: true }> {
-  return api.put<{ ok: true }>(`${BASE}/${catalogId}/versions/${versionId}/visibility`, { visibility })
+export function updateVersionVisibility(
+  catalogId: string,
+  versionId: string,
+  visibility: string,
+): Promise<{ ok: true }> {
+  return api.put<{ ok: true }>(`${BASE}/${catalogId}/versions/${versionId}/visibility`, {
+    visibility,
+  })
 }
 
 // ---- 导出 ----
@@ -90,7 +122,11 @@ export function getPdfExportUrl(id: string, mode?: string): string {
   return `${BASE}/${id}/export/pdf${m}`
 }
 
-export function getVersionPdfExportUrl(catalogId: string, versionId: string, mode?: string): string {
+export function getVersionPdfExportUrl(
+  catalogId: string,
+  versionId: string,
+  mode?: string,
+): string {
   const m = mode ? `?mode=${mode}` : ''
   return `${BASE}/${catalogId}/versions/${versionId}/export/pdf${m}`
 }

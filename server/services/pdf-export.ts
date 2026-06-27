@@ -21,7 +21,7 @@ const log = getLogger()
 // ================ 常量 ========================================================
 
 /** A4 PDF 内容区宽度（96 DPI px）：210mm - 2.5cm左右边距 = 160mm ≈ 605px */
-const PDF_CONTENT_WIDTH = Math.round((210 - 25 - 25) * 96 / 25.4)
+const PDF_CONTENT_WIDTH = Math.round(((210 - 25 - 25) * 96) / 25.4)
 
 /** 中文字体 CSS @font-face 声明 */
 function getFontCss(): string {
@@ -51,7 +51,7 @@ function getFontCss(): string {
 // ================ Markdown → HTML ============================================
 
 const md = new MarkdownIt({
-  html: true,       // 保留来自 TipTap 编辑器的内联 HTML
+  html: true, // 保留来自 TipTap 编辑器的内联 HTML
   linkify: true,
   breaks: false,
 })
@@ -113,14 +113,9 @@ function rewriteLocalImageSrc(html: string): string {
   const uploadDir = config.uploadDir
   return html.replace(/<img[^>]+src="(\/uploads\/[^"]+)"[^>]*>/g, (match, src: string) => {
     const rel = src.replace(/^\/uploads\//, '')
-    const candidates = [
-      join(uploadDir, 'images', rel),
-      join(uploadDir, rel),
-    ]
-    for (const filepath of candidates) {
-      if (existsSync(filepath)) {
-        return match.replace(src, `file:///${filepath.replace(/\\/g, '/')}`)
-      }
+    const filepath = join(uploadDir, rel)
+    if (existsSync(filepath)) {
+      return match.replace(src, `file:///${filepath.replace(/\\/g, '/')}`)
     }
     return match
   })
@@ -152,7 +147,9 @@ async function rewriteRemoteImageSrc(html: string): Promise<string> {
           if (cached) {
             return { url, filepath: cached.filepath }
           }
-        } catch { /* 单个失败不阻塞 */ }
+        } catch {
+          /* 单个失败不阻塞 */
+        }
         return { url, filepath: null }
       }),
     )
@@ -205,7 +202,7 @@ async function ensureFont(): Promise<void> {
     const buffer = Buffer.from(await res.arrayBuffer())
     const ws = createWriteStream(regularPath)
     await new Promise<void>((resolve, reject) => {
-      ws.write(buffer, err => err ? reject(err) : resolve())
+      ws.write(buffer, (err) => (err ? reject(err) : resolve()))
       ws.end()
     })
   } catch {
@@ -229,15 +226,16 @@ export async function buildPdf(manual: ManualResult, opts: PdfOptions = {}): Pro
 
   const launchOpts: Record<string, unknown> = {
     headless: true,
-    args: process.platform === 'linux'
-      ? [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',   // Docker /dev/shm 默认仅 64MB，用 /tmp 代替
-          '--disable-gpu',             // 无 GPU 环境，禁用减少内存
-          '--font-render-hinting=none',
-        ]
-      : [],
+    args:
+      process.platform === 'linux'
+        ? [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage', // Docker /dev/shm 默认仅 64MB，用 /tmp 代替
+            '--disable-gpu', // 无 GPU 环境，禁用减少内存
+            '--font-render-hinting=none',
+          ]
+        : [],
   }
   if (config.puppeteerExecutablePath) {
     launchOpts.executablePath = config.puppeteerExecutablePath
@@ -251,17 +249,26 @@ export async function buildPdf(manual: ManualResult, opts: PdfOptions = {}): Pro
     // 将 HTML 写入临时文件，用 file:// 协议加载——这样本地图片可直读、远程图片原生加载
     const htmlPath = join(tmpdir(), `manual-${manual.catalog.id}.html`)
     writeFileSync(htmlPath, html, 'utf-8')
-    await page.goto(`file:///${htmlPath.replace(/\\/g, '/')}`, { waitUntil: 'load', timeout: 60000 })
-    try { unlinkSync(htmlPath) } catch { /* 清理临时文件 */ }
+    await page.goto(`file:///${htmlPath.replace(/\\/g, '/')}`, {
+      waitUntil: 'load',
+      timeout: 60000,
+    })
+    try {
+      unlinkSync(htmlPath)
+    } catch {
+      /* 清理临时文件 */
+    }
     await page.waitForNetworkIdle({ idleTime: 500, timeout: 30000 }).catch(() => {})
     // 等待所有图片加载完成
-    await page.evaluate(`new Promise(resolve => {
+    await page
+      .evaluate(`new Promise(resolve => {
       const imgs = Array.from(document.images).filter(i => !i.complete)
       if (imgs.length === 0) return resolve()
       let pending = imgs.length
       imgs.forEach(i => { i.onload = i.onerror = () => { pending--; if (pending === 0) resolve() } })
       setTimeout(resolve, 10000)
-    })`).catch(() => {})
+    })`)
+      .catch(() => {})
 
     // 步骤 1：生成 PDF
     const headerText = opts.headerText || manual.catalog.title
@@ -312,11 +319,8 @@ interface PdfTextItem {
 
 function normalizeText(text: string): string {
   // 用 fromCharCode 构造正则，避免源文件中的 literal irregular whitespace
-  const wsRe = new RegExp(`[${String.fromCharCode(0x00A0)}${String.fromCharCode(0x3000)}]`, 'g')
-  return text
-    .normalize('NFKC')
-    .replace(/．/g, '.')
-    .replace(wsRe, ' ')
+  const wsRe = new RegExp(`[${String.fromCharCode(0x00a0)}${String.fromCharCode(0x3000)}]`, 'g')
+  return text.normalize('NFKC').replace(/．/g, '.').replace(wsRe, ' ')
 }
 
 /**
@@ -332,8 +336,8 @@ async function findHeadingPages(
   const map = new Map<string, number>()
 
   const targets = headings
-    .map(h => ({ id: h.id, text: normalizeText(h.text.trim()) }))
-    .filter(h => h.text.length > 0)
+    .map((h) => ({ id: h.id, text: normalizeText(h.text.trim()) }))
+    .filter((h) => h.text.length > 0)
 
   if (targets.length === 0) return map
 
@@ -344,11 +348,7 @@ async function findHeadingPages(
   for (let pageIdx = 0; pageIdx < doc.numPages; pageIdx++) {
     const page = await doc.getPage(pageIdx + 1)
     const content = await page.getTextContent()
-    pageTexts.push(
-      normalizeText(
-        content.items.map((item) => (item as PdfTextItem).str).join(''),
-      ),
-    )
+    pageTexts.push(normalizeText(content.items.map((item) => (item as PdfTextItem).str).join('')))
   }
 
   // 每个标题在所有页面中取最后一次匹配（TOC 在前、正文在后 → 最后=正文页）
@@ -433,8 +433,8 @@ async function addPdfOutline(
     let hex = 'FEFF' // BOM
     for (let ci = 0; ci < h.text.length; ci++) {
       const code = h.text.charCodeAt(ci)
-      hex += ((code >> 8) & 0xFF).toString(16).padStart(2, '0')
-      hex += (code & 0xFF).toString(16).padStart(2, '0')
+      hex += ((code >> 8) & 0xff).toString(16).padStart(2, '0')
+      hex += (code & 0xff).toString(16).padStart(2, '0')
     }
 
     const entry: Record<string, unknown> = {
@@ -458,7 +458,7 @@ async function addPdfOutline(
   // outlines root 链表
   if (items.length > 0) {
     const rootDict = ctx.lookup(outlinesRef) as import('pdf-lib').PDFDict | undefined
-    const topItems = items.filter(it => it.level === 2)
+    const topItems = items.filter((it) => it.level === 2)
     if (rootDict && topItems.length > 0) {
       rootDict.set(PDFName.of('First'), topItems[0].ref)
       rootDict.set(PDFName.of('Last'), topItems[topItems.length - 1].ref)

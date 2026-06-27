@@ -70,10 +70,7 @@ function createLogger(): Logger {
     ...baseOpts,
     timestamp: pino.stdTimeFunctions.isoTime,
     transport: {
-      targets: [
-        buildStdoutTarget(),
-        buildFileTarget(),
-      ],
+      targets: [buildStdoutTarget(), buildFileTarget()],
     },
   })
 }

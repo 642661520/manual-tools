@@ -34,9 +34,15 @@ export class ApiRequestError extends Error {
 // ---- 各端点响应形状 ----
 
 import type {
-  UserInfo, UserDetail,
+  UserInfo,
+  UserDetail,
   CatalogEntry,
-  ExportEstimate, ImportDiffReport, ImportApplyResult, OrphanFile, UploadFileInfo, DataTaskInfo,
+  ExportEstimate,
+  ImportDiffReport,
+  ImportApplyResult,
+  OrphanFile,
+  UploadFileInfo,
+  DataTaskInfo,
 } from './models'
 
 /** POST /api/auth/login */

@@ -4,8 +4,13 @@
 
 import { api } from '../client'
 import type {
-  ExportEstimate, ImportDiffReport, ImportApplyOptions,
-  ImportApplyResult, DataTaskInfo, OrphanFile, UploadFileInfo,
+  ExportEstimate,
+  ImportDiffReport,
+  ImportApplyOptions,
+  ImportApplyResult,
+  DataTaskInfo,
+  OrphanFile,
+  UploadFileInfo,
 } from '@shared/types'
 import type { OkResponse } from '@shared/types'
 
@@ -44,7 +49,10 @@ export function analyzeImport(taskId: string): Promise<ImportDiffReport> {
   return api.get<ImportDiffReport>(`${TASKS}/${taskId}/analyze`)
 }
 
-export function applyImport(taskId: string, options: ImportApplyOptions): Promise<ImportApplyResult> {
+export function applyImport(
+  taskId: string,
+  options: ImportApplyOptions,
+): Promise<ImportApplyResult> {
   return api.post<ImportApplyResult>(`${TASKS}/${taskId}/apply`, { options })
 }
 
@@ -75,8 +83,20 @@ export function deleteOrphans(): Promise<{ deleted: number; freedBytes: number }
 
 // ---- 上传资源管理 ----
 
-export function getUploads(): Promise<{ files: UploadFileInfo[]; totalSize: number; totalCount: number; referencedCount: number; orphanedCount: number }> {
-  return api.get<{ files: UploadFileInfo[]; totalSize: number; totalCount: number; referencedCount: number; orphanedCount: number }>('/api/v1/uploads')
+export function getUploads(): Promise<{
+  files: UploadFileInfo[]
+  totalSize: number
+  totalCount: number
+  referencedCount: number
+  orphanedCount: number
+}> {
+  return api.get<{
+    files: UploadFileInfo[]
+    totalSize: number
+    totalCount: number
+    referencedCount: number
+    orphanedCount: number
+  }>('/api/v1/uploads')
 }
 
 export function deleteUpload(filePath: string): Promise<OkResponse> {

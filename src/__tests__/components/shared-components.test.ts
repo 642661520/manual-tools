@@ -14,7 +14,14 @@ import EmptyState from '@/components/EmptyState.vue'
 // StatusBadge
 // ============================================================
 describe('StatusBadge', () => {
-  const statuses = ['draft', 'in_progress', 'completed', 'pending_review', 'rejected', 'approved'] as const
+  const statuses = [
+    'draft',
+    'in_progress',
+    'completed',
+    'pending_review',
+    'rejected',
+    'approved',
+  ] as const
 
   it('renders all status labels correctly', () => {
     const labels: Record<string, string> = {

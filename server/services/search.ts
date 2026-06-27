@@ -16,7 +16,12 @@ export interface SearchResult {
   snippet: string
 }
 
-export function indexDocument(docId: string, projectId: string, title: string, htmlContent: string) {
+export function indexDocument(
+  docId: string,
+  projectId: string,
+  title: string,
+  htmlContent: string,
+) {
   const db = getDb()
   const text = stripHtml(htmlContent)
   const sectionKey = docId.includes('/') ? docId.split('/')[1] : '_default'
@@ -38,10 +43,17 @@ export function searchDocs(query: string, projectId: string, limit = 50): Search
   if (!q) return []
   const db = getDb()
   const like = `%${q.replace(/%/g, '\\%').replace(/_/g, '\\_')}%`
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(`
     SELECT doc_id, title, section_key, content FROM search_docs
     WHERE (title LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\') AND project_id = ?
-  `).all(like, like, projectId) as { doc_id: string; title: string; section_key: string; content: string }[]
+  `)
+    .all(like, like, projectId) as {
+    doc_id: string
+    title: string
+    section_key: string
+    content: string
+  }[]
 
   const results: SearchResult[] = []
   for (const r of rows) {
@@ -49,7 +61,14 @@ export function searchDocs(query: string, projectId: string, limit = 50): Search
     const st = getSectionTitle(r.doc_id, r.section_key, r.title)
     for (const s of findAllSnippets(r.content, q)) {
       if (results.length >= limit) break
-      results.push({ docId: r.doc_id, featureId: fid, sectionKey: r.section_key, title: r.title, sectionTitle: st, snippet: s })
+      results.push({
+        docId: r.doc_id,
+        featureId: fid,
+        sectionKey: r.section_key,
+        title: r.title,
+        sectionTitle: st,
+        snippet: s,
+      })
     }
     if (results.length >= limit) break
   }
@@ -80,11 +99,13 @@ function findAllSnippets(text: string, query: string): string[] {
 export function rebuildProjectIndex(projectId: string) {
   const db = getDb()
   db.prepare('DELETE FROM search_docs WHERE project_id = ?').run(projectId)
-  const docs = db.prepare(`
+  const docs = db
+    .prepare(`
     SELECT d.id, d.feature_id, f.title
     FROM documents d JOIN features f ON f.id = d.feature_id
     WHERE f.project_id = ?
-  `).all(projectId) as { id: string; feature_id: string; title: string }[]
+  `)
+    .all(projectId) as { id: string; feature_id: string; title: string }[]
 
   let count = 0
   for (const doc of docs) {
@@ -105,20 +126,30 @@ function loadYjsText(docId: string): string {
   const db = getDb()
   const ydoc = new Y.Doc()
 
-  const snapshot = db.prepare(
-    "SELECT snapshot_data FROM document_snapshots WHERE document_id = ? ORDER BY id DESC LIMIT 1"
-  ).get(docId) as { snapshot_data: Buffer } | undefined
+  const snapshot = db
+    .prepare(
+      'SELECT snapshot_data FROM document_snapshots WHERE document_id = ? ORDER BY id DESC LIMIT 1',
+    )
+    .get(docId) as { snapshot_data: Buffer } | undefined
 
   if (snapshot) {
-    try { Y.applyUpdate(ydoc, new Uint8Array(snapshot.snapshot_data)) } catch { /* skip */ }
+    try {
+      Y.applyUpdate(ydoc, new Uint8Array(snapshot.snapshot_data))
+    } catch {
+      /* skip */
+    }
   }
 
-  const updates = db.prepare(
-    "SELECT update_data FROM document_updates WHERE document_id = ? ORDER BY id ASC"
-  ).all(docId) as { update_data: Buffer }[]
+  const updates = db
+    .prepare('SELECT update_data FROM document_updates WHERE document_id = ? ORDER BY id ASC')
+    .all(docId) as { update_data: Buffer }[]
 
   for (const row of updates) {
-    try { Y.applyUpdate(ydoc, new Uint8Array(row.update_data)) } catch { /* skip */ }
+    try {
+      Y.applyUpdate(ydoc, new Uint8Array(row.update_data))
+    } catch {
+      /* skip */
+    }
   }
 
   const text = ydoc.getText('content').toString()
@@ -127,7 +158,11 @@ function loadYjsText(docId: string): string {
 }
 
 function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ').trim()
+  return html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&[a-z]+;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function getSectionTitle(docId: string, sectionKey: string, fallback: string): string {
@@ -135,10 +170,14 @@ function getSectionTitle(docId: string, sectionKey: string, fallback: string): s
   const db = getDb()
   const idx = docId.indexOf('/')
   if (idx < 0) return fallback
-  const feature = db.prepare('SELECT sections FROM features WHERE id = ?').get(docId.slice(0, idx)) as { sections: string } | undefined
+  const feature = db
+    .prepare('SELECT sections FROM features WHERE id = ?')
+    .get(docId.slice(0, idx)) as { sections: string } | undefined
   if (!feature) return fallback
   try {
     const secs = JSON.parse(feature.sections || '[]') as { key: string; title: string }[]
-    return secs.find(s => s.key === sectionKey)?.title || fallback
-  } catch { return fallback }
+    return secs.find((s) => s.key === sectionKey)?.title || fallback
+  } catch {
+    return fallback
+  }
 }

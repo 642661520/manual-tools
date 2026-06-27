@@ -35,9 +35,8 @@ async function handleLogin(code: string) {
     localStorage.setItem('auth_token', data.token)
     localStorage.setItem('auth_user', JSON.stringify(data.user))
     status.value = 'success'
-    successMsg.value = data.user.role === 'guest'
-      ? '登录成功，您的账号正在等待系统管理员授权'
-      : '登录成功'
+    successMsg.value =
+      data.user.role === 'guest' ? '登录成功，您的账号正在等待系统管理员授权' : '登录成功'
 
     setTimeout(() => {
       window.location.href = '/features'
@@ -59,11 +58,14 @@ async function handleBind(code: string) {
     successMsg.value = '飞书账号绑定成功'
 
     if (window.opener) {
-      window.opener.postMessage({
-        type: 'feishu-bound',
-        name: data.name,
-        avatarUrl: data.avatarUrl,
-      }, window.location.origin)
+      window.opener.postMessage(
+        {
+          type: 'feishu-bound',
+          name: data.name,
+          avatarUrl: data.avatarUrl,
+        },
+        window.location.origin,
+      )
     }
 
     setTimeout(() => window.close(), 1500)

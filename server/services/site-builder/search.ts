@@ -4,12 +4,12 @@ import type { FeatureData } from '../../types.js'
 import type { SitePage } from './shared.js'
 
 export interface SearchIndexEntry {
-  text: string      // 纯文本（HTML 标签已剥离）
-  chapter: string   // 章节标题
-  section: string   // 节标题（章节级 entry 为空字符串）
+  text: string // 纯文本（HTML 标签已剥离）
+  chapter: string // 章节标题
+  section: string // 节标题（章节级 entry 为空字符串）
   chNum: number
-  secNum: number    // 0 = 章节级
-  url: string       // ch01.html 或 ch01.html#ch1-s2
+  secNum: number // 0 = 章节级
+  url: string // ch01.html 或 ch01.html#ch1-s2
 }
 
 interface SearchIndexData {

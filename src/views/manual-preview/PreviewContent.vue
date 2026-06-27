@@ -15,7 +15,14 @@ const props = defineProps<{
   catalogTitle: string
   tree: SidebarNode[]
   hasParts: boolean
-  changelog: Array<{ id: string; versionMajor: number; versionMinor: number; createdAt: string; changeNotes: string; publishScope?: string }>
+  changelog: Array<{
+    id: string
+    versionMajor: number
+    versionMinor: number
+    createdAt: string
+    changeNotes: string
+    publishScope?: string
+  }>
   selectedVersionId: string | null
   onSelectVersion: (id: string | null) => void
 }>()
@@ -52,14 +59,21 @@ async function loadChapter() {
 }
 
 // 章节变化时重新加载
-watch(() => [props.catalogId, props.versionId, props.chNum, props.previewMode], () => {
-  loadChapter()
-}, { immediate: true })
+watch(
+  () => [props.catalogId, props.versionId, props.chNum, props.previewMode],
+  () => {
+    loadChapter()
+  },
+  { immediate: true },
+)
 
 // 章节切换后滚动到顶部
-watch(() => props.chNum, () => {
-  if (contentRef.value) contentRef.value.scrollTop = 0
-})
+watch(
+  () => props.chNum,
+  () => {
+    if (contentRef.value) contentRef.value.scrollTop = 0
+  },
+)
 
 // 渲染 markdown（使用 markdown-it，支持表格/代码块/图片等）
 function renderHtml(md: string): string {
@@ -99,15 +113,23 @@ function isCoverPart(node: SidebarNode): node is SidebarPart {
             <h2 class="text-lg font-semibold mb-3">变更记录</h2>
             <div class="space-y-1 text-sm">
               <div
-                v-for="v in changelog" :key="v.id"
+                v-for="v in changelog"
+                :key="v.id"
                 class="flex items-center gap-2 py-1 cursor-pointer hover:text-blue-600"
                 :class="v.id === selectedVersionId ? 'text-blue-600' : 'text-gray-600'"
                 @click="onSelectVersion(v.id)"
               >
-                <span class="font-mono text-gray-400 flex-shrink-0">v{{ v.versionMajor }}.{{ v.versionMinor }}</span>
+                <span class="font-mono text-gray-400 flex-shrink-0"
+                  >v{{ v.versionMajor }}.{{ v.versionMinor }}</span
+                >
                 <span class="text-gray-300 flex-shrink-0">{{ v.createdAt.slice(0, 10) }}</span>
                 <span>{{ v.changeNotes || '（无变更说明）' }}</span>
-                <span v-if="v.publishScope === 'all'" class="text-xs px-1 py-0 rounded bg-yellow-100 text-yellow-700 flex-shrink-0" title="此版本发布时包含了未审核内容">含未审核</span>
+                <span
+                  v-if="v.publishScope === 'all'"
+                  class="text-xs px-1 py-0 rounded bg-yellow-100 text-yellow-700 flex-shrink-0"
+                  title="此版本发布时包含了未审核内容"
+                  >含未审核</span
+                >
               </div>
             </div>
           </div>
@@ -145,7 +167,9 @@ function isCoverPart(node: SidebarNode): node is SidebarPart {
                   class="py-0.5 cursor-pointer hover:text-blue-600 text-gray-700"
                   @click="emit('navigate', (node as SidebarChapter).chNum)"
                 >
-                  <span class="font-mono text-gray-400 mr-2">{{ (node as SidebarChapter).chNum }}</span>
+                  <span class="font-mono text-gray-400 mr-2">{{
+                    (node as SidebarChapter).chNum
+                  }}</span>
                   <span>{{ (node as SidebarChapter).title }}</span>
                 </div>
                 <template v-if="!(node as SidebarChapter).isLeaf">
@@ -165,20 +189,32 @@ function isCoverPart(node: SidebarNode): node is SidebarPart {
       </template>
 
       <!-- Loading -->
-      <div v-else-if="loading" class="bg-white rounded-xl shadow-sm p-8 flex items-center justify-center">
-        <span class="i-lucide-loader-2 w-5 h-5 inline-block align-middle animate-spin text-blue-400 mr-2" />
+      <div
+        v-else-if="loading"
+        class="bg-white rounded-xl shadow-sm p-8 flex items-center justify-center"
+      >
+        <span
+          class="i-lucide-loader-2 w-5 h-5 inline-block align-middle animate-spin text-blue-400 mr-2"
+        />
         <span class="text-sm text-gray-400">加载章节...</span>
       </div>
 
       <!-- Error -->
-      <div v-else-if="error" class="bg-white rounded-xl shadow-sm p-8 text-center text-red-400 text-sm">
+      <div
+        v-else-if="error"
+        class="bg-white rounded-xl shadow-sm p-8 text-center text-red-400 text-sm"
+      >
         {{ error }}
       </div>
 
       <!-- 章节内容 -->
       <template v-else-if="chapter">
         <div class="bg-white rounded-xl shadow-sm p-8">
-          <div class="manual-content" v-html="renderHtml(chapter.markdown)" @click="onContentClick" />
+          <div
+            class="manual-content"
+            v-html="renderHtml(chapter.markdown)"
+            @click="onContentClick"
+          />
         </div>
 
         <!-- 上一章 / 下一章 导航 -->
@@ -214,23 +250,100 @@ function isCoverPart(node: SidebarNode): node is SidebarPart {
 </template>
 
 <style scoped>
-.manual-content :deep(*) { overflow-wrap: break-word; word-break: break-all; }
-.manual-content :deep(h1) { font-size: 1.75rem; font-weight: 700; margin: 1.5em 0 0.5em; }
-.manual-content :deep(h2) { font-size: 1.25rem; font-weight: 600; margin: 1.25em 0 0.5em; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.25em; }
-.manual-content :deep(h3) { font-size: 1.1rem; font-weight: 600; margin: 1em 0 0.5em; }
-.manual-content :deep(h4) { font-size: 1rem; font-weight: 600; margin: 0.75em 0 0.5em; }
-.manual-content :deep(p) { margin: 0.5em 0; line-height: 1.8; }
-.manual-content :deep(blockquote) { border-left: 3px solid #d1d5db; padding-left: 1em; color: #6b7280; margin: 0.5em 0; }
-.manual-content :deep(code) { background: #f3f4f6; padding: 0.15em 0.3em; border-radius: 0.25em; font-size: 0.875em; }
-.manual-content :deep(pre) { overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
-.manual-content :deep(hr) { border: none; border-top: 1px solid #e5e7eb; margin: 1.5em 0; }
-.manual-content :deep(strong) { font-weight: 600; }
-.manual-content :deep(em) { font-style: italic; }
-.manual-content :deep(a) { color: #2563eb; text-decoration: none; }
-.manual-content :deep(a:hover) { text-decoration: underline; }
-.manual-content :deep(table) { border-collapse: collapse; width: 100%; margin: 0.75em 0; table-layout: fixed; }
-.manual-content :deep(th) { background: #f3f4f6; font-weight: 600; border: 1px solid #d1d5db; padding: 0.5em 0.75em; text-align: left; }
-.manual-content :deep(td) { border: 1px solid #d1d5db; padding: 0.5em 0.75em; overflow-wrap: break-word; }
-.manual-content :deep(.crossref-link) { color: #2563eb; background: #eff6ff; padding: 0.1em 0.4em; border-radius: 0.25em; font-size: 0.9em; text-decoration: none; white-space: nowrap; }
-.manual-content :deep(.crossref-link:hover) { text-decoration: underline; background: #dbeafe; }
+.manual-content :deep(*) {
+  overflow-wrap: break-word;
+  word-break: break-all;
+}
+.manual-content :deep(h1) {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 1.5em 0 0.5em;
+}
+.manual-content :deep(h2) {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 1.25em 0 0.5em;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0.25em;
+}
+.manual-content :deep(h3) {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 1em 0 0.5em;
+}
+.manual-content :deep(h4) {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0.75em 0 0.5em;
+}
+.manual-content :deep(p) {
+  margin: 0.5em 0;
+  line-height: 1.8;
+}
+.manual-content :deep(blockquote) {
+  border-left: 3px solid #d1d5db;
+  padding-left: 1em;
+  color: #6b7280;
+  margin: 0.5em 0;
+}
+.manual-content :deep(code) {
+  background: #f3f4f6;
+  padding: 0.15em 0.3em;
+  border-radius: 0.25em;
+  font-size: 0.875em;
+}
+.manual-content :deep(pre) {
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.manual-content :deep(hr) {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 1.5em 0;
+}
+.manual-content :deep(strong) {
+  font-weight: 600;
+}
+.manual-content :deep(em) {
+  font-style: italic;
+}
+.manual-content :deep(a) {
+  color: #2563eb;
+  text-decoration: none;
+}
+.manual-content :deep(a:hover) {
+  text-decoration: underline;
+}
+.manual-content :deep(table) {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.75em 0;
+  table-layout: fixed;
+}
+.manual-content :deep(th) {
+  background: #f3f4f6;
+  font-weight: 600;
+  border: 1px solid #d1d5db;
+  padding: 0.5em 0.75em;
+  text-align: left;
+}
+.manual-content :deep(td) {
+  border: 1px solid #d1d5db;
+  padding: 0.5em 0.75em;
+  overflow-wrap: break-word;
+}
+.manual-content :deep(.crossref-link) {
+  color: #2563eb;
+  background: #eff6ff;
+  padding: 0.1em 0.4em;
+  border-radius: 0.25em;
+  font-size: 0.9em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.manual-content :deep(.crossref-link:hover) {
+  text-decoration: underline;
+  background: #dbeafe;
+}
 </style>

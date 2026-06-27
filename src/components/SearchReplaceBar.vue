@@ -177,7 +177,11 @@ function replaceOne() {
   if (!ed || currentIndex.value < 0 || currentIndex.value >= matches.value.length) return
 
   const m = matches.value[currentIndex.value]
-  ed.chain().focus().setTextSelection({ from: m.from, to: m.to }).insertContent(replaceTerm.value).run()
+  ed.chain()
+    .focus()
+    .setTextSelection({ from: m.from, to: m.to })
+    .insertContent(replaceTerm.value)
+    .run()
   doSearch()
 }
 

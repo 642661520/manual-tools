@@ -5,7 +5,9 @@
 import type { FastifyRequest } from 'fastify'
 
 /** 从 Authorization header 或 Cookie 中提取 JWT token */
-export function extractToken(req: { headers: Record<string, string | string[] | undefined> }): string | null {
+export function extractToken(req: {
+  headers: Record<string, string | string[] | undefined>
+}): string | null {
   // 优先 Bearer token
   const auth = req.headers.authorization
   if (auth && typeof auth === 'string' && auth.startsWith('Bearer ')) {
@@ -23,6 +25,8 @@ export function extractToken(req: { headers: Record<string, string | string[] | 
 }
 
 /** 为 Fastify 请求提供类型安全的 token 提取 */
-export function extractTokenFromFastify(req: FastifyRequest | { headers: Record<string, string | string[] | undefined> }): string | null {
+export function extractTokenFromFastify(
+  req: FastifyRequest | { headers: Record<string, string | string[] | undefined> },
+): string | null {
   return extractToken(req)
 }

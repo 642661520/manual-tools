@@ -13,11 +13,7 @@ const CSRF_COOKIE = 'csrf_token'
 const CSRF_HEADER = 'x-csrf-token'
 
 /** 免 CSRF 校验的路径前缀 */
-const SKIP_PATHS = [
-  '/api/v1/auth/login',
-  '/api/v1/auth/feishu/',
-  '/api/v1/auth/feishu-login',
-]
+const SKIP_PATHS = ['/api/v1/auth/login', '/api/v1/auth/feishu/', '/api/v1/auth/feishu-login']
 
 /** 生成新的 CSRF token */
 export function generateCsrfToken(): string {
@@ -42,14 +38,11 @@ function getCookieToken(req: FastifyRequest): string | null {
 
 /** 判断路径是否免检 */
 function isSkipped(path: string): boolean {
-  return SKIP_PATHS.some(p => path.startsWith(p))
+  return SKIP_PATHS.some((p) => path.startsWith(p))
 }
 
 /** CSRF 校验中间件 */
-export async function csrfMiddleware(
-  req: FastifyRequest,
-  reply: FastifyReply,
-): Promise<void> {
+export async function csrfMiddleware(req: FastifyRequest, reply: FastifyReply): Promise<void> {
   // GET/HEAD/OPTIONS 不校验
   const method = req.method.toUpperCase()
   if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return
@@ -68,7 +61,5 @@ export async function csrfMiddleware(
 /** 设置 CSRF cookie（登录时调用） */
 export function setCsrfCookie(reply: FastifyReply, token: string) {
   // HttpOnly=false —— JS 需要读取此 cookie 来设置请求头
-  reply.header('Set-Cookie',
-    `${CSRF_COOKIE}=${token}; Path=/; SameSite=Strict; Max-Age=86400`,
-  )
+  reply.header('Set-Cookie', `${CSRF_COOKIE}=${token}; Path=/; SameSite=Strict; Max-Age=86400`)
 }

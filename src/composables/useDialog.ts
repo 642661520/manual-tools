@@ -24,7 +24,12 @@ const state = reactive<DialogState>({
 
 let resolvePromise: ((value: unknown) => void) | null = null
 
-function open(type: DialogType, title: string, message: string, opts?: { placeholder?: string; inputValue?: string }): Promise<unknown> {
+function open(
+  type: DialogType,
+  title: string,
+  message: string,
+  opts?: { placeholder?: string; inputValue?: string },
+): Promise<unknown> {
   return new Promise((resolve) => {
     resolvePromise = resolve
     state.type = type
@@ -53,7 +58,10 @@ export function useDialog() {
     return open('confirm', '确认', message) as Promise<boolean>
   }
 
-  function prompt(message: string, opts?: { placeholder?: string; inputValue?: string }): Promise<string | null> {
+  function prompt(
+    message: string,
+    opts?: { placeholder?: string; inputValue?: string },
+  ): Promise<string | null> {
     return open('prompt', '输入', message, opts) as Promise<string | null>
   }
 

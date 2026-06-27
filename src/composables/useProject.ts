@@ -7,8 +7,8 @@ const currentProjectId = ref<string | null>(localStorage.getItem('active_project
 const loaded = ref(false)
 
 export function useProject() {
-  const currentProject = computed(() =>
-    projects.value.find(p => p.id === currentProjectId.value) || null
+  const currentProject = computed(
+    () => projects.value.find((p) => p.id === currentProjectId.value) || null,
   )
 
   async function loadProjects() {
@@ -19,7 +19,7 @@ export function useProject() {
       projects.value = list
 
       // 如果当前选中的项目不在列表中，回退到第一个
-      if (currentProjectId.value && !list.find(p => p.id === currentProjectId.value)) {
+      if (currentProjectId.value && !list.find((p) => p.id === currentProjectId.value)) {
         currentProjectId.value = list[0]?.id || null
         persist()
       }
@@ -29,7 +29,9 @@ export function useProject() {
         persist()
       }
       loaded.value = true
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   function switchProject(id: string) {

@@ -10,6 +10,8 @@ pnpm server               # 后端 Fastify (port 3000, tsx watch)
 pnpm build                # 生产构建 (类型检查 + Vite 打包)
 pnpm lint                 # ESLint (no-explicit-any: error)
 pnpm lint:fix             # ESLint 自动修复
+pnpm format               # oxfmt 格式化代码
+pnpm format:check         # oxfmt 格式检查 (CI 用)
 pnpm typecheck            # 前后端一起类型检查
 pnpm typecheck:server     # 仅后端 tsc -p tsconfig.node.json
 pnpm typecheck:frontend   # 仅前端 vue-tsc
@@ -88,40 +90,40 @@ projects → categories → features → documents (Y.js 协同编辑)
   - `endpoints/` — `auth, projects, features, catalogs, categories, documents, todos, upload, data-tasks`
 - `src/components/` — 共享组件（16 个）：
 
-| 组件 | 用途 |
-|------|------|
-| `AppLayout` | 全局布局：顶部导航 + 项目选择器 + 用户菜单 |
-| `TiptapEditor` | 富文本编辑器：TipTap + Y.js 绑定 + 全工具栏 + 底部状态栏 |
-| `ModalDialog` | 通用对话框，props: visible/title/confirmText/cancelText/error/loading/widthClass |
-| `FormField` | 表单字段 label+slot，props: label/required |
-| `ErrorMessage` | 红色错误提示框，prop: message |
-| `LoadingState` | 居中加载状态，prop: message |
-| `EmptyState` | 空态占位，props: icon/title/description |
-| `StatusBadge` | 状态标记 `draft/in_progress/completed/approved/rejected`，variant: badge 或 text |
-| `PageHeader` | 页面顶栏，slots: #left / #right |
-| `StatusTransitionModal` | 状态流转弹窗（含审核意见、指派人员、审核链显示） |
-| `SearchReplaceBar` | 查找替换栏（查找/替换/全部替换/区分大小写） |
-| `TableBubbleMenu` | 表格浮动菜单（行列增删/表头切换） |
-| `TableGridPicker` | 表格尺寸选择器（行列数网格选取） |
-| `ColorPicker` | 颜色选择器（文字颜色 10 色 + 背景高亮 10 色） |
-| `SelectDropdown` | 可搜索下拉选择框 |
-| `DialogContainer` | Teleported 对话框挂载点 |
-| `CrossrefPicker` | 交叉引用选择器（选择目标 feature/section） |
+| 组件                    | 用途                                                                             |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| `AppLayout`             | 全局布局：顶部导航 + 项目选择器 + 用户菜单                                       |
+| `TiptapEditor`          | 富文本编辑器：TipTap + Y.js 绑定 + 全工具栏 + 底部状态栏                         |
+| `ModalDialog`           | 通用对话框，props: visible/title/confirmText/cancelText/error/loading/widthClass |
+| `FormField`             | 表单字段 label+slot，props: label/required                                       |
+| `ErrorMessage`          | 红色错误提示框，prop: message                                                    |
+| `LoadingState`          | 居中加载状态，prop: message                                                      |
+| `EmptyState`            | 空态占位，props: icon/title/description                                          |
+| `StatusBadge`           | 状态标记 `draft/in_progress/completed/approved/rejected`，variant: badge 或 text |
+| `PageHeader`            | 页面顶栏，slots: #left / #right                                                  |
+| `StatusTransitionModal` | 状态流转弹窗（含审核意见、指派人员、审核链显示）                                 |
+| `SearchReplaceBar`      | 查找替换栏（查找/替换/全部替换/区分大小写）                                      |
+| `TableBubbleMenu`       | 表格浮动菜单（行列增删/表头切换）                                                |
+| `TableGridPicker`       | 表格尺寸选择器（行列数网格选取）                                                 |
+| `ColorPicker`           | 颜色选择器（文字颜色 10 色 + 背景高亮 10 色）                                    |
+| `SelectDropdown`        | 可搜索下拉选择框                                                                 |
+| `DialogContainer`       | Teleported 对话框挂载点                                                          |
+| `CrossrefPicker`        | 交叉引用选择器（选择目标 feature/section）                                       |
 
 - `src/composables/` — 组合式函数（10 个）：
 
-| Composable | 用途 |
-|------|------|
-| `useAuth` | 模块级 reactive refs，login/logout/token 管理 |
-| `useProject` | 模块级单例，localStorage 持久化 `active_project_id`，`switchProject()` / `loadProjects()` |
-| `useYjsDoc` | 客户端 Y.js doc + WebSocket 连接，sync step 握手 + update 广播 + awareness 收发 |
-| `useTiptapYjs` | TipTap editor 绑定到 Y.js `ytext('content')`，本地编辑→Y.js 同步，远程更新→editor dispatch |
-| `cursor-awareness` | TipTap Extension，渲染远程用户光标位置 |
-| `useDialog` | 对话框堆栈管理（alert/confirm/prompt） |
-| `search-highlight` | 查找高亮 composable |
-| `markdown-paste` | Markdown 粘贴处理 |
-| `crossref-node` | 交叉引用 Node 定义（feature/section 内链） |
-| `video-node` | 视频 Node 定义（video 类型节点） |
+| Composable         | 用途                                                                                       |
+| ------------------ | ------------------------------------------------------------------------------------------ |
+| `useAuth`          | 模块级 reactive refs，login/logout/token 管理                                              |
+| `useProject`       | 模块级单例，localStorage 持久化 `active_project_id`，`switchProject()` / `loadProjects()`  |
+| `useYjsDoc`        | 客户端 Y.js doc + WebSocket 连接，sync step 握手 + update 广播 + awareness 收发            |
+| `useTiptapYjs`     | TipTap editor 绑定到 Y.js `ytext('content')`，本地编辑→Y.js 同步，远程更新→editor dispatch |
+| `cursor-awareness` | TipTap Extension，渲染远程用户光标位置                                                     |
+| `useDialog`        | 对话框堆栈管理（alert/confirm/prompt）                                                     |
+| `search-highlight` | 查找高亮 composable                                                                        |
+| `markdown-paste`   | Markdown 粘贴处理                                                                          |
+| `crossref-node`    | 交叉引用 Node 定义（feature/section 内链）                                                 |
+| `video-node`       | 视频 Node 定义（video 类型节点）                                                           |
 
 - `src/views/` — 页面视图（9 个）：
   - `login/` — 用户名密码登录 + 飞书 OAuth 登录
@@ -155,6 +157,7 @@ projects → categories → features → documents (Y.js 协同编辑)
 **可用图标：** 在 [Iconify Lucide](https://icon-sets.iconify.design/lucide/) 搜索可用图标名称，使用 `i-lucide-<name>` 格式。
 
 **禁止项：**
+
 - ❌ emoji 作为图标：`💡`, `⚠️`, `✅`, `❌` 等
 - ❌ Unicode 符号作为图标：`×`, `✓`, `→`, `…` 等
 - ❌ 纯文本字符作为图标：`Aa`, `B`, `I`, `S`, `U`, `x₂`, `x²`, `H1`-`H6` 等
