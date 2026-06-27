@@ -6,12 +6,15 @@ import { useProject } from '@/composables/useProject'
 import { useDialog } from '@/composables/useDialog'
 import SelectDropdown from '@/components/SelectDropdown.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
+import SearchBox from '@/components/SearchBox.vue'
 
 const router = useRouter()
 const route = useRoute()
 const { user, isAdmin, isGuest, canManageProject, logout } = useAuth()
 const { projects, currentProjectId, loadProjects, switchProject } = useProject()
 const { confirm } = useDialog()
+
+const searchBoxRef = ref<InstanceType<typeof SearchBox>>()
 
 const showUserMenu = ref(false)
 
@@ -112,6 +115,17 @@ onMounted(loadProjects)
       </div>
 
       <div class="flex items-center gap-3">
+        <!-- 搜索按钮 -->
+        <button
+          v-if="currentProjectId"
+          class="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 bg-gray-50 hover:bg-gray-100 px-2.5 py-1.5 rounded-md transition-colors"
+          @click="searchBoxRef?.open()"
+        >
+          <span class="i-lucide-search w-4 h-4" />
+          <span class="hidden sm:inline">搜索</span>
+          <kbd class="hidden lg:inline text-xs text-gray-300 ml-0.5">Ctrl+K</kbd>
+        </button>
+
         <!-- 项目选择器 -->
         <SelectDropdown
           v-if="projects.length > 1"
@@ -166,6 +180,8 @@ onMounted(loadProjects)
         </div>
       </div>
     </header>
+
+    <SearchBox ref="searchBoxRef" />
 
     <!-- 页面内容 -->
     <div class="flex-1 overflow-hidden">

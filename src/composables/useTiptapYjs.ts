@@ -55,23 +55,42 @@ export function useTiptapYjs(
   const ytext = ydoc.getText('content')
   let lastSyncedHtml = ytext.toString() || ''
   let applyingRemote = false
-  let syncTimer: ReturnType<typeof setTimeout> | null = null
+  let syncTimeoutId: ReturnType<typeof setTimeout> | null = null
+  let syncRafId: number | null = null
 
+  /** 将本地编辑去抖后同步到 Yjs（合并 200ms 内的连续编辑，减少全量替换次数） */
   function syncToYjs() {
-    if (syncTimer) return
     if (applyingRemote) return
-    syncTimer = setTimeout(() => {
-      syncTimer = null
-      const ed = editor.value
-      if (!ed) return
-      const html = ed.getHTML()
-      if (html === lastSyncedHtml) return
-      lastSyncedHtml = html
-      Y.transact(ydoc, () => {
-        ytext.delete(0, ytext.length)
-        ytext.insert(0, html)
-      }, 'local')
-    }, 50)
+    // 用 requestAnimationFrame 批量合并同帧内的多次更新
+    if (syncRafId === null) {
+      syncRafId = requestAnimationFrame(() => {
+        syncRafId = null
+        flushSync()
+      })
+    }
+    // 兜底：超过 200ms 强制同步
+    if (!syncTimeoutId) {
+      syncTimeoutId = setTimeout(() => {
+        syncTimeoutId = null
+        if (syncRafId !== null) {
+          cancelAnimationFrame(syncRafId)
+          syncRafId = null
+        }
+        flushSync()
+      }, 200)
+    }
+  }
+
+  function flushSync() {
+    const ed = editor.value
+    if (!ed) return
+    const html = ed.getHTML()
+    if (html === lastSyncedHtml) return
+    lastSyncedHtml = html
+    Y.transact(ydoc, () => {
+      ytext.delete(0, ytext.length)
+      ytext.insert(0, html)
+    }, 'local')
   }
 
   const editor = useEditor({
@@ -200,7 +219,8 @@ export function useTiptapYjs(
     if (!html || html === ed.getHTML()) return
 
     applyingRemote = true
-    if (syncTimer) { clearTimeout(syncTimer); syncTimer = null }
+    if (syncTimeoutId) { clearTimeout(syncTimeoutId); syncTimeoutId = null }
+    if (syncRafId) { cancelAnimationFrame(syncRafId); syncRafId = null }
     if (cursorTimer) { clearTimeout(cursorTimer); cursorTimer = null }
 
     // 保存光标上下文（文本前后各取 50 字符），用于替换后恢复到相同逻辑位置

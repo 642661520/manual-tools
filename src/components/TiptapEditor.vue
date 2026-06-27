@@ -10,7 +10,8 @@ import TableBubbleMenu from './TableBubbleMenu.vue'
 import CrossrefPicker from './CrossrefPicker.vue'
 import ModalDialog from './ModalDialog.vue'
 import SearchReplaceBar from './SearchReplaceBar.vue'
-import { uploadImage, uploadVideo } from '@/api/endpoints/upload'
+import MediaUploadDialog from './editor/MediaUploadDialog.vue'
+import AiBubbleMenu from './editor/AiBubbleMenu.vue'
 import type { CrossrefAttrs } from '@/composables/crossref-node'
 
 const { alert, prompt } = useDialog()
@@ -50,6 +51,7 @@ const props = defineProps<{
   docId: string
   editable?: boolean
   placeholder?: string
+  findText?: string
 }>()
 
 const { ydoc, connected, synced, awareness } = useYjsDoc(props.docId)
@@ -61,6 +63,32 @@ const { editor, initialSyncDone } = useTiptapYjs(ydoc, awareness, {
 // 同步完成后才根据 props.editable 启用编辑，防止远程数据覆盖用户输入
 watch([synced, () => props.editable], ([isSynced, edit]) => {
   editor.value?.setEditable(isSynced && (edit ?? false))
+})
+
+// 搜索跳转定位 — 用 Highlight 标记闪烁
+watch([() => props.findText, synced, initialSyncDone], ([text, isSynced, done]) => {
+  if (text && isSynced && done && editor.value) {
+    const ed = editor.value
+    setTimeout(() => {
+      let found = false
+      ed.state.doc.descendants((node, pos) => {
+        if (found || !node.isText) return
+        const idx = node.text!.indexOf(text)
+        if (idx >= 0) {
+          const from = pos + idx
+          const to = from + text.length
+          ed.commands.setTextSelection({ from, to })
+          ed.commands.scrollIntoView()
+          ed.commands.toggleHighlight({ color: '#fde047' })
+          setTimeout(() => {
+            ed.commands.setTextSelection({ from, to })
+            ed.commands.toggleHighlight({ color: '#fde047' })
+          }, 1500)
+          found = true
+        }
+      })
+    }, 500)
+  }
 })
 
 // 查找替换
@@ -279,141 +307,29 @@ function tryRestoreWithRetry() {
   setTimeout(tryRestoreWithRetry, 200)
 }
 
-// 图片上传
-const uploading = ref(false)
-const imageUploadingFile = ref<{ name: string; size: string } | null>(null)
-const fileInput = ref<HTMLInputElement>()
-const imageDialogVisible = ref(false)
-const imageUrl = ref('')
-const imageUrlError = ref('')
+// 媒体上传（图片/视频统一组件）
+const mediaType = ref<'image' | 'video'>('image')
+const imageUploadVisible = ref(false)
+const videoUploadVisible = ref(false)
 
 function openImageDialog() {
-  imageUrl.value = ''
-  imageUrlError.value = ''
-  imageUploadingFile.value = null
-  imageDialogVisible.value = true
-}
-
-function insertImageUrl() {
-  let url = imageUrl.value.trim()
-  if (!url) {
-    imageUrlError.value = '请输入图片链接'
-    return
-  }
-  // 补全协议相对 URL（//example.com/img.png → https://example.com/img.png）
-  if (url.startsWith('//')) url = `https:${url}`
-  try {
-    new URL(url)
-  } catch {
-    imageUrlError.value = '请输入有效的链接地址'
-    return
-  }
-  editor.value?.chain().focus().setImage({ src: url }).run()
-  imageDialogVisible.value = false
-}
-
-function onImageDialogCancel() {
-  if (uploading.value) return
-  imageDialogVisible.value = false
-  imageUrlError.value = ''
-}
-
-function triggerUpload() {
-  fileInput.value?.click()
-}
-
-async function handleImageUpload(e: Event) {
-  const target = e.target as HTMLInputElement
-  const file = target.files?.[0]
-  if (!file) return
-
-  uploading.value = true
-  imageUploadingFile.value = { name: file.name, size: formatSize(file.size) }
-
-  try {
-    const { url } = await uploadImage(file)
-    imageDialogVisible.value = false
-    editor.value?.chain().focus().setImage({ src: url }).run()
-  } catch (e: unknown) {
-    await alert('上传失败: ' + (e instanceof Error ? e.message : '未知错误'))
-  } finally {
-    uploading.value = false
-    imageUploadingFile.value = null
-    target.value = ''
-  }
-}
-
-// 视频上传
-const videoUploading = ref(false)
-const videoUploadingFile = ref<{ name: string; size: string } | null>(null)
-const videoFileInput = ref<HTMLInputElement>()
-const videoDialogVisible = ref(false)
-const videoUrl = ref('')
-const videoUrlError = ref('')
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB'
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+  mediaType.value = 'image'
+  imageUploadVisible.value = true
 }
 
 function openVideoDialog() {
-  videoUrl.value = ''
-  videoUrlError.value = ''
-  videoUploadingFile.value = null
-  videoDialogVisible.value = true
+  mediaType.value = 'video'
+  videoUploadVisible.value = true
 }
 
-function insertVideoUrl() {
-  let url = videoUrl.value.trim()
-  if (!url) {
-    videoUrlError.value = '请输入视频链接'
-    return
-  }
-  if (url.startsWith('//')) url = `https:${url}`
-  try {
-    new URL(url)
-  } catch {
-    videoUrlError.value = '请输入有效的链接地址'
-    return
-  }
-  editor.value?.chain().focus().insertContent({
-    type: 'video',
-    attrs: { src: url },
-  }).run()
-  videoDialogVisible.value = false
-}
-
-function onVideoDialogCancel() {
-  if (videoUploading.value) return
-  videoDialogVisible.value = false
-  videoUrlError.value = ''
-}
-
-function triggerVideoUpload() {
-  videoFileInput.value?.click()
-}
-
-async function handleVideoUpload(e: Event) {
-  const target = e.target as HTMLInputElement
-  const file = target.files?.[0]
-  if (!file) return
-
-  videoUploading.value = true
-  videoUploadingFile.value = { name: file.name, size: formatSize(file.size) }
-
-  try {
-    const { url } = await uploadVideo(file)
-    videoDialogVisible.value = false
+function onMediaInsert(result: { type: 'image' | 'video'; src: string }) {
+  if (result.type === 'image') {
+    editor.value?.chain().focus().setImage({ src: result.src }).run()
+  } else {
     editor.value?.chain().focus().insertContent({
       type: 'video',
-      attrs: { src: url },
+      attrs: { src: result.src },
     }).run()
-  } catch (e: unknown) {
-    await alert('上传失败: ' + (e instanceof Error ? e.message : '未知错误'))
-  } finally {
-    videoUploading.value = false
-    videoUploadingFile.value = null
-    target.value = ''
   }
 }
 
@@ -520,7 +436,7 @@ function onCrossrefRemove() {
   crossrefPickerVisible.value = false
 }
 
-defineExpose({ connected, synced, initialSyncDone })
+defineExpose({ connected, synced, initialSyncDone, editor })
 </script>
 
 <template>
@@ -531,195 +447,175 @@ defineExpose({ connected, synced, initialSyncDone })
     >
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('bold') }"
-        title="加粗" @click="editor.chain().focus().toggleBold().run()">
+        v-tooltip="'加粗'" @click="editor.chain().focus().toggleBold().run()">
         <span class="i-lucide-bold w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('italic') }"
-        title="斜体" @click="editor.chain().focus().toggleItalic().run()">
+        v-tooltip="'斜体'" @click="editor.chain().focus().toggleItalic().run()">
         <span class="i-lucide-italic w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('strike') }"
-        title="删除线" @click="editor.chain().focus().toggleStrike().run()">
+        v-tooltip="'删除线'" @click="editor.chain().focus().toggleStrike().run()">
         <span class="i-lucide-strikethrough w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('underline') }"
-        title="下划线" @click="editor.chain().focus().toggleUnderline().run()">
+        v-tooltip="'下划线'" @click="editor.chain().focus().toggleUnderline().run()">
         <span class="i-lucide-underline w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('subscript') }"
-        title="下标" @click="editor.chain().focus().toggleSubscript().run()">
+        v-tooltip="'下标'" @click="editor.chain().focus().toggleSubscript().run()">
         <span class="i-lucide-subscript w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('superscript') }"
-        title="上标" @click="editor.chain().focus().toggleSuperscript().run()">
+        v-tooltip="'上标'" @click="editor.chain().focus().toggleSuperscript().run()">
         <span class="i-lucide-superscript w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('code') }"
-        title="行内代码" @click="editor.chain().focus().toggleCode().run()">
+        v-tooltip="'行内代码'" @click="editor.chain().focus().toggleCode().run()">
         <span class="i-lucide-code w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm relative"
         :class="{ 'bg-gray-200': showColorPicker === 'text' }"
-        title="文字颜色" @click="showColorPicker = showColorPicker === 'text' ? null : 'text'">
+        v-tooltip="'文字颜色'" @click="showColorPicker = showColorPicker === 'text' ? null : 'text'">
         <span class="i-lucide-baseline w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm relative"
         :class="{ 'bg-gray-200': showColorPicker === 'highlight' }"
-        title="高亮" @click="showColorPicker = showColorPicker === 'highlight' ? null : 'highlight'">
+        v-tooltip="'高亮'" @click="showColorPicker = showColorPicker === 'highlight' ? null : 'highlight'">
         <span class="i-lucide-highlighter w-4 h-4 inline-block align-middle" />
       </button>
       <div class="w-px h-5 bg-gray-300 mx-1" />
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('link') }"
-        title="链接" @click="handleLink">
+        v-tooltip="'链接'" @click="handleLink">
         <span class="i-lucide-link w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('crossref') }"
-        title="交叉引用" @click="openCrossrefPicker">
+        v-tooltip="'交叉引用'" @click="openCrossrefPicker">
         <span class="i-lucide-bookmark w-4 h-4 inline-block align-middle" />
       </button>
       <div class="w-px h-5 bg-gray-300 mx-1" />
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('heading', { level: 1 }) }"
-        title="标题1" @click="editor.chain().focus().toggleHeading({ level: 1 }).run()">
+        v-tooltip="'标题1'" @click="editor.chain().focus().toggleHeading({ level: 1 }).run()">
         <span class="i-lucide-heading-1 w-5 h-5 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('heading', { level: 2 }) }"
-        title="标题2" @click="editor.chain().focus().toggleHeading({ level: 2 }).run()">
+        v-tooltip="'标题2'" @click="editor.chain().focus().toggleHeading({ level: 2 }).run()">
         <span class="i-lucide-heading-2 w-5 h-5 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('heading', { level: 3 }) }"
-        title="标题3" @click="editor.chain().focus().toggleHeading({ level: 3 }).run()">
+        v-tooltip="'标题3'" @click="editor.chain().focus().toggleHeading({ level: 3 }).run()">
         <span class="i-lucide-heading-3 w-5 h-5 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('heading', { level: 4 }) }"
-        title="标题4" @click="editor.chain().focus().toggleHeading({ level: 4 }).run()">
+        v-tooltip="'标题4'" @click="editor.chain().focus().toggleHeading({ level: 4 }).run()">
         <span class="i-lucide-heading-4 w-5 h-5 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('heading', { level: 5 }) }"
-        title="标题5" @click="editor.chain().focus().toggleHeading({ level: 5 }).run()">
+        v-tooltip="'标题5'" @click="editor.chain().focus().toggleHeading({ level: 5 }).run()">
         <span class="i-lucide-heading-5 w-5 h-5 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('heading', { level: 6 }) }"
-        title="标题6" @click="editor.chain().focus().toggleHeading({ level: 6 }).run()">
+        v-tooltip="'标题6'" @click="editor.chain().focus().toggleHeading({ level: 6 }).run()">
         <span class="i-lucide-heading-6 w-5 h-5 inline-block align-middle" />
       </button>
       <div class="w-px h-5 bg-gray-300 mx-1" />
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive({ textAlign: 'left' }) }"
-        title="左对齐" @click="editor.chain().focus().setTextAlign('left').run()">
+        v-tooltip="'左对齐'" @click="editor.chain().focus().setTextAlign('left').run()">
         <span class="i-lucide-align-left w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive({ textAlign: 'center' }) }"
-        title="居中" @click="editor.chain().focus().setTextAlign('center').run()">
+        v-tooltip="'居中'" @click="editor.chain().focus().setTextAlign('center').run()">
         <span class="i-lucide-align-center w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive({ textAlign: 'right' }) }"
-        title="右对齐" @click="editor.chain().focus().setTextAlign('right').run()">
+        v-tooltip="'右对齐'" @click="editor.chain().focus().setTextAlign('right').run()">
         <span class="i-lucide-align-right w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive({ textAlign: 'justify' }) }"
-        title="两端对齐" @click="editor.chain().focus().setTextAlign('justify').run()">
+        v-tooltip="'两端对齐'" @click="editor.chain().focus().setTextAlign('justify').run()">
         <span class="i-lucide-align-justify w-4 h-4 inline-block align-middle" />
       </button>
       <div class="w-px h-5 bg-gray-300 mx-1" />
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('bulletList') }"
-        title="无序列表" @click="editor.chain().focus().toggleBulletList().run()">
+        v-tooltip="'无序列表'" @click="editor.chain().focus().toggleBulletList().run()">
         <span class="i-lucide-list w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('orderedList') }"
-        title="有序列表" @click="editor.chain().focus().toggleOrderedList().run()">
+        v-tooltip="'有序列表'" @click="editor.chain().focus().toggleOrderedList().run()">
         1.
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('taskList') }"
-        title="待办清单" @click="editor.chain().focus().toggleTaskList().run()">
+        v-tooltip="'待办清单'" @click="editor.chain().focus().toggleTaskList().run()">
         <span class="i-lucide-check-square w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('blockquote') }"
-        title="引用" @click="editor.chain().focus().toggleBlockquote().run()">
+        v-tooltip="'引用'" @click="editor.chain().focus().toggleBlockquote().run()">
         <span class="i-lucide-quote w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('codeBlock') }"
-        title="代码块" @click="editor.chain().focus().toggleCodeBlock().run()">
+        v-tooltip="'代码块'" @click="editor.chain().focus().toggleCodeBlock().run()">
         <span class="i-lucide-code-xml w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
-        title="分隔线" @click="editor.chain().focus().setHorizontalRule().run()">
+        v-tooltip="'分隔线'" @click="editor.chain().focus().setHorizontalRule().run()">
         <span class="i-lucide-minus w-4 h-4 inline-block align-middle" />
       </button>
       <div class="w-px h-5 bg-gray-300 mx-1" />
       <TableGridPicker :editor="editor" :editable="editable ?? true" />
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
-        :class="{ 'opacity-50': uploading }"
-        :disabled="uploading"
-        title="插入图片" @click="openImageDialog">
-        <span v-if="uploading" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin" />
-        <span v-else class="i-lucide-image w-4 h-4 inline-block align-middle" />
+        v-tooltip="'插入图片'" @click="openImageDialog">
+        <span class="i-lucide-image w-4 h-4 inline-block align-middle" />
       </button>
-      <input
-        ref="fileInput"
-        type="file"
-        accept="image/png,image/jpeg,image/gif,image/webp"
-        class="hidden"
-        @change="handleImageUpload"
-      />
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
-        :class="{ 'opacity-50': videoUploading }"
-        :disabled="videoUploading"
-        title="插入视频" @click="openVideoDialog">
-        <span v-if="videoUploading" class="i-lucide-loader-2 w-4 h-4 inline-block align-middle animate-spin" />
-        <span v-else class="i-lucide-film w-4 h-4 inline-block align-middle" />
+        v-tooltip="'插入视频'" @click="openVideoDialog">
+        <span class="i-lucide-film w-4 h-4 inline-block align-middle" />
       </button>
-      <input
-        ref="videoFileInput"
-        type="file"
-        accept="video/mp4,video/webm"
-        class="hidden"
-        @change="handleVideoUpload"
-      />
       <div class="w-px h-5 bg-gray-300 mx-1" />
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': isFullscreen }"
-        title="全屏写作" @click="toggleFullscreen">
+        v-tooltip="'全屏写作'" @click="toggleFullscreen">
         <span class="i-lucide-maximize w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': searchVisible }"
-        title="查找替换" @click="toggleSearch">
+        v-tooltip="'查找替换'" @click="toggleSearch">
         <span class="i-lucide-search w-4 h-4 inline-block align-middle" />
       </button>
 
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
-        title="撤销" @click="editor.chain().focus().undo().run()">
+        v-tooltip="'撤销'" @click="editor.chain().focus().undo().run()">
         <span class="i-lucide-undo-2 w-4 h-4 inline-block align-middle" />
       </button>
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
-        title="重做" @click="editor.chain().focus().redo().run()">
+        v-tooltip="'重做'" @click="editor.chain().focus().redo().run()">
         <span class="i-lucide-redo-2 w-4 h-4 inline-block align-middle" />
       </button>
       <div class="w-px h-5 bg-gray-300 mx-1" />
       <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
-        title="清除格式" @click="editor.chain().focus().clearNodes().unsetAllMarks().run()">
+        v-tooltip="'清除格式'" @click="editor.chain().focus().clearNodes().unsetAllMarks().run()">
         <span class="i-lucide-remove-formatting w-4 h-4 inline-block align-middle" />
       </button>
     </div>
@@ -732,7 +628,7 @@ defineExpose({ connected, synced, initialSyncDone })
           class="w-6 h-6 rounded-full border border-gray-300 flex-shrink-0 hover:scale-110 transition-transform"
           :class="{ 'ring-2 ring-blue-500 ring-offset-1': c === '#ffffff' }"
           :style="{ backgroundColor: c }"
-          :title="c === '#ffffff' ? '默认颜色' : c"
+          v-tooltip="c === '#ffffff' ? '默认颜色' : c"
           @click="applyTextColor(c)"
         />
       </template>
@@ -741,7 +637,7 @@ defineExpose({ connected, synced, initialSyncDone })
           v-for="c in highlightColors" :key="c"
           class="w-6 h-6 rounded-full border border-gray-300 flex-shrink-0 hover:scale-110 transition-transform"
           :style="{ backgroundColor: c }"
-          :title="c"
+          v-tooltip="c"
           @click="applyHighlight(c)"
         />
       </template>
@@ -784,6 +680,7 @@ defineExpose({ connected, synced, initialSyncDone })
     </div>
 
     <TableBubbleMenu :editor="editor" />
+    <AiBubbleMenu v-if="editor" :editor="editor" />
 
     <CrossrefPicker
       :visible="crossrefPickerVisible"
@@ -794,77 +691,20 @@ defineExpose({ connected, synced, initialSyncDone })
       @remove="onCrossrefRemove"
     />
 
-    <ModalDialog
-      :visible="imageDialogVisible"
-      title="插入图片"
-      confirm-text="插入"
-      cancel-text="取消"
-      :error="imageUrlError"
-      :hide-footer="!!imageUploadingFile"
-      :loading="uploading"
-      @close="onImageDialogCancel"
-      @confirm="insertImageUrl"
-    >
-      <!-- 上传中 -->
-      <div v-if="imageUploadingFile" class="flex flex-col items-center py-6 gap-3">
-        <span class="i-lucide-loader-2 w-8 h-8 animate-spin text-blue-500" />
-        <div class="text-sm text-gray-600">正在上传 {{ imageUploadingFile.name }}</div>
-        <div class="text-xs text-gray-400">{{ imageUploadingFile.size }}，请稍候...</div>
-      </div>
-      <!-- 上传表单 -->
-      <div v-else class="space-y-4">
-        <div>
-          <label class="text-xs text-gray-500 mb-1 block">图片链接</label>
-          <input
-            v-model="imageUrl"
-            class="input text-sm"
-            placeholder="https://example.com/image.png"
-            @keyup.enter="insertImageUrl"
-          />
-        </div>
-        <div class="border-t border-gray-200 pt-3 text-center">
-          <button class="btn-secondary text-sm" @click="triggerUpload">
-            <span class="i-lucide-upload w-4 h-4 inline-block align-middle mr-1" />从本地上传
-          </button>
-        </div>
-      </div>
-    </ModalDialog>
+    <MediaUploadDialog
+      :visible="imageUploadVisible"
+      media-type="image"
+      @update:visible="imageUploadVisible = $event"
+      @insert="onMediaInsert"
+    />
 
-    <ModalDialog
-      :visible="videoDialogVisible"
-      title="插入视频"
-      confirm-text="插入"
-      cancel-text="取消"
-      :error="videoUrlError"
-      :hide-footer="!!videoUploadingFile"
-      :loading="videoUploading"
-      @close="onVideoDialogCancel"
-      @confirm="insertVideoUrl"
-    >
-      <!-- 上传中 -->
-      <div v-if="videoUploadingFile" class="flex flex-col items-center py-6 gap-3">
-        <span class="i-lucide-loader-2 w-8 h-8 animate-spin text-blue-500" />
-        <div class="text-sm text-gray-600">正在上传 {{ videoUploadingFile.name }}</div>
-        <div class="text-xs text-gray-400">{{ videoUploadingFile.size }}，请稍候...</div>
-      </div>
-      <!-- 上传表单 -->
-      <div v-else class="space-y-4">
-        <div>
-          <label class="text-xs text-gray-500 mb-1 block">视频链接</label>
-          <input
-            v-model="videoUrl"
-            class="input text-sm"
-            placeholder="https://example.com/video.mp4"
-            @keyup.enter="insertVideoUrl"
-          />
-        </div>
-        <div class="border-t border-gray-200 pt-3 text-center">
-          <button class="btn-secondary text-sm" @click="triggerVideoUpload">
-            <span class="i-lucide-upload w-4 h-4 inline-block align-middle mr-1" />从本地上传（最大 100MB）
-          </button>
-        </div>
-      </div>
-    </ModalDialog>
+    <MediaUploadDialog
+      :visible="videoUploadVisible"
+      media-type="video"
+      :max-size="100"
+      @update:visible="videoUploadVisible = $event"
+      @insert="onMediaInsert"
+    />
 
     <ModalDialog
       :visible="linkDialogVisible"
@@ -918,18 +758,18 @@ defineExpose({ connected, synced, initialSyncDone })
       <span>{{ wordCount }} 词 / {{ charCount }} 字符</span>
       <div class="flex items-center gap-1.5">
         <!-- 在线用户头像 -->
-        <div v-if="onlineUsers.length > 0" class="flex items-center gap-1 mr-3" title="当前在线">
+        <div v-if="onlineUsers.length > 0" class="flex items-center gap-1 mr-3" v-tooltip="'当前在线'">
           <template v-for="(u, i) in onlineUsers" :key="i">
             <div
               v-if="u.avatar"
               class="w-5 h-5 rounded-full flex-shrink-0 bg-cover bg-center"
-              :title="u.name"
+              v-tooltip="u.name"
               :style="{ backgroundImage: `url(${u.avatar})`, backgroundColor: u.color, boxShadow: `0 0 0 1.5px ${u.color}` }"
             />
             <div
               v-else
               class="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-white text-[11px] font-semibold"
-              :title="u.name"
+              v-tooltip="u.name"
               :style="{ backgroundColor: u.color, boxShadow: `0 0 0 1.5px ${u.color}` }"
             >
               {{ u.name[0] || '?' }}
