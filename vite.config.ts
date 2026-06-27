@@ -33,5 +33,24 @@ export default defineConfig({
     environment: 'node',
     include: ['src/__tests__/**/*.test.ts', 'server/__tests__/**/*.test.ts'],
     testTimeout: 10000,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'text-summary', 'lcov', 'html'],
+      reportsDirectory: './coverage',
+      include: ['server/**/*.ts', 'src/**/*.ts', 'src/**/*.vue'],
+      exclude: [
+        'server/__tests__/**',
+        'src/__tests__/**',
+        'server/services/site-builder/script.js',
+        'server/services/site-builder/search.js',
+        'src/router.ts',
+      ],
+      thresholds: {
+        statements: 50,
+        branches: 40,
+        functions: 40,
+        lines: 50,
+      },
+    },
   },
 })

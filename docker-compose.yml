@@ -8,16 +8,55 @@ services:
     volumes:
       - ./data:/app/data
     environment:
+      # === 运行环境 ===
       - NODE_ENV=production
-      - DATABASE_PATH=/app/data/manual.db
-      - UPLOAD_DIR=/app/data/uploads
+      - PORT=3000
+
+      # === 安全 ===
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+
+      # === 管理员 ===
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+
+      # === 数据库 & 存储 ===
+      - DATABASE_PATH=/app/data/manual.db
+      # WAL 模式在 Windows Docker Desktop 的 NTFS bind mount 上不支持（SQLITE_IOERR_SHMOPEN）
+      # Linux 原生部署可改为 wal 获得更好的并发读性能
+      - DB_JOURNAL_MODE=${DB_JOURNAL_MODE:-delete}
+      - UPLOAD_DIR=/app/data/uploads
+      - EXPORT_DIR=/app/data/exports
+      - IMPORT_DIR=/app/data/imports
+      - CACHE_DIR=/app/data/cache
+      - UPLOAD_MAX_SIZE=10
+      - VIDEO_MAX_SIZE=100
+
+      # === 日志 ===
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_FILE_PATH=/app/data/logs/app.log
+      - LOG_RETAIN_DAYS=30
+      - LOG_MAX_SIZE_MB=10
+
+      # === Puppeteer (PDF 导出) ===
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+      - PUPPETEER_SKIP_DOWNLOAD=true
+
+      # === 飞书（可选） ===
       - FEISHU_APP_ID=${FEISHU_APP_ID:-}
       - FEISHU_APP_SECRET=${FEISHU_APP_SECRET:-}
       - FEISHU_REDIRECT_URI=${FEISHU_REDIRECT_URI:-}
-      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
-      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
-      - PUPPETEER_SKIP_DOWNLOAD=true
+      - ADMIN_OPEN_IDS=${ADMIN_OPEN_IDS:-}
+
+      # === AI 写作助手（可选） ===
+      - AI_BASE_URL=${AI_BASE_URL:-}
+      - AI_API_KEY=${AI_API_KEY:-}
+      - AI_MODEL=${AI_MODEL:-gpt-4o-mini}
+
+      # === PDF 中文字体（可选，挂载字体文件后设路径） ===
+      - PDF_FONT_REGULAR=${PDF_FONT_REGULAR:-}
+      - PDF_FONT_BOLD=${PDF_FONT_BOLD:-}
+
     restart: unless-stopped
+    # PDF 导出需要 ~700MB：Node.js 100MB + Chromium 400MB + buffer 150MB
     mem_limit: 2g
+    shm_size: 128m
