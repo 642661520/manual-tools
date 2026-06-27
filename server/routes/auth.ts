@@ -28,19 +28,7 @@ export async function authRoutes(app: FastifyInstance) {
       return fail(reply, 401, '该账号未设置密码，请使用飞书登录')
     }
 
-    // bcrypt 比对；存量明文密码兼容：比对失败时回退明文比对并自动升级
-    let passwordMatch = false
-    try {
-      passwordMatch = bcrypt.compareSync(password, user.password_hash)
-    } catch {
-      // bcrypt.compareSync 对非哈希字符串会抛异常，回退明文比对
-    }
-    if (!passwordMatch && password === user.password_hash) {
-      // 存量明文密码，自动升级为 bcrypt 哈希
-      const hashed = bcrypt.hashSync(password, 10)
-      db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashed, user.id)
-      passwordMatch = true
-    }
+    const passwordMatch = bcrypt.compareSync(password, user.password_hash)
     if (!passwordMatch) {
       return fail(reply, 401, '用户名或密码错误')
     }
@@ -69,7 +57,7 @@ export async function authRoutes(app: FastifyInstance) {
   })
 
   // 登出：递增 token_version 使所有 JWT 失效
-  app.post('/api/v1/auth/logout', { preHandler: authMiddleware }, async (req, reply) => {
+  app.post('/api/v1/auth/logout', { preHandler: authMiddleware }, async (req) => {
     const db = getDb()
     db.prepare('UPDATE users SET token_version = token_version + 1 WHERE id = ?')
       .run(req.user!.userId)

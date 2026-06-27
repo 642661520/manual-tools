@@ -21,6 +21,9 @@ import { categoryRoutes } from './routes/categories.js'
 import { dataTaskRoutes } from './routes/data-tasks.js'
 import { uploadRoutes } from './routes/upload.js'
 import { todoRoutes } from './routes/todos.js'
+import { cacheRoutes } from './routes/cache.js'
+import { cleanExpiredRemoteCache } from './services/remote-cache.js'
+import { cleanExpiredExportCache } from './services/export-cache.js'
 import { verifyToken } from './auth/jwt.js'
 import { getDb } from './db/index.js'
 import { isProjectMember } from './auth/membership.js'
@@ -114,6 +117,10 @@ async function main() {
   // 初始化数据库
   initDatabase()
 
+  // 启动时清理过期缓存
+  cleanExpiredRemoteCache()
+  cleanExpiredExportCache()
+
   // 静态托管上传文件
   const staticModule = await import('@fastify/static')
   await app.register(staticModule.default, {
@@ -150,7 +157,7 @@ async function main() {
   // 飞书绑定路由
   await app.register(feishuBindRoutes)
 
-  // 主题骨架路由
+  // 章节骨架路由
   await app.register(featureRoutes)
 
   // 目录编排路由（含预览和导出）
@@ -164,6 +171,9 @@ async function main() {
 
   // 待办路由
   await app.register(todoRoutes)
+
+  // 缓存管理路由
+  await app.register(cacheRoutes)
 
   // 文档站点访问控制
   app.addHook('onRequest', async (req, reply) => {

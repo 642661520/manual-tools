@@ -117,7 +117,7 @@ export function buildChapterContentHtml(
     const page = pages[i]
 
     html += `<section class="section" id="${anchorId}">`
-    // 默认章节不显示节标题（与主题名重复）
+    // 默认章节不显示节标题（与章节名重复）
     if (!isLeaf) {
       html += `<${sectionTag}>${chNum}.${i + 1} ${escHtml(sec.title)}</${sectionTag}>`
     }

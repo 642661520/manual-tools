@@ -154,15 +154,7 @@ export async function profileRoutes(app: FastifyInstance) {
       if (!currentPassword || typeof currentPassword !== 'string') {
         return fail(reply, 400, '请输入当前密码')
       }
-      let currentMatch = false
-      try {
-        currentMatch = bcrypt.compareSync(currentPassword, user.password_hash!)
-      } catch {
-        // bcrypt 解析失败，回退明文比对（存量明文密码兼容）
-      }
-      if (!currentMatch && currentPassword === user.password_hash) {
-        currentMatch = true
-      }
+      const currentMatch = bcrypt.compareSync(currentPassword, user.password_hash!)
       if (!currentMatch) {
         return fail(reply, 400, '当前密码不正确')
       }
