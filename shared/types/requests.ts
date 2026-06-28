@@ -89,7 +89,6 @@ export interface UpdateSectionsBody {
 
 export interface CreateCatalogBody {
   title?: string
-  targets?: string[]
   features?: CatalogEntry[]
   cover?: Record<string, string>
   projectId?: string

@@ -118,7 +118,6 @@ export interface ManualPreviewResponse {
   catalog: {
     id: string
     title: string
-    targets: string[]
     coverInfo: Record<string, unknown>
     entries: CatalogEntry[]
     projectId: string

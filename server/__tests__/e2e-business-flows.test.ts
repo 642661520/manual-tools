@@ -24,7 +24,7 @@ beforeAll(async () => {
   const loginRes = await app.inject({
     method: 'POST',
     url: '/api/v1/auth/login',
-    payload: { username: 'admin', password: 'admin123' },
+    payload: { username: 'admin', password: 'Admin@123' },
   })
   adminToken = loginRes.json().data.token
   expect(loginRes.statusCode).toBe(200)
@@ -258,9 +258,8 @@ describe('流程4: 目录发布', () => {
       payload: {
         projectId,
         title: `__test_${PREFIX}_catalog`,
-        targets: ['新用户'],
         features: [{ featureId, type: 'feature' as const }],
-        coverInfo: { description: 'E2E 测试目录' },
+        cover: { description: 'E2E 测试目录' },
       },
     })
     expect(res.statusCode).toBe(200)
@@ -299,12 +298,11 @@ describe('流程4: 目录发布', () => {
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         title: `__test_${PREFIX}_catalog_v2`,
-        targets: ['新用户', '管理员'],
         features: [
           { featureId, type: 'feature' as const },
           { featureId: feat2Id, type: 'feature' as const },
         ],
-        coverInfo: { description: '更新后的目录' },
+        cover: { description: '更新后的目录' },
       },
     })
     expect(res.statusCode).toBe(200)

@@ -34,6 +34,8 @@ export const AUDIT_ACTIONS = {
   'catalog.delete': '删除目录',
   'catalog.publish': '发布版本',
   'catalog.version_visibility': '更改版本可见性',
+  'catalog.version_status': '更改版本状态',
+  'catalog.version_delete': '删除版本',
 
   // ======================== 用户与认证 ========================
   'user.create': '创建用户',
@@ -123,6 +125,8 @@ export const ACTIONS_BY_TARGET: Record<string, AuditAction[]> = {
     'catalog.delete',
     'catalog.publish',
     'catalog.version_visibility',
+    'catalog.version_status',
+    'catalog.version_delete',
   ],
   user: ['user.create', 'user.delete', 'user.role_change', 'user.password_change'],
   auth: ['auth.login', 'auth.login_failed', 'auth.logout', 'auth.feishu_login'],
@@ -150,6 +154,7 @@ export const HIGH_RISK_ACTIONS = new Set<AuditAction>([
   'project.delete',
   'feature.delete',
   'catalog.delete',
+  'catalog.version_delete',
   'user.delete',
   'data.import_apply',
 ])

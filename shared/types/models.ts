@@ -118,13 +118,14 @@ export function isCatalogPart(entry: CatalogEntry): entry is CatalogPart {
 export interface CatalogInfo {
   id: string
   title: string
-  targets: string[]
   features: CatalogEntry[]
   coverInfo: Record<string, unknown>
   projectId: string
   createdAt: string
   updatedAt: string
 }
+
+export type CatalogVersionStatus = 'active' | 'deprecated' | 'archived'
 
 export interface CatalogVersionInfo {
   id: string
@@ -134,6 +135,7 @@ export interface CatalogVersionInfo {
   changeNotes: string
   visibility: string
   publishScope: string
+  status: CatalogVersionStatus
   createdAt: string
 }
 

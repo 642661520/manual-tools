@@ -17,7 +17,7 @@ beforeAll(async () => {
   const loginRes = await app.inject({
     method: 'POST',
     url: '/api/v1/auth/login',
-    payload: { username: 'admin', password: 'admin123' },
+    payload: { username: 'admin', password: 'Admin@123' },
   })
   adminToken = loginRes.json().data.token
 
@@ -61,7 +61,7 @@ describe('Catalog CRUD', () => {
       method: 'POST',
       url: '/api/v1/catalogs',
       headers: { authorization: `Bearer ${adminToken}` },
-      payload: { title: '__test_cat_temp', features: [], targets: [], projectId },
+      payload: { title: '__test_cat_temp', features: [], projectId },
     })
     expect(res.statusCode).toBe(200)
     catalogId = res.json().data.id

@@ -32,7 +32,7 @@ describe('Auth 集成测试', () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
-      payload: { username: 'admin', password: 'admin123' },
+      payload: { username: 'admin', password: 'Admin@123' },
     })
     expect(loginRes.statusCode).toBe(200)
     const loginBody = loginRes.json()

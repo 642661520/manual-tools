@@ -32,8 +32,8 @@ beforeAll(() => {
   ).run(TEST_PROJECT_ID, TEST_USER_ID, 'writer')
   // 创建测试 catalog
   db.prepare(
-    'INSERT OR IGNORE INTO catalogs (id, title, targets, features, cover_info, project_id) VALUES (?, ?, ?, ?, ?, ?)',
-  ).run(TEST_CATALOG_ID, TEST_CATALOG_ID, '[]', '[]', '{}', TEST_PROJECT_ID)
+    'INSERT OR IGNORE INTO catalogs (id, title, features, cover_info, project_id) VALUES (?, ?, ?, ?, ?)',
+  ).run(TEST_CATALOG_ID, TEST_CATALOG_ID, '[]', '{}', TEST_PROJECT_ID)
 })
 
 afterAll(() => {
