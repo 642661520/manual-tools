@@ -11,6 +11,7 @@ services:
       # === 运行环境 ===
       - NODE_ENV=production
       - PORT=${PORT:-3000}
+      - APP_BASE_URL=${APP_BASE_URL:-}
 
       # === 安全 ===
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
@@ -35,11 +36,20 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - LOG_FILE_LEVEL=${LOG_FILE_LEVEL:-info}
       - LOG_FILE_PATH=/app/data/logs/app.log
+      - LOG_HOSTNAME=${LOG_HOSTNAME:-}
       - LOG_RETAIN_DAYS=30
       - LOG_MAX_SIZE_MB=10
 
       # === CORS ===
       - CORS_ORIGIN=${CORS_ORIGIN:-}
+
+      # === Y.js 协同编辑 ===
+      - YJS_SNAPSHOT_UPDATE_THRESHOLD=${YJS_SNAPSHOT_UPDATE_THRESHOLD:-500}
+
+      # === 缓存 ===
+      - REMOTE_CACHE_TTL_DAYS=${REMOTE_CACHE_TTL_DAYS:-7}
+      - EXPORT_CACHE_TTL_DAYS=${EXPORT_CACHE_TTL_DAYS:-30}
+      - REMOTE_CACHE_MAX_FILE_MB=${REMOTE_CACHE_MAX_FILE_MB:-50}
 
       # === Puppeteer (PDF 导出) ===
       - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
