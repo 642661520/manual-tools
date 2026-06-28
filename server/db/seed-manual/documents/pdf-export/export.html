@@ -1,0 +1,15 @@
+<h1>PDF 导出流程</h1>
+<p>支持将手册导出为 PDF 文件，方便离线阅读和打印。</p>
+<h2>导出方式</h2>
+<p>在版本详情或预览页面，点击<strong>导出 PDF</strong>按钮。导出过程：</p>
+<ol>
+  <li>系统将手册渲染为 HTML 页面</li>
+  <li>使用 Puppeteer（无头 Chromium）将 HTML 转换为 PDF</li>
+  <li>应用页面布局和分页设置</li>
+  <li>生成 PDF 文件供下载</li>
+</ol>
+<h2>导出内容</h2>
+<p>PDF 包含封面页、目录页和完整的文档内容。图片和表格都会被保留，超链接转换为可点击的 PDF 链接。</p><div data-image-placeholder="pdf-export-export.png" style="background:#f1f5f9;border:2px dashed #94a3b8;border-radius:8px;padding:20px 24px;text-align:center;color:#64748b;margin:16px 0;font-size:14px;">
+  <div style="font-size:24px;margin-bottom:6px;">🖼️</div>
+  <div>图片占位：pdf-export - export</div>
+</div>

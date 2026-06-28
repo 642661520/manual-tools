@@ -1,0 +1,12 @@
+{
+  "id": "manual-tools:media-upload",
+  "title": "媒体上传",
+  "description": "图片和视频文件的上传管理，包括文件大小限制、格式支持和远程图片自动缓存",
+  "category_id": "cat-writing",
+  "sections": [
+    { "key": "image", "title": "图片上传", "description": "支持拖拽和剪贴板粘贴上传图片" },
+    { "key": "video", "title": "视频上传", "description": "视频文件的格式支持和上传限制" },
+    { "key": "limits", "title": "大小限制", "description": "图片最大 10MB、视频最大 100MB 的文件限制说明" },
+    { "key": "cache", "title": "远程图片缓存", "description": "粘贴外部图片链接时的自动缓存机制" }
+  ]
+}

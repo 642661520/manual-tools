@@ -240,6 +240,14 @@ export function initDatabase() {
     .prepare('INSERT OR IGNORE INTO projects (id, name, description) VALUES (?, ?, ?)')
     .run('default', '默认项目', '系统初始化创建')
 
+  // 种子元数据表（记录种子数据版本等）
+  conn.exec(`
+    CREATE TABLE IF NOT EXISTS seed_metadata (
+      seed_key TEXT PRIMARY KEY,
+      seed_value TEXT NOT NULL
+    );
+  `)
+
   // 常用查询索引
   conn.exec(`
     CREATE INDEX IF NOT EXISTS idx_features_project_id ON features(project_id);
@@ -260,14 +268,6 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id);
     CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
     CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at);
-    CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
-      title,
-      content,
-      doc_id,
-      project_id UNINDEXED,
-      section_key UNINDEXED,
-      tokenize='unicode61'
-    );
     CREATE TABLE IF NOT EXISTS search_docs (
       doc_id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -296,7 +296,7 @@ export function initDatabase() {
       .prepare(
         'INSERT INTO users (id, username, display_name, password_hash, role) VALUES (?, ?, ?, ?, ?)',
       )
-      .run('seed-admin-001', config.adminUsername, '系统管理员', hashed, 'admin')
+      .run('seed-admin-001', config.adminUsername, 'admin', hashed, 'admin')
     // 将管理员加入默认项目
     conn
       .prepare('INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)')

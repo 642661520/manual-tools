@@ -1,0 +1,21 @@
+<h1>审核通知</h1>
+<p>审核相关事件可以通过飞书消息推送通知相关人员。</p>
+<h2>通知场景</h2>
+<ul>
+  <li><strong>提交审核</strong> — 通知审核链中的下一个审核人有新的审核任务</li>
+  <li><strong>审核驳回</strong> — 通知文档作者文档被驳回，需要修改</li>
+  <li><strong>审核通过</strong> — 通知作者文档已通过审核</li>
+</ul>
+<h2>通知内容</h2>
+<p>飞书消息包含：</p>
+<ul>
+  <li>事件类型（提交/驳回/通过）</li>
+  <li>项目名称和功能名称</li>
+  <li>审核意见（如有）</li>
+  <li>跳转链接（可一键跳转到对应文档）</li>
+</ul>
+<h2>配置要求</h2>
+<p>飞书通知功能需要配置飞书应用（<code>FEISHU_APP_ID</code> 和 <code>FEISHU_APP_SECRET</code> 环境变量）。未配置时通知功能不生效。</p><div data-image-placeholder="review-chain-notifications.png" style="background:#f1f5f9;border:2px dashed #94a3b8;border-radius:8px;padding:20px 24px;text-align:center;color:#64748b;margin:16px 0;font-size:14px;">
+  <div style="font-size:24px;margin-bottom:6px;">🖼️</div>
+  <div>图片占位：review-chain - notifications</div>
+</div>

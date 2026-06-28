@@ -1,0 +1,10 @@
+{
+  "id": "manual-tools:search",
+  "title": "全文搜索",
+  "description": "基于 FTS5 的全文搜索引擎，支持跨文档内容搜索，索引自动维护并在服务器启动时重建",
+  "category_id": "cat-admin",
+  "sections": [
+    { "key": "usage", "title": "搜索使用", "description": "全文搜索的使用方式和搜索语法" },
+    { "key": "rebuild", "title": "索引重建", "description": "手动重建搜索索引的场景和操作方法" }
+  ]
+}

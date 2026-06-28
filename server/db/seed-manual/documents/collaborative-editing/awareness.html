@@ -1,0 +1,25 @@
+<h1>光标感知</h1>
+<p>协同编辑时，您可以实时看到其他编辑者的光标位置和选中区域。</p>
+<h2>Awareness 协议</h2>
+<p>Y.js 的 <strong>Awareness 协议</strong>用于在协作者之间同步非文档内容的信息，包括：</p>
+<ul>
+  <li><strong>光标位置</strong> — 每个用户的光标在文档中的精确位置</li>
+  <li><strong>选中范围</strong> — 用户当前选中的文本区域</li>
+  <li><strong>用户信息</strong> — 显示名称和颜色标识</li>
+</ul>
+<h2>可视化效果</h2>
+<ul>
+  <li>每个在线用户有一个<strong>独特颜色</strong>的光标</li>
+  <li>光标上方显示用户的<strong>显示名称</strong></li>
+  <li>其他用户选中的文本会以该用户的颜色<strong>半透明高亮</strong></li>
+  <li>编辑器底部状态栏显示<strong>当前在线人数</strong></li>
+</ul>
+<h2>注意事项</h2>
+<ul>
+  <li>光标感知功能需要 WebSocket 连接保持活跃</li>
+  <li>同一用户在不同标签页中打开同一文档，会产生多个光标</li>
+  <li>网络延迟可能导致光标位置短暂偏移</li>
+</ul><div data-image-placeholder="collaborative-editing-awareness.png" style="background:#f1f5f9;border:2px dashed #94a3b8;border-radius:8px;padding:20px 24px;text-align:center;color:#64748b;margin:16px 0;font-size:14px;">
+  <div style="font-size:24px;margin-bottom:6px;">🖼️</div>
+  <div>图片占位：collaborative-editing - awareness</div>
+</div>

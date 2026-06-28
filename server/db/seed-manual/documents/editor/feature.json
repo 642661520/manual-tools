@@ -1,0 +1,13 @@
+{
+  "id": "manual-tools:editor",
+  "title": "富文本编辑器",
+  "description": "基于 TipTap 的所见即所得编辑器，支持丰富的文本格式、表格、图片、视频、链接和交叉引用等功能",
+  "category_id": "cat-writing",
+  "sections": [
+    { "key": "overview", "title": "编辑器界面", "description": "编辑器工具栏、编辑区和状态栏的界面布局" },
+    { "key": "formatting", "title": "文本格式", "description": "标题层级、加粗、斜体、下划线、删除线、文字颜色和高亮等格式设置" },
+    { "key": "tables", "title": "表格", "description": "插入表格、行列增删、表头设置等表格操作" },
+    { "key": "media", "title": "图片与视频", "description": "在文档中插入图片和视频，支持拖拽上传" },
+    { "key": "links", "title": "链接与引用", "description": "超链接、交叉引用功能章节等链接类型的使用" }
+  ]
+}

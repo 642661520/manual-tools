@@ -1,0 +1,28 @@
+<h1>导出缓存管理</h1>
+<p>每次导出 PDF 或 Markdown 文件时，系统会缓存导出结果以便后续快速下载。</p>
+<h2>缓存内容</h2>
+<p>导出缓存包含：</p>
+<ul>
+  <li>PDF 格式的手册导出文件</li>
+  <li>Markdown 格式的 ZIP 导出包</li>
+  <li>与每个目录（Catalog）关联，同一目录重新导出时复用缓存</li>
+</ul>
+<h2>查看缓存</h2>
+<p>在数据管理页面的<strong>导出缓存</strong>区域可以看到：</p>
+<ul>
+  <li>缓存文件总数和总大小</li>
+  <li>每个缓存条目对应的目录名称、导出类型和创建时间</li>
+  <li>支持直接下载缓存文件</li>
+</ul>
+<h2>手动失效</h2>
+<p>如果目录内容已更新但缓存未自动刷新，可以点击<strong>清除此目录缓存</strong>使特定目录的导出缓存失效，下次导出时将重新生成。</p>
+<h2>配置</h2>
+<p>通过环境变量调整缓存策略：</p>
+<ul>
+  <li><code>EXPORT_CACHE_TTL_DAYS</code> — 导出缓存过期天数（默认 30）</li>
+  <li><code>CACHE_DIR</code> — 缓存根目录路径</li>
+</ul>
+<div data-image-placeholder="cache-management-export.png" style="background:#f1f5f9;border:2px dashed #94a3b8;border-radius:8px;padding:20px 24px;text-align:center;color:#64748b;margin:16px 0;font-size:14px;">
+  <div style="font-size:24px;margin-bottom:6px;">🖼️</div>
+  <div>图片占位：导出缓存列表：显示每个缓存文件的目录名、类型、大小和创建时间</div>
+</div>

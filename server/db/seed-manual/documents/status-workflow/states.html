@@ -1,0 +1,22 @@
+<h1>文档状态说明</h1>
+<p>每个文档章节在生命周期中会经历五种状态：</p>
+<h2>状态定义</h2>
+<table>
+  <tr><th>状态</th><th>含义</th><th>标识颜色</th></tr>
+  <tr><td><strong>draft（草稿）</strong></td><td>文档刚创建，尚未开始编辑或内容为空</td><td>灰色</td></tr>
+  <tr><td><strong>in_progress（编写中）</strong></td><td>正在编写和修改内容</td><td>蓝色</td></tr>
+  <tr><td><strong>pending_review（待审核）</strong></td><td>已提交审核，等待审核人审批</td><td>橙色</td></tr>
+  <tr><td><strong>approved（已通过）</strong></td><td>审核通过，可以发布到手册中</td><td>绿色</td></tr>
+  <tr><td><strong>rejected（已驳回）</strong></td><td>审核未通过，需要修改后重新提交</td><td>红色</td></tr>
+</table>
+<h2>状态查看</h2>
+<ul>
+  <li>编辑器底部状态栏显示当前文档状态，可点击进行状态流转</li>
+  <li>功能列表页面显示每个章节的状态标记</li>
+  <li>目录编排和预览页面可按状态筛选内容</li>
+</ul>
+<h2>状态流转示意</h2>
+<div data-image-placeholder="status-workflow-states.png" style="background:#f1f5f9;border:2px dashed #94a3b8;border-radius:8px;padding:20px 24px;text-align:center;color:#64748b;margin:16px 0;font-size:14px;">
+  <div style="font-size:24px;margin-bottom:6px;">🖼️</div>
+  <div>图片占位：文档状态流转示意图：draft → in_progress → pending_review → approved/rejected</div>
+</div>

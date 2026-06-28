@@ -1,0 +1,30 @@
+<h1>远程资源缓存</h1>
+<p>在编辑器中粘贴外部图片链接时，平台会自动将图片下载并缓存到本地，避免外部链接失效导致图片无法显示。</p>
+<h2>工作原理</h2>
+<ol>
+  <li>在编辑器中粘贴包含外部图片的 URL 或内容</li>
+  <li>系统自动下载图片并计算 SHA-256 哈希值</li>
+  <li>图片存储在 <code>data/cache/remote/{hash前2位}/{完整hash}.{ext}</code></li>
+  <li>文档中的图片链接替换为本地 <code>/uploads/images/...</code> 路径</li>
+</ol>
+<h2>查看缓存</h2>
+<p>在数据管理页面的<strong>远程缓存</strong>区域可以看到：</p>
+<ul>
+  <li>已缓存的远程图片数量</li>
+  <li>每条缓存记录的原始 URL、文件类型、大小和缓存时间</li>
+  <li>支持预览缓存图片</li>
+</ul>
+<h2>管理操作</h2>
+<ul>
+  <li><strong>删除单条</strong> — 删除特定远程资源的缓存</li>
+  <li><strong>清除全部</strong> — 清除所有远程缓存（不影响已转换为本地路径的文档内容）</li>
+</ul>
+<h2>配置</h2>
+<ul>
+  <li><code>REMOTE_CACHE_TTL_DAYS</code> — 远程缓存过期天数（默认 7）</li>
+  <li><code>REMOTE_CACHE_MAX_FILE_MB</code> — 单文件大小上限（默认 50MB）</li>
+</ul>
+<div data-image-placeholder="cache-management-remote.png" style="background:#f1f5f9;border:2px dashed #94a3b8;border-radius:8px;padding:20px 24px;text-align:center;color:#64748b;margin:16px 0;font-size:14px;">
+  <div style="font-size:24px;margin-bottom:6px;">🖼️</div>
+  <div>图片占位：远程缓存列表：显示原始URL、文件类型、大小和缓存时间</div>
+</div>

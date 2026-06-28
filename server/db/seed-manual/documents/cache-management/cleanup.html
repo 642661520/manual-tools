@@ -1,0 +1,31 @@
+<h1>缓存清理</h1>
+<p>系统提供手动和自动两种缓存清理方式。</p>
+<h2>自动清理</h2>
+<p>服务器启动时自动执行：</p>
+<ul>
+  <li>扫描 <code>data/cache/exports/</code> 目录，删除超过 <code>EXPORT_CACHE_TTL_DAYS</code> 天的导出缓存</li>
+  <li>扫描 <code>data/cache/remote/</code> 目录，删除超过 <code>REMOTE_CACHE_TTL_DAYS</code> 天的远程资源缓存</li>
+</ul>
+<h2>手动清理</h2>
+<p>在数据管理页面可以手动执行清理操作：</p>
+<ol>
+  <li>进入<strong>系统设置</strong> → <strong>数据管理</strong></li>
+  <li>点击<strong>清理过期缓存</strong>按钮，立即清理所有过期缓存文件</li>
+  <li>或使用各缓存区域的单个删除功能精确清理</li>
+</ol>
+<h2>清理时机建议</h2>
+<ul>
+  <li><strong>日常运行</strong> — 依赖自动清理即可，无需手动干预</li>
+  <li><strong>磁盘空间不足</strong> — 手动清理过期缓存释放空间</li>
+  <li><strong>内容更新后</strong> — 使特定目录的导出缓存失效，确保下次导出使用最新内容</li>
+</ul>
+<h2>注意事项</h2>
+<ul>
+  <li>清理缓存不会影响已发布的文档站点</li>
+  <li>已转换为本地路径的文档图片不会因远程缓存清理而丢失</li>
+  <li>清理后首次导出或访问远程资源时需要重新生成/下载</li>
+</ul>
+<div data-image-placeholder="cache-management-cleanup.png" style="background:#f1f5f9;border:2px dashed #94a3b8;border-radius:8px;padding:20px 24px;text-align:center;color:#64748b;margin:16px 0;font-size:14px;">
+  <div style="font-size:24px;margin-bottom:6px;">🖼️</div>
+  <div>图片占位：cache-management - cleanup</div>
+</div>

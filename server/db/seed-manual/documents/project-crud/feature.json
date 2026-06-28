@@ -1,0 +1,12 @@
+{
+  "id": "manual-tools:project-crud",
+  "title": "项目创建与管理",
+  "description": "项目的创建、编辑和删除操作说明，包括项目名称、描述的设置以及删除项目时的注意事项",
+  "category_id": "cat-projects",
+  "sections": [
+    { "key": "create", "title": "创建项目", "description": "如何创建新的文档项目" },
+    { "key": "edit", "title": "编辑项目", "description": "修改项目名称和描述信息" },
+    { "key": "delete", "title": "删除项目", "description": "删除项目的前置条件和级联影响" },
+    { "key": "default", "title": "默认项目说明", "description": "系统默认项目的用途和特点" }
+  ]
+}

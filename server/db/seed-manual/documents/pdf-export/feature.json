@@ -1,0 +1,12 @@
+{
+  "id": "manual-tools:pdf-export",
+  "title": "PDF 导出",
+  "description": "将手册导出为 PDF 文件，支持草稿导出和版本导出两种模式，可配置中文字体解决乱码问题",
+  "category_id": "cat-publishing",
+  "sections": [
+    { "key": "export", "title": "导出流程", "description": "PDF 导出的操作入口和参数设置" },
+    { "key": "draft", "title": "草稿 PDF", "description": "导出当前未发布内容的草稿版本" },
+    { "key": "version", "title": "版本 PDF", "description": "导出已发布版本的高质量 PDF" },
+    { "key": "fonts", "title": "字体配置", "description": "配置中文字体文件避免 PDF 中文乱码" }
+  ]
+}

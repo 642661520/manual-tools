@@ -1,0 +1,19 @@
+<h1>字体配置</h1>
+<p>PDF 导出需要配置中文字体文件以避免中文乱码。</p>
+<h2>配置方式</h2>
+<p>通过环境变量指定字体文件路径：</p>
+<ul>
+  <li><code>PDF_FONT_REGULAR</code> — 常规字体文件路径</li>
+  <li><code>PDF_FONT_BOLD</code> — 粗体字体文件路径</li>
+</ul>
+<h2>推荐字体</h2>
+<p>推荐使用开源中文字体，如：</p>
+<ul>
+  <li><strong>Noto Sans SC</strong>（思源黑体）</li>
+  <li><strong>WenQuanYi Micro Hei</strong>（文泉驿微米黑）</li>
+</ul>
+<h2>未配置时</h2>
+<p>如果未配置中文字体，PDF 中的中文可能显示为方框或乱码。Docker 部署时建议在镜像中预装字体，或通过挂载字体文件来配置。</p><div data-image-placeholder="pdf-export-fonts.png" style="background:#f1f5f9;border:2px dashed #94a3b8;border-radius:8px;padding:20px 24px;text-align:center;color:#64748b;margin:16px 0;font-size:14px;">
+  <div style="font-size:24px;margin-bottom:6px;">🖼️</div>
+  <div>图片占位：pdf-export - fonts</div>
+</div>

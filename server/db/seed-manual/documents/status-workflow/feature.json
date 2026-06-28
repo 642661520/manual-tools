@@ -1,0 +1,12 @@
+{
+  "id": "manual-tools:status-workflow",
+  "title": "文档状态流转",
+  "description": "文档从编写到发布的状态生命周期管理，包括草稿、编写中、待审核、已通过和已驳回五种状态及其流转规则",
+  "category_id": "cat-review",
+  "sections": [
+    { "key": "states", "title": "状态说明", "description": "五种文档状态的详细定义和含义" },
+    { "key": "workflow", "title": "流转流程", "description": "状态之间的转换规则和操作入口" },
+    { "key": "submit", "title": "提交审核", "description": "将文档提交到审核流程的操作说明" },
+    { "key": "reset", "title": "退回修改", "description": "审核驳回后的修改和重新提交流程" }
+  ]
+}

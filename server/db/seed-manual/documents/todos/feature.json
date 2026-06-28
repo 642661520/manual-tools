@@ -1,0 +1,11 @@
+{
+  "id": "manual-tools:todos",
+  "title": "待办管理",
+  "description": "个人待办事项汇总面板，集中展示分配给当前用户的编写任务和审核任务",
+  "category_id": "cat-review",
+  "sections": [
+    { "key": "write-tasks", "title": "编写任务", "description": "查看和管理分配给自己编写的文档章节" },
+    { "key": "review-tasks", "title": "审核任务", "description": "查看和管理待自己审核的文档内容" },
+    { "key": "dashboard", "title": "任务看板", "description": "待办页面的整体布局和使用方式" }
+  ]
+}

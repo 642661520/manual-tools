@@ -1,0 +1,11 @@
+{
+  "id": "manual-tools:permissions",
+  "title": "权限体系",
+  "description": "平台采用双层权限模型：系统级角色（控制整体功能访问）和项目级角色（控制单个项目内的操作权限）",
+  "category_id": "cat-admin",
+  "sections": [
+    { "key": "system-roles", "title": "系统角色", "description": "Admin / Member / Guest 三种系统角色的功能权限" },
+    { "key": "project-roles", "title": "项目角色", "description": "PM / Writer / Viewer 三种项目角色的操作权限" },
+    { "key": "matrix", "title": "权限矩阵", "description": "系统角色和项目角色交叉的完整权限对照表" }
+  ]
+}

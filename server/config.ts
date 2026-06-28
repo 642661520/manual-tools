@@ -95,6 +95,9 @@ export const config = {
   exportCacheTtlDays: envInt('EXPORT_CACHE_TTL_DAYS', 30),
   remoteCacheMaxFileMb: envInt('REMOTE_CACHE_MAX_FILE_MB', 50),
 
+  // 默认项目只读（上线后设为 true，仅允许添加成员）
+  defaultProjectReadonly: env('DEFAULT_PROJECT_READONLY', '') === 'true',
+
   // 日志
   logLevel: env('LOG_LEVEL', env('NODE_ENV', '') === 'production' ? 'info' : 'debug'),
   logFileLevel: envOpt('LOG_FILE_LEVEL'),

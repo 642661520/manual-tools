@@ -1,0 +1,17 @@
+<h1>飞书 OAuth 登录</h1>
+<p>平台支持通过飞书 OAuth 进行登录和注册。</p>
+<h2>登录流程</h2>
+<ol>
+  <li>在登录页面点击<strong>飞书登录</strong>按钮</li>
+  <li>跳转到飞书授权页面确认授权</li>
+  <li>飞书回调返回授权码</li>
+  <li>平台使用授权码获取用户信息</li>
+  <li>如果是新用户，自动创建账号并绑定飞书</li>
+  <li>如果是已有用户，关联飞书账号</li>
+  <li>签发 JWT Token，登录成功</li>
+</ol>
+<h2>账号匹配</h2>
+<p>系统通过飞书 Open ID 识别用户。如果同一飞书账号之前已绑定，则直接登录。否则自动创建新用户（角色默认为 Member）。</p><div data-image-placeholder="feishu-integration-oauth.png" style="background:#f1f5f9;border:2px dashed #94a3b8;border-radius:8px;padding:20px 24px;text-align:center;color:#64748b;margin:16px 0;font-size:14px;">
+  <div style="font-size:24px;margin-bottom:6px;">🖼️</div>
+  <div>图片占位：feishu-integration - oauth</div>
+</div>

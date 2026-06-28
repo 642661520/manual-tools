@@ -1,0 +1,12 @@
+{
+  "id": "manual-tools:categories",
+  "title": "分类管理",
+  "description": "创建和管理功能分类，用颜色标记不同分类，通过拖拽排序调整分类显示顺序",
+  "category_id": "cat-writing",
+  "sections": [
+    { "key": "create", "title": "创建分类", "description": "新建分类并设置名称和颜色" },
+    { "key": "edit", "title": "编辑分类", "description": "修改分类名称和颜色标识" },
+    { "key": "delete", "title": "删除分类", "description": "删除分类的影响和前置检查" },
+    { "key": "reorder", "title": "分类排序", "description": "拖拽调整分类的显示顺序" }
+  ]
+}

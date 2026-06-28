@@ -1,0 +1,17 @@
+<h1>大小限制</h1>
+<p>为确保系统性能和存储效率，上传文件有大小限制。</p>
+<h2>默认限制</h2>
+<ul>
+  <li><strong>图片</strong> — 最大 10MB（可通过 <code>UPLOAD_MAX_SIZE</code> 环境变量调整）</li>
+  <li><strong>视频</strong> — 最大 100MB（可通过 <code>VIDEO_MAX_SIZE</code> 环境变量调整）</li>
+</ul>
+<h2>超出限制</h2>
+<p>上传超过限制的文件时，系统会返回明确的错误提示。建议：</p>
+<ul>
+  <li>图片使用压缩工具减小文件体积</li>
+  <li>视频使用转码工具降低码率和分辨率</li>
+  <li>对于超大视频，考虑上传到外部平台并在文档中嵌入链接</li>
+</ul><div data-image-placeholder="media-upload-limits.png" style="background:#f1f5f9;border:2px dashed #94a3b8;border-radius:8px;padding:20px 24px;text-align:center;color:#64748b;margin:16px 0;font-size:14px;">
+  <div style="font-size:24px;margin-bottom:6px;">🖼️</div>
+  <div>图片占位：media-upload - limits</div>
+</div>

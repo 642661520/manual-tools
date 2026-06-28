@@ -1,0 +1,18 @@
+<h1>远程图片缓存</h1>
+<p>从外部网页粘贴内容时，如果包含远程图片链接，平台会自动将图片下载并缓存到本地。</p>
+<h2>缓存机制</h2>
+<ol>
+  <li>粘贴包含远程图片链接的 HTML 内容</li>
+  <li>系统识别 <code>&lt;img src="https://..."&gt;</code> 标签</li>
+  <li>自动下载远程图片到本地缓存目录</li>
+  <li>替换图片链接为本地路径</li>
+</ol>
+<h2>缓存管理</h2>
+<ul>
+  <li>远程缓存有 TTL 过期时间（默认 7 天，可通过 <code>REMOTE_CACHE_TTL_DAYS</code> 调整）</li>
+  <li>缓存文件最大 50MB（可通过 <code>REMOTE_CACHE_MAX_FILE_MB</code> 调整）</li>
+  <li>系统启动时会自动清理过期缓存</li>
+</ul><div data-image-placeholder="media-upload-cache.png" style="background:#f1f5f9;border:2px dashed #94a3b8;border-radius:8px;padding:20px 24px;text-align:center;color:#64748b;margin:16px 0;font-size:14px;">
+  <div style="font-size:24px;margin-bottom:6px;">🖼️</div>
+  <div>图片占位：media-upload - cache</div>
+</div>

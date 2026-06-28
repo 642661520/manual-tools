@@ -10,7 +10,8 @@ export interface SectionDef {
 export function parseSections(sections: string | SectionDef[]): SectionDef[] {
   if (Array.isArray(sections)) return sections
   try {
-    return JSON.parse(sections || '[]')
+    const parsed = JSON.parse(sections || '[]')
+    return Array.isArray(parsed) ? parsed : []
   } catch {
     return []
   }

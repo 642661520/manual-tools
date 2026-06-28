@@ -1,0 +1,11 @@
+{
+  "id": "manual-tools:collaborative-editing",
+  "title": "实时协同编辑",
+  "description": "基于 Y.js CRDT 算法的多人实时协同编辑，支持光标位置实时显示和自动冲突解决",
+  "category_id": "cat-writing",
+  "sections": [
+    { "key": "principle", "title": "协同原理", "description": "Y.js CRDT 算法的协同编辑原理简介" },
+    { "key": "awareness", "title": "光标感知", "description": "实时查看其他编辑者的光标位置和在线状态" },
+    { "key": "conflict", "title": "冲突解决", "description": "多用户同时编辑同一内容时的自动冲突处理机制" }
+  ]
+}

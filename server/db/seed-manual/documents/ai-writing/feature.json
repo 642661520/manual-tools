@@ -1,0 +1,12 @@
+{
+  "id": "manual-tools:ai-writing",
+  "title": "AI 辅助写作",
+  "description": "集成 AI 大模型辅助文档编写，支持内容润色、摘要生成、错误修正和内容扩写等功能",
+  "category_id": "cat-writing",
+  "sections": [
+    { "key": "polish", "title": "润色", "description": "使用 AI 优化文档表述，提升专业性和可读性" },
+    { "key": "summarize", "title": "摘要生成", "description": "自动生成文档内容的结构化摘要" },
+    { "key": "fix", "title": "修正", "description": "使用 AI 检查和修正文档中的语法和表述问题" },
+    { "key": "expand", "title": "扩写", "description": "基于已有内容进行扩展，补充更多细节说明" }
+  ]
+}

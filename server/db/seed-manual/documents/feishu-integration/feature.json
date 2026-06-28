@@ -1,0 +1,11 @@
+{
+  "id": "manual-tools:feishu-integration",
+  "title": "飞书登录与集成",
+  "description": "通过飞书 OAuth 登录平台、绑定飞书账号以及接收消息通知，支持飞书机器人配置",
+  "category_id": "cat-account",
+  "sections": [
+    { "key": "oauth", "title": "飞书登录", "description": "通过飞书 OAuth 登录和注册的流程说明" },
+    { "key": "notifications", "title": "消息通知", "description": "审核任务、状态变更等事件的飞书消息推送" },
+    { "key": "bot", "title": "飞书机器人", "description": "飞书机器人应用的配置和消息格式" }
+  ]
+}

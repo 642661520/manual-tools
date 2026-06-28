@@ -1,0 +1,24 @@
+<h1>冲突解决</h1>
+<p>多用户同时编辑同一内容时，Y.js CRDT 算法会自动处理潜在的冲突。</p>
+<h2>常见场景</h2>
+<ul>
+  <li><strong>同时编辑不同段落</strong> — 两个编辑互不影响，自动合并</li>
+  <li><strong>同时编辑同一段落</strong> — CRDT 算法按操作顺序自动合并字符</li>
+  <li><strong>同时删除和编辑</strong> — 算法保留编辑操作的意图</li>
+</ul>
+<h2>一致性保证</h2>
+<p>CRDT 算法保证：</p>
+<ul>
+  <li><strong>最终一致性</strong> — 所有用户最终看到相同的文档内容</li>
+  <li><strong>意图保留</strong> — 每个用户的编辑意图都会被保留</li>
+  <li><strong>无锁机制</strong> — 不需要锁定文档或段落</li>
+</ul>
+<h2>最佳实践</h2>
+<ul>
+  <li>避免多人同时编辑同一个句子</li>
+  <li>通过章节划分减少编辑冲突</li>
+  <li>重要内容编辑前，通过光标感知确认无人同时编辑</li>
+</ul><div data-image-placeholder="collaborative-editing-conflict.png" style="background:#f1f5f9;border:2px dashed #94a3b8;border-radius:8px;padding:20px 24px;text-align:center;color:#64748b;margin:16px 0;font-size:14px;">
+  <div style="font-size:24px;margin-bottom:6px;">🖼️</div>
+  <div>图片占位：collaborative-editing - conflict</div>
+</div>

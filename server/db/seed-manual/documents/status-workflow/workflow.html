@@ -1,0 +1,24 @@
+<h1>状态流转流程</h1>
+<p>文档状态的流转遵循以下规则：</p>
+<h2>流转路径</h2>
+<pre><code>draft → in_progress → pending_review → approved
+         ↑              ↓                ↓
+         └──────── draft ←────────── rejected</code></pre>
+<h2>操作说明</h2>
+<ul>
+  <li><strong>提交审核</strong> — 点击"提交审核"按钮，状态从当前状态变为 pending_review</li>
+  <li><strong>审核通过</strong> — 审核人点击"通过"，状态变为 approved</li>
+  <li><strong>审核驳回</strong> — 审核人点击"驳回"并填写驳回意见，状态变为 rejected</li>
+  <li><strong>重新编写</strong> — 作者从 rejected 状态恢复编写，状态变为 in_progress 或 draft</li>
+</ul>
+<h2>权限限制</h2>
+<ul>
+  <li>只有被指派的 Writer 和 PM 可以编辑文档</li>
+  <li>只有审核链中的审核人可以执行审核操作</li>
+  <li>PM 可以直接通过审核（跳过审核链）</li>
+</ul>
+<h2>状态流转界面</h2>
+<div data-image-placeholder="status-workflow-transition.png" style="background:#f1f5f9;border:2px dashed #94a3b8;border-radius:8px;padding:20px 24px;text-align:center;color:#64748b;margin:16px 0;font-size:14px;">
+  <div style="font-size:24px;margin-bottom:6px;">🖼️</div>
+  <div>图片占位：状态流转弹窗：选择目标状态、填写审核意见、指派人员</div>
+</div>

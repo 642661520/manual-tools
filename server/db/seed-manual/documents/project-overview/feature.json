@@ -1,0 +1,10 @@
+{
+  "id": "manual-tools:project-overview",
+  "title": "平台概述",
+  "description": "了解 Manual Tools 的多项目隔离机制和项目基本概念，包括项目的作用、数据隔离方式以及项目选择器的使用",
+  "category_id": "cat-overview",
+  "sections": [
+    { "key": "concept", "title": "项目概念", "description": "项目的基本定义和在平台中的作用" },
+    { "key": "isolation", "title": "多项目隔离", "description": "不同项目之间的数据隔离机制" }
+  ]
+}

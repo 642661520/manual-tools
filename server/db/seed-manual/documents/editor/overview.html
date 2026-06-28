@@ -1,0 +1,28 @@
+<h1>编辑器界面</h1>
+<p>Manual Tools 的编辑器基于 <strong>TipTap</strong>（ProseMirror 的 Vue 3 封装），提供所见即所得（WYSIWYG）的编辑体验。</p>
+<h2>界面布局</h2>
+<p>编辑器页面分为三个区域：</p>
+<ol>
+  <li><strong>左侧导航树</strong> — 显示当前功能的所有章节，点击切换编辑目标</li>
+  <li><strong>中间编辑区</strong> — TipTap 富文本编辑器主体</li>
+  <li><strong>底部状态栏</strong> — 显示文档状态、字数统计、审核信息</li>
+</ol>
+<h2>工具栏</h2>
+<p>编辑器顶部工具栏提供完整的文本格式化功能，按功能分组排列：</p>
+<ul>
+  <li><strong>文本样式</strong> — 段落、标题 1-6</li>
+  <li><strong>内联格式</strong> — 加粗、斜体、下划线、删除线、文字颜色、高亮</li>
+  <li><strong>列表</strong> — 无序列表、有序列表、任务列表</li>
+  <li><strong>插入</strong> — 图片、视频、表格、链接、交叉引用</li>
+  <li><strong>工具</strong> — 查找替换、撤销重做</li>
+</ul>
+<h2>快捷操作</h2>
+<ul>
+  <li>支持 Markdown 语法快捷输入（如 <code>#</code> 开头自动转为标题）</li>
+  <li>支持粘贴 Markdown 内容自动转换</li>
+  <li>支持拖拽图片到编辑区直接上传</li>
+</ul>
+<div data-image-placeholder="editor-overview.png" style="background:#f1f5f9;border:2px dashed #94a3b8;border-radius:8px;padding:20px 24px;text-align:center;color:#64748b;margin:16px 0;font-size:14px;">
+  <div style="font-size:24px;margin-bottom:6px;">🖼️</div>
+  <div>图片占位：编辑器整体界面：左侧导航树、中间 TipTap 编辑区、底部状态栏</div>
+</div>

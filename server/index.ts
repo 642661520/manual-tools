@@ -9,6 +9,7 @@ import rateLimit from '@fastify/rate-limit'
 import websocket from '@fastify/websocket'
 import multipart from '@fastify/multipart'
 import { initDatabase } from './db/index.js'
+import { seedManualIfNeeded } from './db/seed-manual/index.js'
 import { config } from './config.js'
 import { getLogger } from './lib/logger.js'
 import { yjsRoutes } from './routes/yjs.js'
@@ -159,6 +160,9 @@ async function main() {
 
   // 初始化数据库
   initDatabase()
+
+  // 种子平台操作手册数据到默认项目
+  await seedManualIfNeeded()
 
   // 启动时清理过期缓存
   cleanExpiredRemoteCache()
@@ -499,12 +503,22 @@ async function main() {
     done()
   })
 
-  try {
-    await app.listen({ port: PORT, host: '0.0.0.0' })
-    app.log.info({ port: PORT }, 'server started')
-  } catch (err) {
-    app.log.error({ err }, 'server start failed')
-    process.exit(1)
+  // tsx watch 重启时旧进程可能尚未释放端口，重试最多 5 次
+  const maxRetries = 5
+  for (let retry = 0; retry <= maxRetries; retry++) {
+    try {
+      await app.listen({ port: PORT, host: '0.0.0.0' })
+      app.log.info({ port: PORT }, 'server started')
+      break
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code
+      if (code !== 'EADDRINUSE' || retry === maxRetries) {
+        app.log.error({ err }, 'server start failed')
+        process.exit(1)
+      }
+      app.log.warn({ port: PORT, retry: retry + 1 }, '端口被占用，1 秒后重试')
+      await new Promise((r) => setTimeout(r, 1000))
+    }
   }
 }
 

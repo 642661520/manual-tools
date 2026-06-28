@@ -1,0 +1,12 @@
+{
+  "id": "manual-tools:version-publishing",
+  "title": "版本发布",
+  "description": "将目录发布为版本化快照，支持语义化版本号、可见性控制（公开/需登录/项目成员）和变更记录",
+  "category_id": "cat-publishing",
+  "sections": [
+    { "key": "flow", "title": "发布流程", "description": "从预览到发布的完整操作流程" },
+    { "key": "versioning", "title": "版本号规则", "description": "使用 major.minor 语义化版本号管理发布版本" },
+    { "key": "visibility", "title": "可见性控制", "description": "公开、需登录、项目成员三种可见性级别" },
+    { "key": "changelog", "title": "变更记录", "description": "填写发布变更说明，追踪版本演进" }
+  ]
+}

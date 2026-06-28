@@ -1,0 +1,12 @@
+{
+  "id": "manual-tools:features",
+  "title": "功能管理",
+  "description": "功能（Feature）是手册的基本组织单元。每个功能包含标题、描述和若干章节，可通过页面手动创建或从项目导入",
+  "category_id": "cat-writing",
+  "sections": [
+    { "key": "create", "title": "创建功能", "description": "手动创建自定义功能" },
+    { "key": "edit", "title": "编辑功能", "description": "修改功能的标题、描述和章节结构" },
+    { "key": "delete", "title": "删除功能", "description": "删除功能及其关联文档的影响" },
+    { "key": "sections", "title": "章节管理", "description": "为功能添加、编辑和删除章节定义" }
+  ]
+}

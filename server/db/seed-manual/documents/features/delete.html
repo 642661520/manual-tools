@@ -1,0 +1,26 @@
+<h1>删除功能</h1>
+<p>谨慎使用此操作。删除功能会<strong>级联删除</strong>该功能下所有章节的文档内容。</p>
+<h2>操作步骤</h2>
+<ol>
+  <li>在功能列表中，点击功能行右侧的<strong>删除</strong>按钮</li>
+  <li>仔细阅读删除确认对话框中的警告信息</li>
+  <li>确认删除</li>
+</ol>
+<h2>级联影响</h2>
+<ul>
+  <li>该功能下的所有文档会被删除（包括所有 Y.js 编辑历史）</li>
+  <li>文档快照和增量更新记录会被清除</li>
+  <li>如果该功能被包含在某个目录中，目录中会残留对该功能的无效引用，需要手动从目录中移除</li>
+</ul>
+<h2>建议</h2>
+<p>在删除功能前，请先：</p>
+<ol>
+  <li>检查该功能是否被目录引用，如有则先从目录中移除</li>
+  <li>导出项目数据作为备份</li>
+  <li>确认团队成员不再需要该功能的文档</li>
+  <li>删除后建议重建搜索索引（通过重启服务器或调用 API）</li>
+</ol>
+<div data-image-placeholder="feature-delete-warning.png" style="background:#f1f5f9;border:2px dashed #94a3b8;border-radius:8px;padding:20px 24px;text-align:center;color:#64748b;margin:16px 0;font-size:14px;">
+  <div style="font-size:24px;margin-bottom:6px;">🖼️</div>
+  <div>图片占位：删除功能确认对话框：显示级联删除警告信息</div>
+</div>

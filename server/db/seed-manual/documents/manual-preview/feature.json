@@ -1,0 +1,11 @@
+{
+  "id": "manual-tools:manual-preview",
+  "title": "手册预览",
+  "description": "在目录编排页面实时预览最终手册的 Markdown 效果，支持按审核状态筛选内容和章节级别导航",
+  "category_id": "cat-publishing",
+  "sections": [
+    { "key": "preview", "title": "预览模式", "description": "预览界面的布局和功能按钮" },
+    { "key": "approved-only", "title": "仅审核通过模式", "description": "按文档审核状态筛选预览内容" },
+    { "key": "navigation", "title": "章节导航", "description": "使用左侧导航目录快速跳转手册章节" }
+  ]
+}
