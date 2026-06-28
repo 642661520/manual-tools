@@ -141,7 +141,7 @@ Manual Tools 支持通过 ZIP 文件导入项目数据。本文档定义 ZIP 文
 
 ```html
 <!-- 文档位置: documents/my-project:introduction/overview.html -->
-<!-- 图片位置: uploads/images/ab/fullhash.png -->
+<!-- 图片位置: uploads/images/ab/full-hash.png -->
 <img src="../../uploads/images/ab/8a7b3c9d...（64位hex）.png" alt="截图" />
 
 <!-- 视频同理 -->
@@ -161,7 +161,6 @@ Manual Tools 支持通过 ZIP 文件导入项目数据。本文档定义 ZIP 文
 {
   "id": "my-catalog",
   "title": "用户手册 v1.0",
-  "targets": ["新用户", "管理员"],
   "features": [
     { "featureId": "my-project:introduction" },
     {
@@ -172,9 +171,7 @@ Manual Tools 支持通过 ZIP 文件导入项目数据。本文档定义 ZIP 文
     }
   ],
   "cover_info": {
-    "title": "用户手册",
-    "subtitle": "操作指南",
-    "version": "1.0.0"
+    "subtitle": "操作指南"
   },
   "versions": []
 }
@@ -184,7 +181,6 @@ Manual Tools 支持通过 ZIP 文件导入项目数据。本文档定义 ZIP 文
 | ------------------------- | -------- | ------------------------------ |
 | `id`                      | string   | 目录唯一 ID                    |
 | `title`                   | string   | 目录标题                       |
-| `targets`                 | string[] | 目标读者标签                   |
 | `features`                | array    | 编排的功能列表                 |
 | `features[].featureId`    | string   | 引用的 feature ID              |
 | `features[].sectionOrder` | string[] | 章节排序（可选）               |
@@ -284,7 +280,6 @@ example.zip
 {
   "id": "example-catalog",
   "title": "示例目录",
-  "targets": ["所有用户"],
   "features": [{ "featureId": "example:hello" }],
   "cover_info": {},
   "versions": []

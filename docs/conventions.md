@@ -75,8 +75,21 @@
 - RESTful 风格，路径前缀 `/api/v1/`
 - 统一响应格式：成功 `{ ok: true, data: T }`，失败 `{ ok: false, error: string }`
 - 前端通过 `client.ts` 自动注入 `Authorization: Bearer <token>` header
-- 请求/响应字段自动 camelCase/snake_case 转换（`transform.ts`）
 - CSRF 保护：登录后设置 `csrf_token` cookie，前端以 `X-CSRF-Token` header 回传，状态变更请求比对一致
+
+### 字段名转换：snake_case ↔ camelCase（⚠️ 必须理解）
+
+`src/api/transform.ts` 提供 `toCamelCase` / `toSnakeCase` 双向转换。**关键行为：**
+
+- **所有 API 响应**在 `client.ts` 第 92 行自动执行 `toCamelCase()`，数据库的 snake_case 字段（`cover_info`、`created_at`、`latest_version_major` 等）到达前端时**已经是** camelCase（`coverInfo`、`createdAt`、`latestVersionMajor`）
+- **所有 API 请求** body 自动执行 `toSnakeCase()`，前端 camelCase 字段发送到后端前转为 snake_case
+
+**前端开发铁律：**
+
+- ❌ **禁止**使用 snake_case 访问 API 响应对象的属性 — `obj.latest_version_major` 永远是 `undefined`
+- ✅ 所有前端类型定义（`interface`、`type`）使用 camelCase
+- ✅ 不需要 `obj.snake_case \|\| obj.camelCase` 这样的兜底写法
+- ✅ 后端路由返回的字段名保持 snake_case（数据库字段名），转换由 `client.ts` 统一处理
 
 ## 日志规范
 

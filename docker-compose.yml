@@ -4,20 +4,20 @@ services:
     container_name: manual-tools
     build: .
     ports:
-      - '3000:3000'
+      - '${PORT:-3000}:${PORT:-3000}'
     volumes:
       - ./data:/app/data
     environment:
       # === 运行环境 ===
       - NODE_ENV=production
-      - PORT=3000
+      - PORT=${PORT:-3000}
 
       # === 安全 ===
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
 
       # === 管理员 ===
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-Admin@123}
 
       # === 数据库 & 存储 ===
       - DATABASE_PATH=/app/data/manual.db
@@ -33,9 +33,13 @@ services:
 
       # === 日志 ===
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_FILE_LEVEL=${LOG_FILE_LEVEL:-info}
       - LOG_FILE_PATH=/app/data/logs/app.log
       - LOG_RETAIN_DAYS=30
       - LOG_MAX_SIZE_MB=10
+
+      # === CORS ===
+      - CORS_ORIGIN=${CORS_ORIGIN:-}
 
       # === Puppeteer (PDF 导出) ===
       - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
@@ -44,13 +48,16 @@ services:
       # === 飞书（可选） ===
       - FEISHU_APP_ID=${FEISHU_APP_ID:-}
       - FEISHU_APP_SECRET=${FEISHU_APP_SECRET:-}
-      - FEISHU_REDIRECT_URI=${FEISHU_REDIRECT_URI:-}
+      - FEISHU_HOST=${FEISHU_HOST:-https://open.feishu.cn}
       - ADMIN_OPEN_IDS=${ADMIN_OPEN_IDS:-}
 
       # === AI 写作助手（可选） ===
       - AI_BASE_URL=${AI_BASE_URL:-}
       - AI_API_KEY=${AI_API_KEY:-}
       - AI_MODEL=${AI_MODEL:-gpt-4o-mini}
+
+      # === 项目 ===
+      - DEFAULT_PROJECT_READONLY=${DEFAULT_PROJECT_READONLY:-false}
 
       # === PDF 中文字体（可选，挂载字体文件后设路径） ===
       - PDF_FONT_REGULAR=${PDF_FONT_REGULAR:-}

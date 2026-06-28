@@ -24,6 +24,25 @@
 - `transform.ts` — camelCase/snake_case 双向转换
 - `index.ts` — 统一导出
 
+**⚠️ 关键约定：`toCamelCase` 自动转换**
+
+`api/client.ts` 第 92 行：**所有 API 响应**在 `res.json()` 之后立即执行 `toCamelCase()`，将数据库 snake_case 字段名转为前端 camelCase。
+
+| 数据库字段 (snake_case) | 前端字段 (camelCase) |
+| ----------------------- | -------------------- |
+| `cover_info`            | `coverInfo`          |
+| `created_at`            | `createdAt`          |
+| `updated_at`            | `updatedAt`          |
+| `project_id`            | `projectId`          |
+| `latest_version_major`  | `latestVersionMajor` |
+| `latest_version_minor`  | `latestVersionMinor` |
+
+这意味着：
+
+- **前端永远不能使用 snake_case 访问 API 响应字段** — `obj.latest_version_major` 永远是 `undefined`
+- 自定义 `RawRow` 接口必须使用 camelCase 字段名
+- 不需要 `obj.cover_info \|\| obj.coverInfo` 这样的兜底写法 — snake_case 端永远是 `undefined`
+
 `endpoints/` 目录 (14 个模块):
 
 | 文件            | 对应后端路由     |

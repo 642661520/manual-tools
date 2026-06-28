@@ -49,7 +49,7 @@
 │  review_log 等审核追踪字段                                  │
 ├── 编排层（SQLite）────────── PM 编排 ──────────────────┤
 │  catalogs 表 + catalog_versions 表                         │
-│  { id, title, targets[], features[], cover_info,           │
+│  { id, title, features[], cover_info,           │
 │    project_id }                                            │
 │  一个 catalog = 一个构建目标的操作手册                       │
 │  catalog_versions 存储每次发布的完整快照                     │
@@ -102,7 +102,6 @@ interface FeatureSection {
 interface Catalog {
   id: string
   title: string // '水域版操作手册'
-  targets: string[] // 对应 BUILD_MODES 的 target
   features: string[] // featureId 的有序列表
   cover_info: Record<string, string> // 封面信息（subtitle, logo 等）
   project_id: string // 所属项目
@@ -811,7 +810,6 @@ services:
       - DOCS_DIR=/app/data/docs
       - FEISHU_APP_ID=${FEISHU_APP_ID}
       - FEISHU_APP_SECRET=${FEISHU_APP_SECRET}
-      - FEISHU_REDIRECT_URI=${FEISHU_REDIRECT_URI}
     restart: unless-stopped
     mem_limit: 2g
 ```

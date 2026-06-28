@@ -172,7 +172,7 @@ manual-tools/
 | `DATABASE_PATH`     | SQLite 数据库路径                       | `data/manual.db` |
 | `JWT_SECRET`        | JWT 签名密钥                            | 生产环境必须设置 |
 | `ADMIN_USERNAME`    | 初始管理员用户名                        | `admin`          |
-| `ADMIN_PASSWORD`    | 初始管理员密码                          | `admin123`       |
+| `ADMIN_PASSWORD`    | 初始管理员密码                          | `Admin@123`      |
 | `FEISHU_APP_ID`     | 飞书应用 ID                             | —                |
 | `FEISHU_APP_SECRET` | 飞书应用密钥                            | —                |
 | `AI_BASE_URL`       | AI API 地址（OpenAI 兼容）              | —                |

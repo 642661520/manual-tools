@@ -27,10 +27,10 @@ JWT_SECRET=dev-secret-change-me
 
 首次启动时自动创建，已存在则跳过。
 
-| 变量             | 默认值     | 说明         |
-| ---------------- | ---------- | ------------ |
-| `ADMIN_USERNAME` | `admin`    | 管理员用户名 |
-| `ADMIN_PASSWORD` | `admin123` | 管理员密码   |
+| 变量             | 默认值      | 说明         |
+| ---------------- | ----------- | ------------ |
+| `ADMIN_USERNAME` | `admin`     | 管理员用户名 |
+| `ADMIN_PASSWORD` | `Admin@123` | 管理员密码   |
 
 ### 安全
 
@@ -97,13 +97,12 @@ OpenAI 兼容接口，支持 OpenAI / DeepSeek / Ollama / 通义千问 等。
 
 不启用则全部留空。
 
-| 变量                  | 默认值                   | 说明                                                              |
-| --------------------- | ------------------------ | ----------------------------------------------------------------- |
-| `FEISHU_APP_ID`       | —                        | 飞书应用 App ID                                                   |
-| `FEISHU_APP_SECRET`   | —                        | 飞书应用 App Secret                                               |
-| `FEISHU_REDIRECT_URI` | —                        | 飞书 OAuth 回调地址（如 `http://localhost:5173/feishu-callback`） |
-| `FEISHU_HOST`         | `https://open.feishu.cn` | 飞书 API 域名（国际版用 `https://open.larksuite.com`）            |
-| `ADMIN_OPEN_IDS`      | —                        | 管理员飞书 open_id，逗号分隔（用于飞书消息通知的目标用户）        |
+| 变量                | 默认值                   | 说明                                                       |
+| ------------------- | ------------------------ | ---------------------------------------------------------- |
+| `FEISHU_APP_ID`     | —                        | 飞书应用 App ID                                            |
+| `FEISHU_APP_SECRET` | —                        | 飞书应用 App Secret                                        |
+| `FEISHU_HOST`       | `https://open.feishu.cn` | 飞书 API 域名（国际版用 `https://open.larksuite.com`）     |
+| `ADMIN_OPEN_IDS`    | —                        | 管理员飞书 open_id，逗号分隔（用于飞书消息通知的目标用户） |
 
 ### PDF 导出
 

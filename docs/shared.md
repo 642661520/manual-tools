@@ -45,8 +45,8 @@ FeatureData // FeatureRow + { sections (parsed SectionDef[]), categoryName?, cat
 
 ```ts
 CatalogEntry // 目录条目：{ type: 'feature'|'part', featureId?, title?, features?[] }
-CatalogRow // { id, title, targets (JSON), features (JSON), cover_info (JSON), project_id, ... }
-CatalogData // CatalogRow + { targets (parsed), features (parsed), coverInfo (parsed) }
+CatalogRow // { id, title, features (JSON), cover_info (JSON), project_id, ... }
+CatalogData // CatalogRow + { features (parsed), coverInfo (parsed) }
 ```
 
 ### 文档相关
