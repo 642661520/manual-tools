@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import './lib/win-encoding.js'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -34,7 +35,7 @@ import { cleanExpiredRemoteCache } from './services/remote-cache.js'
 import { cleanExpiredExportCache } from './services/export-cache.js'
 import { rebuildProjectIndex } from './services/search.js'
 import { verifyToken } from './auth/jwt.js'
-import { authMiddleware } from './auth/middleware.js'
+import { authMiddleware, requireRole } from './auth/middleware.js'
 import { getDb } from './db/index.js'
 import { isProjectMember } from './auth/membership.js'
 import { csrfMiddleware } from './lib/csrf.js'
@@ -195,6 +196,14 @@ async function main() {
     decorateReply: false,
   })
 
+  // /docs/{catalogId} → /docs/{catalogId}/ （目录缺少尾部斜杠时重定向）
+  app.addHook('onRequest', async (req, reply) => {
+    const m = req.url.match(/^\/docs\/([^/]+)$/)
+    if (m) {
+      return reply.redirect(`/docs/${m[1]}/`, 301)
+    }
+  })
+
   // 自动为路由分配 Swagger tag（按 URL 前缀），避免大量 "default" 分组
   app.addHook('onRoute', (routeOptions) => {
     const schema = (routeOptions.schema as Record<string, unknown> | undefined) || {}
@@ -280,9 +289,10 @@ async function main() {
     },
   })
 
-  // Swagger UI — 需登录才能访问，避免 API 文档公开暴露
+  // Swagger UI — 仅管理员可访问
   await app.register(async (scoped) => {
     scoped.addHook('preHandler', authMiddleware)
+    scoped.addHook('preHandler', requireRole('admin'))
 
     await scoped.register(fastifySwaggerUi, {
       routePrefix: '/docs/api',

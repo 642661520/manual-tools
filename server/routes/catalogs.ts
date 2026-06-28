@@ -1,7 +1,9 @@
 import { FastifyInstance } from 'fastify'
 import { rm } from 'fs/promises'
-import { readFileSync } from 'fs'
+import { readFileSync, existsSync } from 'fs'
+import { readdir } from 'fs/promises'
 import { join } from 'path'
+import { ZipArchive } from 'archiver'
 import { getDb } from '../db/index.js'
 import { authMiddleware, requireRole, ensureProjectWritable } from '../auth/middleware.js'
 import { isProjectMember, hasProjectRole, assertCatalogMember } from '../auth/membership.js'
@@ -709,9 +711,118 @@ export async function catalogRoutes(app: FastifyInstance) {
         body.visibility,
         versionId,
       )
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'catalog.version_visibility',
+        targetType: 'catalog-version',
+        targetId: versionId,
+        detail: { catalogId: id, visibility: body.visibility },
+      })
+
       return ok()
     },
   )
+
+  // 导出静态站点 ZIP（仅公开版本，无需认证）
+  app.get('/api/v1/catalogs/:id/export/site', async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const db = getDb()
+
+    const catalog = db.prepare('SELECT * FROM catalogs WHERE id = ?').get(id) as
+      | CatalogRow
+      | undefined
+    if (!catalog) return fail(reply, 404, '目录不存在')
+
+    // 查询所有公开版本
+    const publicVersions = db
+      .prepare(
+        `SELECT version_major, version_minor, change_notes, visibility
+           FROM catalog_versions
+           WHERE catalog_id = ? AND visibility = 'public'
+           ORDER BY version_major DESC, version_minor DESC`,
+      )
+      .all(id) as {
+      version_major: number
+      version_minor: number
+      change_notes: string
+      visibility: string
+    }[]
+
+    if (publicVersions.length === 0) {
+      return fail(reply, 404, '该目录下没有公开版本')
+    }
+
+    // 确保每个版本的静态站点已构建
+    const docsBase = join(process.cwd(), 'data/docs', id)
+    for (const v of publicVersions) {
+      const versionLabel = `v${v.version_major}.${v.version_minor}`
+      const versionDir = join(docsBase, versionLabel)
+      if (!existsSync(join(versionDir, 'index.html'))) {
+        await buildStaticSite(id, versionLabel)
+      }
+    }
+
+    // 生成 versions.json
+    const versionsJson = JSON.stringify(
+      publicVersions.map((v) => ({
+        version_major: v.version_major,
+        version_minor: v.version_minor,
+        change_notes: v.change_notes,
+        visibility: v.visibility,
+      })),
+    )
+
+    // 收集所有要打包的文件
+    const files: { name: string; path: string }[] = []
+
+    // catalog 根 index.html（由 buildStaticSite 生成）
+    const catalogIndexPath = join(docsBase, 'index.html')
+    if (existsSync(catalogIndexPath)) {
+      files.push({ name: `docs/${id}/index.html`, path: catalogIndexPath })
+    }
+
+    // 各版本目录下的文件
+    for (const v of publicVersions) {
+      const versionLabel = `v${v.version_major}.${v.version_minor}`
+      const versionDir = join(docsBase, versionLabel)
+      if (!existsSync(versionDir)) continue
+      const entries = await readdir(versionDir)
+      for (const entry of entries) {
+        files.push({
+          name: `docs/${id}/${versionLabel}/${entry}`,
+          path: join(versionDir, entry),
+        })
+      }
+    }
+
+    // 流式生成 ZIP
+    const safeTitle = catalog.title.replace(/[<>:"/\\|?*]/g, '_')
+    const filename = `${safeTitle}-docs-site.zip`
+
+    const archive = new ZipArchive({ zlib: { level: 9 } })
+
+    // 写入 versions.json
+    archive.append(Buffer.from(versionsJson, 'utf-8'), {
+      name: `docs/${id}/versions.json`,
+    })
+
+    // 写入所有静态文件
+    for (const file of files) {
+      archive.file(file.path, { name: file.name })
+    }
+
+    // 收集为 Buffer
+    const chunks: Buffer[] = []
+    archive.on('data', (chunk: Buffer) => chunks.push(chunk))
+    await archive.finalize()
+    const zipBuffer = Buffer.concat(chunks)
+
+    reply.header('Content-Type', 'application/zip')
+    reply.header('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`)
+    return reply.send(zipBuffer)
+  })
 
   // 获取单个 catalog
   app.get('/api/v1/catalogs/:id', { preHandler: authMiddleware }, async (req, reply) => {
@@ -814,6 +925,15 @@ export async function catalogRoutes(app: FastifyInstance) {
         projectId,
       )
 
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'catalog.create',
+        targetType: 'catalog',
+        targetId: id,
+        detail: { title: body.title || '未命名目录', projectId },
+      })
+
       return created(id)
     },
   )
@@ -849,6 +969,15 @@ export async function catalogRoutes(app: FastifyInstance) {
         JSON.stringify(body.cover || {}),
         id,
       )
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'catalog.update',
+        targetType: 'catalog',
+        targetId: id,
+        detail: { title: body.title },
+      })
 
       return ok()
     },

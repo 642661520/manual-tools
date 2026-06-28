@@ -20,6 +20,7 @@ import { success, ok, fail } from '../lib/response.js'
 import { parsePagination } from '../lib/pagination.js'
 import { getRemoteCacheStats, cleanExpiredRemoteCache } from '../services/remote-cache.js'
 import { getExportCacheStats, cleanExpiredExportCache } from '../services/export-cache.js'
+import { recordAudit } from '../services/audit.js'
 import { getDb } from '../db/index.js'
 import { config } from '../config.js'
 
@@ -67,9 +68,18 @@ export async function cacheRoutes(app: FastifyInstance) {
   app.post(
     '/api/v1/cache/clean',
     { preHandler: [authMiddleware, requireRole('admin', 'pm')] },
-    async () => {
+    async (req) => {
       const remoteCount = cleanExpiredRemoteCache()
       const exportCount = cleanExpiredExportCache()
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'cache.clean',
+        targetType: 'cache',
+        detail: { remoteCleaned: remoteCount, exportCleaned: exportCount },
+      })
+
       return success({ remoteCleaned: remoteCount, exportCleaned: exportCount })
     },
   )
@@ -96,6 +106,15 @@ export async function cacheRoutes(app: FastifyInstance) {
         }
       }
       db.prepare('DELETE FROM export_cache WHERE catalog_id = ?').run(body.catalogId)
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'cache.invalidate',
+        targetType: 'cache',
+        targetId: body.catalogId,
+      })
+
       return ok()
     },
   )
@@ -316,6 +335,14 @@ export async function cacheRoutes(app: FastifyInstance) {
       }
       db.prepare('DELETE FROM export_cache WHERE id = ?').run(id)
 
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'cache.entry_delete',
+        targetType: 'cache-export',
+        targetId: id,
+      })
+
       return ok()
     },
   )
@@ -324,7 +351,7 @@ export async function cacheRoutes(app: FastifyInstance) {
   app.delete(
     '/api/v1/cache/entries/remote/all',
     { preHandler: [authMiddleware, requireRole('admin', 'pm')] },
-    async () => {
+    async (req) => {
       const db = getDb()
       const rows = db.prepare('SELECT hash, ext FROM remote_cache').all() as {
         hash: string
@@ -347,6 +374,15 @@ export async function cacheRoutes(app: FastifyInstance) {
       }
 
       const result = db.prepare('DELETE FROM remote_cache').run()
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'cache.entry_delete',
+        targetType: 'cache-remote',
+        detail: { deleted: result.changes, all: true },
+      })
+
       return success({ deleted: result.changes })
     },
   )
@@ -381,6 +417,14 @@ export async function cacheRoutes(app: FastifyInstance) {
 
       // 删除数据库记录
       db.prepare('DELETE FROM remote_cache WHERE hash = ?').run(hash)
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'cache.entry_delete',
+        targetType: 'cache-remote',
+        targetId: hash,
+      })
 
       // 如果这是最后一条引用该 hash 的记录，删除磁盘文件
       if (refCount <= 1) {

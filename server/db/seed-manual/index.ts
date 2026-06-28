@@ -5,10 +5,16 @@
 
 import fs from 'fs'
 import path from 'path'
+import { v4 as uuid } from 'uuid'
 import { getDb } from '../index.js'
 import { config } from '../../config.js'
 import { getLogger } from '../../lib/logger.js'
 import { analyzeImport, applyImport } from '../../services/import-service.js'
+import { assembleManual } from '../../services/manual-assembler.js'
+import { buildStaticSite } from '../../services/site-builder/index.js'
+import { recordAudit } from '../../services/audit.js'
+import { isCatalogPart } from '../../types.js'
+import type { CatalogEntry, CatalogFeatureEntry } from '../../types.js'
 import { buildSeedZip } from './builder.js'
 import { SEED_VERSION } from './content.js'
 
@@ -48,6 +54,137 @@ async function buildDocumentStrategies(): Promise<Record<string, 'overwrite'>> {
     strategies[docId] = 'overwrite'
   }
   return strategies
+}
+
+const SEED_CATALOG_ID = 'manual-tools-manual'
+
+/** 为种子目录自动发布一个版本，生成静态文档站点 */
+async function publishSeedVersion(): Promise<void> {
+  const log = getLogger()
+  const db = getDb()
+
+  // 1. 确认目录存在
+  const catalogMeta = db
+    .prepare('SELECT title, features FROM catalogs WHERE id = ?')
+    .get(SEED_CATALOG_ID) as { title: string; features: string } | undefined
+  if (!catalogMeta) {
+    log.warn({ catalogId: SEED_CATALOG_ID }, '种子目录不存在，跳过自动发布')
+    return
+  }
+
+  // 2. 构建状态快照（展平 Part 结构，收集所有文档状态）
+  const entries: CatalogEntry[] = JSON.parse(catalogMeta.features)
+  const flatEntries: CatalogFeatureEntry[] = []
+  for (const entry of entries) {
+    if (isCatalogPart(entry)) {
+      flatEntries.push(...entry.features)
+    } else {
+      flatEntries.push(entry)
+    }
+  }
+
+  const statusSnapshot: Record<string, string> = {}
+  for (const fe of flatEntries) {
+    const f = db.prepare('SELECT sections FROM features WHERE id = ?').get(fe.featureId) as
+      | { sections: string }
+      | undefined
+    if (!f) continue
+    const secs: { key: string }[] = JSON.parse(f.sections || '[]')
+    for (const s of secs) {
+      const docId = `${fe.featureId}/${s.key}`
+      const doc = db.prepare('SELECT status FROM documents WHERE id = ?').get(docId) as
+        | { status: string }
+        | undefined
+      statusSnapshot[docId] = doc?.status || 'draft'
+    }
+  }
+
+  // 3. 组装完整手册（跳过审核过滤，包含全部文档）
+  const fullManual = assembleManual(SEED_CATALOG_ID, { approvedOnly: false })
+  if (!fullManual) {
+    log.warn({ catalogId: SEED_CATALOG_ID }, '组装种子手册失败，跳过自动发布')
+    return
+  }
+
+  // 4. 计算版本号（与发布接口逻辑一致）
+  const prevVer = db
+    .prepare(
+      'SELECT version_major, version_minor, features_snapshot FROM catalog_versions WHERE catalog_id = ? ORDER BY version_major DESC, version_minor DESC LIMIT 1',
+    )
+    .get(SEED_CATALOG_ID) as
+    | { version_major: number; version_minor: number; features_snapshot: string }
+    | undefined
+
+  let major: number
+  let minor: number
+  if (prevVer) {
+    if (prevVer.features_snapshot !== catalogMeta.features) {
+      major = prevVer.version_major + 1
+      minor = 0
+    } else {
+      major = prevVer.version_major
+      minor = prevVer.version_minor + 1
+    }
+  } else {
+    major = 1
+    minor = 0
+  }
+
+  // 5. 插入 catalog_versions
+  const versionId = uuid().slice(0, 8)
+  const versionLabel = `v${major}.${minor}`
+
+  db.prepare(`
+    INSERT INTO catalog_versions
+      (id, catalog_id, version_major, version_minor, title, features_snapshot,
+       change_notes, markdown, status_snapshot, visibility, features_json,
+       headings_json, publish_scope)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    versionId,
+    SEED_CATALOG_ID,
+    major,
+    minor,
+    fullManual.catalog.title,
+    catalogMeta.features,
+    '自动发布种子数据版本',
+    fullManual.markdown,
+    JSON.stringify(statusSnapshot),
+    'public',
+    JSON.stringify(fullManual.features),
+    JSON.stringify(fullManual.headings),
+    'all',
+  )
+
+  log.info({ versionLabel, versionId }, '种子数据版本已创建')
+
+  // 6. 构建静态站点
+  try {
+    const outDir = await buildStaticSite(SEED_CATALOG_ID, versionLabel)
+    log.info({ versionLabel, outDir }, '种子数据静态站点构建完成')
+  } catch (err) {
+    log.error(
+      { err: err instanceof Error ? err.message : String(err) },
+      '种子数据静态站点构建失败（版本已创建，可手动从 UI 重新构建）',
+    )
+  }
+
+  // 7. 记录审计
+  recordAudit({
+    userId: 'system',
+    username: 'system',
+    action: 'catalog.publish',
+    targetType: 'catalog',
+    targetId: SEED_CATALOG_ID,
+    detail: {
+      versionMajor: major,
+      versionMinor: minor,
+      title: catalogMeta.title,
+      visibility: 'public',
+      approvedOnly: false,
+      source: 'seed',
+    },
+  })
 }
 
 /**
@@ -100,6 +237,9 @@ export async function seedManualIfNeeded(force = false): Promise<void> {
       })
       log.info({ result }, '种子数据导入完成')
     }
+
+    // 自动发布种子版本 + 构建静态站点
+    await publishSeedVersion()
 
     // 记录种子版本
     setCurrentSeedVersion(SEED_VERSION)

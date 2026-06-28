@@ -3,6 +3,7 @@ import { FastifyInstance } from 'fastify'
 import { authMiddleware } from '../auth/middleware.js'
 import { isProjectMember } from '../auth/membership.js'
 import { searchDocs, rebuildProjectIndex } from '../services/search.js'
+import { recordAudit } from '../services/audit.js'
 import { success, fail } from '../lib/response.js'
 import { requireRole } from '../auth/middleware.js'
 
@@ -34,6 +35,15 @@ export async function searchRoutes(app: FastifyInstance) {
       if (!projectId) return fail(reply, 400, '缺少 projectId')
       try {
         rebuildProjectIndex(projectId)
+
+        recordAudit({
+          userId: req.user!.userId,
+          username: req.user?.username || '',
+          action: 'search.rebuild_index',
+          targetType: 'project',
+          targetId: projectId,
+        })
+
         return success({ ok: true })
       } catch (e: unknown) {
         return fail(reply, 500, e instanceof Error ? e.message : '重建失败')

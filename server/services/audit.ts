@@ -1,11 +1,12 @@
 /** 操作审计服务：记录敏感操作，供安全追溯 */
 import { v4 as uuid } from 'uuid'
 import { getDb } from '../db/index.js'
+import type { AuditAction } from '../../shared/constants/audit-actions.js'
 
 export interface AuditEntry {
   userId: string
   username: string
-  action: string
+  action: AuditAction
   targetType: string
   targetId?: string
   detail?: unknown

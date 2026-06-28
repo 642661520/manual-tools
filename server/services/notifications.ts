@@ -100,7 +100,7 @@ function getAdminOpenIds(): string[] {
 
 // ---- 通知函数 ----
 
-/** PM 指派了编写者 → 通知所有被指派人 */
+/** PM 指派了编辑者 → 通知所有被指派人 */
 export async function notifyAssignees(
   featureId: string,
   sectionKey: string,
@@ -193,7 +193,7 @@ export async function notifyWriterReviewResult(
   }
 }
 
-/** PM 直接通过（跳过审核链）→ 通知所有编写人 */
+/** PM 直接通过（跳过审核链）→ 通知所有编辑人 */
 export async function notifyDirectApprove(
   featureId: string,
   sectionKey: string,
@@ -221,7 +221,7 @@ export async function notifyDirectApprove(
   }
 }
 
-/** PM 重置状态 → 通知所有编写人 */
+/** PM 重置状态 → 通知所有编辑人 */
 export async function notifyStatusReset(
   featureId: string,
   sectionKey: string,
@@ -263,7 +263,7 @@ export async function notifyNewGuest(displayName: string): Promise<void> {
 
     const card = buildCardMessage(
       '👤 新成员注册',
-      `${displayName} 通过飞书登录注册了账号，当前角色为「成员」。\n请前往设置页将其加入项目并分配项目角色。`,
+      `${displayName} 通过飞书登录注册了账号，当前角色为「成员」。\n已自动加入默认项目（只读），可按需调整项目角色。`,
       { color: 'blue', link: { url: settingsUrl, title: '去设置' } },
     )
 
@@ -289,7 +289,7 @@ export async function notifyJoinProject(
 
     const previewUrl = `${APP_BASE_URL}/preview`
     const projectRoleLabel = (r: string) =>
-      r === 'pm' ? '项目管理员' : r === 'writer' ? '编辑' : r === 'viewer' ? '只读' : r
+      r === 'pm' ? '项目负责人' : r === 'writer' ? '编辑' : r === 'viewer' ? '只读' : r
 
     const card = buildCardMessage(
       '👥 已加入项目',
@@ -339,7 +339,7 @@ export async function notifyRoleChange(
     if (!openId) return
 
     const roleLabel = (r: string) =>
-      r === 'admin' ? '系统管理员' : r === 'member' ? '成员' : '游客'
+      r === 'admin' ? '系统管理员' : r === 'member' ? '普通用户' : '游客'
 
     const card = buildCardMessage(
       '🔑 角色变更',
@@ -367,7 +367,7 @@ export async function notifyProjectRoleChange(
     if (!openId) return
 
     const projectRoleLabel = (r: string) =>
-      r === 'pm' ? '项目管理员' : r === 'writer' ? '编辑' : r === 'viewer' ? '只读' : r
+      r === 'pm' ? '项目负责人' : r === 'writer' ? '编辑' : r === 'viewer' ? '只读' : r
 
     const card = buildCardMessage(
       '🔑 项目角色变更',
@@ -381,7 +381,7 @@ export async function notifyProjectRoleChange(
   }
 }
 
-/** PM 移除编写人 → 通知被移除的用户 */
+/** PM 移除编辑人 → 通知被移除的用户 */
 export async function notifyRemoveAssignee(
   featureId: string,
   sectionKey: string,
@@ -404,6 +404,6 @@ export async function notifyRemoveAssignee(
 
     await sendFeishuMessage(openId, card)
   } catch (e: unknown) {
-    log.error({ err: e }, '通知移除编写人失败')
+    log.error({ err: e }, '通知移除编辑人失败')
   }
 }

@@ -1,8 +1,9 @@
 import { FastifyInstance } from 'fastify'
 import { getDb } from '../db/index.js'
 import { authMiddleware } from '../auth/middleware.js'
+import { isProjectMember } from '../auth/membership.js'
 import type { DocumentRow } from '../types.js'
-import { success } from '../lib/response.js'
+import { success, fail } from '../lib/response.js'
 
 interface TodoItem {
   docId: string
@@ -17,11 +18,20 @@ interface TodoItem {
 }
 
 export async function todoRoutes(app: FastifyInstance) {
-  app.get('/api/v1/todos', { preHandler: authMiddleware }, async (req) => {
+  app.get('/api/v1/todos', { preHandler: authMiddleware }, async (req, reply) => {
     const { projectId } = req.query as { projectId?: string }
     const db = getDb()
     const userId = req.user!.userId
     const userRole = req.user!.role
+
+    // member 角色：检查项目成员权限
+    if (userRole === 'member') {
+      if (projectId) {
+        if (!isProjectMember(userId, userRole, projectId)) {
+          return fail(reply, 403, '非项目成员无法查看')
+        }
+      }
+    }
 
     const todos: TodoItem[] = []
 
@@ -37,6 +47,16 @@ export async function todoRoutes(app: FastifyInstance) {
         ORDER BY f.title, d.section_key
       `)
         .all(projectId) as (DocumentRow & { feature_title: string; feature_project_id: string })[]
+    } else if (userRole === 'member') {
+      docs = db
+        .prepare(`
+        SELECT d.*, f.title as feature_title, f.project_id as feature_project_id
+        FROM documents d
+        JOIN features f ON f.id = d.feature_id
+        JOIN project_members pm ON f.project_id = pm.project_id AND pm.user_id = ?
+        ORDER BY f.title, d.section_key
+      `)
+        .all(userId) as (DocumentRow & { feature_title: string; feature_project_id: string })[]
     } else {
       docs = db
         .prepare(`

@@ -47,6 +47,24 @@ export async function userRoutes(app: FastifyInstance) {
       db.prepare(
         'INSERT INTO users (id, username, display_name, password_hash, role) VALUES (?, ?, ?, ?, ?)',
       ).run(id, username, displayName || username, hashed, role || 'member')
+
+      // 新创建的 member 用户自动加入默认项目（只读）
+      const finalRole = role || 'member'
+      if (finalRole === 'member') {
+        db.prepare(
+          'INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)',
+        ).run('default', id, 'viewer')
+      }
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'user.create',
+        targetType: 'user',
+        targetId: id,
+        detail: { username, displayName, role: finalRole },
+      })
+
       return created(id)
     },
   )
@@ -99,6 +117,13 @@ export async function userRoutes(app: FastifyInstance) {
         role,
         id,
       )
+
+      // 角色变更为 member 时自动加入默认项目（只读）
+      if (role === 'member') {
+        db.prepare(
+          'INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)',
+        ).run('default', id, 'viewer')
+      }
 
       recordAudit({
         userId: req.user!.userId,

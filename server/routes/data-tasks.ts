@@ -1,5 +1,5 @@
 // ============================================================
-// 数据任务路由：项目导入导出 + 系统备份 + 孤儿清理
+// 数据任务路由：项目导入导出 + 孤儿清理
 // ============================================================
 
 import { FastifyInstance } from 'fastify'
@@ -8,6 +8,7 @@ import { authMiddleware, requireRole, ensureProjectWritable } from '../auth/midd
 import { config } from '../config.js'
 import { success, ok, fail } from '../lib/response.js'
 import { parsePagination } from '../lib/pagination.js'
+import { recordAudit } from '../services/audit.js'
 import { v4 as uuid } from 'uuid'
 import fs from 'fs'
 import path from 'path'
@@ -21,7 +22,6 @@ import {
 } from '../services/upload-cleaner.js'
 import type { ImportApplyOptions } from '../../shared/types/models.js'
 
-const EXPORT_BASE = config.exportDir
 const IMPORT_BASE = config.importDir
 
 export async function dataTaskRoutes(app: FastifyInstance) {
@@ -67,6 +67,15 @@ export async function dataTaskRoutes(app: FastifyInstance) {
 
       // 异步执行导出
       db.prepare("UPDATE data_tasks SET status = 'processing' WHERE id = ?").run(taskId)
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'data.export',
+        targetType: 'project',
+        targetId: id,
+        detail: { taskId },
+      })
 
       runExportTask(taskId, id, (progress, label) => {
         db.prepare('UPDATE data_tasks SET progress = ?, progress_label = ? WHERE id = ?').run(
@@ -129,6 +138,15 @@ export async function dataTaskRoutes(app: FastifyInstance) {
       INSERT INTO data_tasks (id, type, scope, status, file_path, file_size, created_by)
       VALUES (?, 'import', ?, 'uploaded', ?, ?, ?)
     `).run(taskId, scope, filePath, buf.length, req.user!.userId)
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'data.import_upload',
+        targetType: 'project',
+        targetId: id,
+        detail: { taskId, fileSize: buf.length },
+      })
 
       return success({ taskId })
     },
@@ -321,6 +339,16 @@ export async function dataTaskRoutes(app: FastifyInstance) {
           JSON.stringify(diff),
           id,
         )
+
+        recordAudit({
+          userId: req.user!.userId,
+          username: req.user?.username || '',
+          action: 'data.import_analyze',
+          targetType: 'project',
+          targetId: targetProjectId,
+          detail: { taskId: id },
+        })
+
         return success(diff)
       } catch (e: unknown) {
         return fail(reply, 400, e instanceof Error ? e.message : '导入分析失败')
@@ -373,6 +401,24 @@ export async function dataTaskRoutes(app: FastifyInstance) {
           "UPDATE data_tasks SET status = 'completed', progress = 100, file_size = ?, completed_at = datetime('now') WHERE id = ?",
         ).run(JSON.stringify(result).length, id)
 
+        recordAudit({
+          userId: req.user!.userId,
+          username: req.user?.username || '',
+          action: 'data.import_apply',
+          targetType: 'project',
+          targetId: targetProjectId,
+          detail: {
+            taskId: id,
+            summary: {
+              categories: result.categories,
+              features: result.features,
+              catalogs: result.catalogs,
+              documents: result.documents,
+              uploads: result.uploads,
+            },
+          },
+        })
+
         return success(result)
       } catch (e: unknown) {
         db.prepare(
@@ -408,55 +454,15 @@ export async function dataTaskRoutes(app: FastifyInstance) {
       }
       db.prepare('DELETE FROM data_tasks WHERE id = ?').run(id)
 
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'data.task_delete',
+        targetType: 'data-task',
+        targetId: id,
+      })
+
       return ok()
-    },
-  )
-
-  // ============================================================
-  // 系统级导出
-  // ============================================================
-
-  app.post(
-    '/api/v1/system/export',
-    {
-      preHandler: [authMiddleware, requireRole('admin')],
-    },
-    async () => {
-      const db = getDb()
-      const taskId = uuid().slice(0, 12)
-
-      db.prepare(`
-      INSERT INTO data_tasks (id, type, scope, status, progress)
-      VALUES (?, 'export', 'system', 'processing', 0)
-    `).run(taskId)
-
-      const exportDir = EXPORT_BASE
-      if (!fs.existsSync(exportDir)) {
-        fs.mkdirSync(exportDir, { recursive: true })
-      }
-
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-      const filePath = path.join(exportDir, `system-backup-${timestamp}.db`)
-
-      // 系统备份直接导出数据库文件
-      try {
-        db.prepare(
-          "UPDATE data_tasks SET progress = 50, progress_label = '正在备份数据库...' WHERE id = ?",
-        ).run(taskId)
-
-        await db.backup(filePath)
-
-        const fileSize = fs.statSync(filePath).size
-        db.prepare(
-          "UPDATE data_tasks SET status = 'completed', progress = 100, file_path = ?, file_size = ?, completed_at = datetime('now') WHERE id = ?",
-        ).run(filePath, fileSize, taskId)
-      } catch (e: unknown) {
-        db.prepare(
-          "UPDATE data_tasks SET status = 'failed', error_message = ?, completed_at = datetime('now') WHERE id = ?",
-        ).run(e instanceof Error ? e.message : '备份失败', taskId)
-      }
-
-      return success({ taskId })
     },
   )
 

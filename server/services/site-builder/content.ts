@@ -15,9 +15,18 @@ export function buildCoverContentHtml(
   parts: PartMeta[],
   hasParts: boolean,
   catalogTitle: string,
+  versionLabel: string,
+  coverInfo?: Record<string, string>,
 ): string {
   let html = `<section class="vp-cover">
     <h1>${escHtml(catalogTitle)}</h1>`
+
+  if (coverInfo?.subtitle) {
+    html += `<p class="vp-cover-subtitle">${escHtml(coverInfo.subtitle)}</p>`
+  }
+  if (versionLabel) {
+    html += `<span class="vp-cover-version">${escHtml(versionLabel)}</span>`
+  }
 
   html += `
     <div class="vp-cover-toc-header">目录</div>`

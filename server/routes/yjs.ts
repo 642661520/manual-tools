@@ -22,6 +22,7 @@ import {
   scheduleEviction,
   cancelEviction,
 } from '../services/yjs-doc.js'
+import { recordAudit } from '../services/audit.js'
 
 const messageSync = 0
 const messageAwareness = 1
@@ -263,6 +264,16 @@ export async function yjsRoutes(app: FastifyInstance) {
     }
     if (!ensureProjectWritable(feature.project_id, reply)) return
     ensureDocument(docId, featureId, sectionKey)
+
+    recordAudit({
+      userId: req.user!.userId,
+      username: req.user?.username || '',
+      action: 'document.ensure',
+      targetType: 'document',
+      targetId: docId,
+      detail: { featureId, sectionKey },
+    })
+
     return ok()
   })
 }

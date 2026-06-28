@@ -268,6 +268,7 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id);
     CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
     CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_target ON audit_log(target_type, target_id);
     CREATE TABLE IF NOT EXISTS search_docs (
       doc_id TEXT PRIMARY KEY,
       title TEXT NOT NULL,

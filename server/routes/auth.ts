@@ -8,6 +8,7 @@ import type { UserRow } from '../types.js'
 import { getFeishuAuthUrl, exchangeCodeForToken } from '../services/feishu.js'
 import { determineRole } from '../auth/feishu.js'
 import { notifyNewGuest } from '../services/notifications.js'
+import { recordAudit } from '../services/audit.js'
 import { success, fail } from '../lib/response.js'
 import { authMiddleware } from '../auth/middleware.js'
 import { generateState } from '../lib/crypto.js'
@@ -55,14 +56,35 @@ export async function authRoutes(app: FastifyInstance) {
         | UserRow
         | undefined
       if (!user) {
+        recordAudit({
+          userId: 'anonymous',
+          username: username,
+          action: 'auth.login_failed',
+          targetType: 'auth',
+          detail: { reason: '用户不存在', username },
+        })
         return fail(reply, 401, '用户名或密码错误')
       }
       if (!user.password_hash) {
+        recordAudit({
+          userId: 'anonymous',
+          username: username,
+          action: 'auth.login_failed',
+          targetType: 'auth',
+          detail: { reason: '未设置密码', username },
+        })
         return fail(reply, 401, '该账号未设置密码，请使用飞书登录')
       }
 
       const passwordMatch = bcrypt.compareSync(password, user.password_hash)
       if (!passwordMatch) {
+        recordAudit({
+          userId: 'anonymous',
+          username: username,
+          action: 'auth.login_failed',
+          targetType: 'auth',
+          detail: { reason: '密码错误', username },
+        })
         return fail(reply, 401, '用户名或密码错误')
       }
       const token = signToken({
@@ -76,6 +98,15 @@ export async function authRoutes(app: FastifyInstance) {
       })
       // 设置 cookie，供文档站点页面导航鉴权 + CSRF 保护
       setLoginCookies(reply, token, generateCsrfToken())
+
+      recordAudit({
+        userId: user.id,
+        username: user.username,
+        action: 'auth.login',
+        targetType: 'auth',
+        detail: { method: 'password' },
+      })
+
       return success({
         token,
         user: {
@@ -96,6 +127,14 @@ export async function authRoutes(app: FastifyInstance) {
     db.prepare('UPDATE users SET token_version = token_version + 1 WHERE id = ?').run(
       req.user!.userId,
     )
+
+    recordAudit({
+      userId: req.user!.userId,
+      username: req.user?.username || '',
+      action: 'auth.logout',
+      targetType: 'auth',
+    })
+
     return success({ ok: true })
   })
 
@@ -126,13 +165,23 @@ export async function authRoutes(app: FastifyInstance) {
         | UserRow
         | undefined
 
+      let isNewUser = false
+
       if (!user) {
+        isNewUser = true
         const id = uuid()
         const role = determineRole(info.open_id)
         const username = `feishu_${info.open_id.slice(0, 12)}`
         db.prepare(
           'INSERT INTO users (id, username, display_name, password_hash, role, feishu_open_id, feishu_name, feishu_avatar_url, username_changed) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, 0)',
         ).run(id, username, info.name, role, info.open_id, info.name, info.avatar_url || null)
+
+        // 新注册的 member 用户自动加入默认项目（只读）
+        if (role === 'member') {
+          db.prepare(
+            'INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)',
+          ).run('default', id, 'viewer')
+        }
 
         user = {
           id,
@@ -170,6 +219,15 @@ export async function authRoutes(app: FastifyInstance) {
       })
 
       setLoginCookies(reply, token, generateCsrfToken())
+
+      recordAudit({
+        userId: user.id,
+        username: user.username,
+        action: 'auth.feishu_login',
+        targetType: 'auth',
+        detail: { isNewUser, openId: info.open_id },
+      })
+
       return success({
         user: {
           id: user.id,

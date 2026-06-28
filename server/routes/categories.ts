@@ -1,23 +1,41 @@
 import { FastifyInstance } from 'fastify'
 import { getDb } from '../db/index.js'
 import { authMiddleware, requireRole, ensureProjectWritable } from '../auth/middleware.js'
-import { hasProjectRole } from '../auth/membership.js'
+import { isProjectMember, hasProjectRole } from '../auth/membership.js'
 import { success, ok, fail } from '../lib/response.js'
+import { recordAudit } from '../services/audit.js'
 import { v4 as uuid } from 'uuid'
 import type { CategoryRow, CreateCategoryBody, UpdateCategoryBody } from '../types.js'
 
 export async function categoryRoutes(app: FastifyInstance) {
   // 获取分类列表
-  app.get('/api/v1/categories', { preHandler: authMiddleware }, async (req) => {
+  app.get('/api/v1/categories', { preHandler: authMiddleware }, async (req, reply) => {
     const { projectId } = req.query as { projectId?: string }
     const db = getDb()
+    const userId = req.user!.userId
+    const role = req.user!.role
 
     if (projectId) {
+      if (role === 'member' && !isProjectMember(userId, role, projectId)) {
+        return fail(reply, 403, '非项目成员无法查看')
+      }
       const rows = db
         .prepare('SELECT * FROM categories WHERE project_id = ? ORDER BY sort_order ASC, name ASC')
         .all(projectId) as CategoryRow[]
       return success(rows)
     }
+
+    if (role === 'member') {
+      const rows = db
+        .prepare(`
+          SELECT c.* FROM categories c
+          JOIN project_members pm ON c.project_id = pm.project_id AND pm.user_id = ?
+          ORDER BY c.sort_order ASC, c.name ASC
+        `)
+        .all(userId) as CategoryRow[]
+      return success(rows)
+    }
+
     const rows = db
       .prepare('SELECT * FROM categories ORDER BY sort_order ASC, name ASC')
       .all() as CategoryRow[]
@@ -55,6 +73,16 @@ export async function categoryRoutes(app: FastifyInstance) {
     `).run(id, body.name.trim(), body.color || '#6366f1', sortOrder, projectId)
 
       const created = db.prepare('SELECT * FROM categories WHERE id = ?').get(id) as CategoryRow
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'category.create',
+        targetType: 'category',
+        targetId: id,
+        detail: { name: body.name.trim(), projectId },
+      })
+
       return success(created)
     },
   )
@@ -85,6 +113,16 @@ export async function categoryRoutes(app: FastifyInstance) {
     `).run(body.name.trim(), body.color || '#6366f1', body.sort_order ?? 0, id)
 
       const updated = db.prepare('SELECT * FROM categories WHERE id = ?').get(id) as CategoryRow
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'category.update',
+        targetType: 'category',
+        targetId: id,
+        detail: { name: body.name.trim() },
+      })
+
       return success(updated)
     },
   )
@@ -109,6 +147,15 @@ export async function categoryRoutes(app: FastifyInstance) {
 
       // ON DELETE SET NULL 自动将关联章节的 category_id 置空
       db.prepare('DELETE FROM categories WHERE id = ?').run(id)
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'category.delete',
+        targetType: 'category',
+        targetId: id,
+      })
+
       return ok()
     },
   )

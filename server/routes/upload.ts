@@ -4,6 +4,7 @@ import { join } from 'path'
 import { writeFile, mkdir, access } from 'fs/promises'
 import { authMiddleware } from '../auth/middleware.js'
 import { success, fail } from '../lib/response.js'
+import { recordAudit } from '../services/audit.js'
 import { config } from '../config.js'
 
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
@@ -91,6 +92,16 @@ export async function uploadRoutes(app: FastifyInstance) {
     try {
       const maxMB = config.uploadMaxSize
       const result = await handleUpload(file, IMAGE_TYPES, IMAGE_EXT, maxMB, 'images')
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'upload.image',
+        targetType: 'upload',
+        targetId: result.filename,
+        detail: { size: result.size, url: result.url },
+      })
+
       return success(result)
     } catch (e: unknown) {
       return fail(reply, 400, e instanceof Error ? e.message : '图片上传失败')
@@ -104,6 +115,16 @@ export async function uploadRoutes(app: FastifyInstance) {
     try {
       const maxMB = config.videoMaxSize
       const result = await handleUpload(file, VIDEO_TYPES, VIDEO_EXT, maxMB, 'videos')
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'upload.video',
+        targetType: 'upload',
+        targetId: result.filename,
+        detail: { size: result.size, url: result.url },
+      })
+
       return success(result)
     } catch (e: unknown) {
       return fail(reply, 400, e instanceof Error ? e.message : '视频上传失败')

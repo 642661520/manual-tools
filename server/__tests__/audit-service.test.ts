@@ -47,13 +47,13 @@ describe('recordAudit', () => {
     recordAudit({
       userId: TEST_USER,
       username: TEST_USER,
-      action: 'login',
+      action: 'auth.login',
       targetType: 'auth',
     })
 
     const db = getDb()
     const row = db
-      .prepare("SELECT detail FROM audit_log WHERE action = 'login' AND user_id = ? LIMIT 1")
+      .prepare("SELECT detail FROM audit_log WHERE action = 'auth.login' AND user_id = ? LIMIT 1")
       .get(TEST_USER) as { detail: string } | undefined
     expect(row!.detail).toBe('')
   })
@@ -64,9 +64,9 @@ describe('queryAuditLogs', () => {
     recordAudit({
       userId: TEST_USER,
       username: TEST_USER,
-      action: 'user.update',
-      targetType: 'user',
-      targetId: 'u1',
+      action: 'feature.update',
+      targetType: 'feature',
+      targetId: 'f1',
     })
     recordAudit({
       userId: TEST_USER,
@@ -89,14 +89,16 @@ describe('queryAuditLogs', () => {
   })
 
   it('按 action 筛选', () => {
-    const result = queryAuditLogs({ action: 'user.update' })
-    const allMatch = result.rows.every((r) => r.action === 'user.update')
+    const result = queryAuditLogs({ action: 'feature.update' })
+    const allMatch = result.rows.every((r) => r.action === 'feature.update')
     expect(allMatch).toBe(true)
   })
 
   it('按 targetType 筛选', () => {
     const result = queryAuditLogs({ targetType: 'user' })
     expect(result.rows.length).toBeGreaterThan(0)
+    const allMatch = result.rows.every((r) => r.target_type === 'user')
+    expect(allMatch).toBe(true)
   })
 
   it('分页：limit', () => {

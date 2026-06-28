@@ -12,6 +12,7 @@ import {
   notifyStatusReset,
   notifyRemoveAssignee,
 } from '../services/notifications.js'
+import { recordAudit } from '../services/audit.js'
 import type {
   FeatureRow,
   FeatureWithStats,
@@ -81,9 +82,20 @@ export async function featureRoutes(app: FastifyInstance) {
         },
       },
     },
-    async (req) => {
+    async (req, reply) => {
       const { projectId } = req.query as { projectId?: string }
       const db = getDb()
+      const userId = req.user!.userId
+      const role = req.user!.role
+
+      // member 角色：检查项目成员权限（与 GET /api/v1/projects 保持一致）
+      if (role === 'member') {
+        if (projectId) {
+          if (!isProjectMember(userId, role, projectId)) {
+            return fail(reply, 403, '非项目成员无法查看')
+          }
+        }
+      }
 
       let sql = `
       SELECT f.*,
@@ -116,6 +128,9 @@ export async function featureRoutes(app: FastifyInstance) {
       if (projectId) {
         sql += ' WHERE f.project_id = ?'
         params.push(projectId)
+      } else if (role === 'member') {
+        sql += ' JOIN project_members pm ON f.project_id = pm.project_id AND pm.user_id = ?'
+        params.push(userId)
       }
 
       sql += ' ORDER BY f.title'
@@ -223,6 +238,15 @@ export async function featureRoutes(app: FastifyInstance) {
         projectId,
       )
 
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'feature.create',
+        targetType: 'feature',
+        targetId: id,
+        detail: { title: body.title.trim(), projectId },
+      })
+
       return created(id)
     },
   )
@@ -261,6 +285,15 @@ export async function featureRoutes(app: FastifyInstance) {
         id,
       )
 
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'feature.update',
+        targetType: 'feature',
+        targetId: id,
+        detail: { title: body.title.trim() },
+      })
+
       return ok()
     },
   )
@@ -286,6 +319,16 @@ export async function featureRoutes(app: FastifyInstance) {
       if (!ensureProjectWritable(feature.project_id, reply)) return
 
       db.prepare('DELETE FROM features WHERE id = ?').run(id)
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'feature.delete',
+        targetType: 'feature',
+        targetId: id,
+        detail: { title: feature.title },
+      })
+
       return ok()
     },
   )
@@ -320,14 +363,14 @@ export async function featureRoutes(app: FastifyInstance) {
 
       // 2) 所有权限校验（事务外，提前 fail，避免部分提交）
       if (assignees !== undefined && !hasProjectRole(userId, userRole, projectId, 'pm')) {
-        return fail(reply, 403, '项目内权限不足，只有项目管理员可以指派编写人')
+        return fail(reply, 403, '项目内权限不足，只有项目负责人可以指派编辑者')
       }
       if (status === 'pending_review' && reviewChain.length === 0) {
         return fail(reply, 400, '该项目没有可审核的 PM，请先添加 PM 成员')
       }
       if (status === 'approved') {
         if (!hasProjectRole(userId, userRole, projectId, 'pm')) {
-          return fail(reply, 403, '项目内权限不足，只有项目管理员可以审核')
+          return fail(reply, 403, '项目内权限不足，只有项目负责人可以审核')
         }
         if (!direct) {
           const currentReviewerId = reviewChain[currentStep]
@@ -338,7 +381,7 @@ export async function featureRoutes(app: FastifyInstance) {
       }
       if (status === 'rejected') {
         if (!hasProjectRole(userId, userRole, projectId, 'pm')) {
-          return fail(reply, 403, '项目内权限不足，只有项目管理员可以审核')
+          return fail(reply, 403, '项目内权限不足，只有项目负责人可以审核')
         }
         const currentReviewerId = reviewChain[currentStep]
         if (currentReviewerId && currentReviewerId !== userId) {
@@ -352,7 +395,7 @@ export async function featureRoutes(app: FastifyInstance) {
         (status === 'draft' || status === 'in_progress') &&
         !hasProjectRole(userId, userRole, projectId, 'pm')
       ) {
-        return fail(reply, 403, '项目内权限不足，只有项目管理员可以重置状态')
+        return fail(reply, 403, '项目内权限不足，只有项目负责人可以重置状态')
       }
 
       // 3) 事务：纯 DB 写入（不再含 fail() 调用）
@@ -565,6 +608,38 @@ export async function featureRoutes(app: FastifyInstance) {
       // 4) 异步通知（事务外 fire-and-forget，避免阻塞响应）
       jobs.forEach((job) => job())
 
+      // 5) 审计：状态变更 / 指派变更
+      if (status) {
+        recordAudit({
+          userId,
+          username: req.user?.username || '',
+          action: 'document.status_change',
+          targetType: 'document',
+          targetId: docId,
+          detail: {
+            status,
+            sectionKey,
+            featureId,
+            direct: direct || false,
+            reviewNote: reviewNote || '',
+          },
+        })
+      } else if (assignees !== undefined) {
+        recordAudit({
+          userId,
+          username: req.user?.username || '',
+          action: 'document.status_change',
+          targetType: 'document',
+          targetId: docId,
+          detail: {
+            action: 'assignees_update',
+            sectionKey,
+            featureId,
+            assignees,
+          },
+        })
+      }
+
       return result
     },
   )
@@ -588,6 +663,16 @@ export async function featureRoutes(app: FastifyInstance) {
       const docId = `${featureId}/${sectionKey}`
       db.prepare('DELETE FROM documents WHERE id = ?').run(docId)
       // 级联删除 document_updates 和 document_snapshots
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'feature.orphaned_delete',
+        targetType: 'document',
+        targetId: docId,
+        detail: { featureId, sectionKey },
+      })
+
       return ok()
     },
   )
@@ -618,6 +703,15 @@ export async function featureRoutes(app: FastifyInstance) {
         JSON.stringify(sections),
         id,
       )
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'feature.sections_update',
+        targetType: 'feature',
+        targetId: id,
+        detail: { sectionCount: sections.length },
+      })
 
       return success({ sections })
     },

@@ -5,6 +5,7 @@ import { signToken } from '../auth/jwt.js'
 import { authMiddleware } from '../auth/middleware.js'
 import { getDb } from '../db/index.js'
 import { validatePassword } from '../lib/password.js'
+import { recordAudit } from '../services/audit.js'
 import { success, ok, fail } from '../lib/response.js'
 
 export async function profileRoutes(app: FastifyInstance) {
@@ -56,6 +57,15 @@ export async function profileRoutes(app: FastifyInstance) {
     const userId = req.user!.userId
 
     db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(displayName, userId)
+
+    recordAudit({
+      userId,
+      username: req.user?.username || '',
+      action: 'profile.update_name',
+      targetType: 'user',
+      targetId: userId,
+      detail: { displayName },
+    })
 
     const token = signToken({
       userId: req.user!.userId,
@@ -120,6 +130,15 @@ export async function profileRoutes(app: FastifyInstance) {
       'UPDATE users SET username = ?, username_changed = 1, token_version = ? WHERE id = ?',
     ).run(newUsername, newVersion, userId)
 
+    recordAudit({
+      userId,
+      username: req.user?.username || '',
+      action: 'profile.update_username',
+      targetType: 'user',
+      targetId: userId,
+      detail: { oldUsername: req.user?.username, newUsername },
+    })
+
     const token = signToken({
       userId: req.user!.userId,
       username: newUsername,
@@ -151,6 +170,14 @@ export async function profileRoutes(app: FastifyInstance) {
         userId,
       )
     }
+
+    recordAudit({
+      userId,
+      username: req.user?.username || '',
+      action: 'profile.update_notify',
+      targetType: 'user',
+      targetId: userId,
+    })
 
     return ok()
   })
@@ -198,6 +225,14 @@ export async function profileRoutes(app: FastifyInstance) {
       newVersion,
       userId,
     )
+
+    recordAudit({
+      userId,
+      username: req.user?.username || '',
+      action: 'user.password_change',
+      targetType: 'user',
+      targetId: userId,
+    })
 
     const token = signToken({
       userId: req.user!.userId,

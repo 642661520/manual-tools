@@ -10,6 +10,7 @@ import {
   notifyLeaveProject,
   notifyProjectRoleChange,
 } from '../services/notifications.js'
+import { recordAudit } from '../services/audit.js'
 import { v4 as uuid } from 'uuid'
 import type { ProjectRow, CreateProjectBody, UpdateProjectBody, UserRow } from '../types.js'
 import { projectSchema, errorResponseSchema, okResponseSchema } from '../lib/swagger.js'
@@ -107,6 +108,16 @@ export async function projectRoutes(app: FastifyInstance) {
         'INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)',
       ).run(id, req.user!.userId, 'pm')
       const row = db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as ProjectRow
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'project.create',
+        targetType: 'project',
+        targetId: id,
+        detail: { name: body.name.trim() },
+      })
+
       return success(row)
     },
   )
@@ -137,6 +148,16 @@ export async function projectRoutes(app: FastifyInstance) {
       }
 
       const row = db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as ProjectRow
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'project.update',
+        targetType: 'project',
+        targetId: id,
+        detail: { name: body.name.trim(), hasReviewChain: body.reviewChain !== undefined },
+      })
+
       return success(row)
     },
   )
@@ -181,6 +202,15 @@ export async function projectRoutes(app: FastifyInstance) {
       db.prepare('DELETE FROM features WHERE project_id = ?').run(id)
       db.prepare('DELETE FROM projects WHERE id = ?').run(id)
 
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'project.delete',
+        targetType: 'project',
+        targetId: id,
+        detail: { catalogCount: catalogIds.length },
+      })
+
       // 清理所有 catalog 的文档站点文件
       for (const cid of catalogIds) {
         const docsDir = join(process.cwd(), 'data/docs', cid)
@@ -214,7 +244,7 @@ export async function projectRoutes(app: FastifyInstance) {
       FROM users u
       JOIN project_members pm ON u.id = pm.user_id
       WHERE pm.project_id = ?
-      ORDER BY pm.role, u.display_name
+      ORDER BY u.display_name
     `)
       .all(id) as (UserRow & { project_role: string })[]
     return success(members)
@@ -303,6 +333,20 @@ export async function projectRoutes(app: FastifyInstance) {
         )
       }
 
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'project.member_add',
+        targetType: 'project',
+        targetId: id,
+        detail: {
+          targetUserId,
+          projectRole: memberRole,
+          isExistingMember,
+          oldRole: isExistingMember ? existingMember.role : undefined,
+        },
+      })
+
       return ok()
     },
   )
@@ -368,6 +412,15 @@ export async function projectRoutes(app: FastifyInstance) {
         targetUserId,
         operator?.display_name || operator?.username || '未知用户',
       ).catch((e) => app.log.error(`飞书通知失败(移出项目) ${e instanceof Error ? e.message : e}`))
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'project.member_remove',
+        targetType: 'project',
+        targetId: id,
+        detail: { removedUserId: targetUserId },
+      })
 
       return ok()
     },
@@ -456,6 +509,15 @@ export async function projectRoutes(app: FastifyInstance) {
       db.prepare(
         "UPDATE projects SET review_chain = ?, updated_at = datetime('now') WHERE id = ?",
       ).run(JSON.stringify(reviewChain), id)
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'project.review_chain_update',
+        targetType: 'project',
+        targetId: id,
+        detail: { reviewChain },
+      })
 
       return ok()
     },

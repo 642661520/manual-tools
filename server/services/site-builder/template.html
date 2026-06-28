@@ -9,6 +9,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{{PAGE_TITLE}}</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none'%3E%3Crect x='4' y='12' width='44' height='44' rx='6' fill='%23DBEAFE'/%3E%3Crect x='16' y='4' width='44' height='44' rx='6' fill='%232563EB'/%3E%3Crect x='24' y='16' width='28' height='5' rx='2.5' fill='%23BFDBFE'/%3E%3Crect x='24' y='25' width='22' height='5' rx='2.5' fill='%23BFDBFE'/%3E%3Crect x='24' y='34' width='26' height='5' rx='2.5' fill='%2393C5FD'/%3E%3Crect x='24' y='43' width='18' height='5' rx='2.5' fill='%2393C5FD'/%3E%3C/svg%3E"
+    />
     <style>
       {{STYLES}}
     </style>
@@ -85,40 +90,42 @@
       <!-- Backdrop for mobile sidebar -->
       <div class="vp-sidebar-backdrop" id="sidebarBackdrop" onclick="closeMobileSidebar()"></div>
 
-      <!-- Left Sidebar -->
-      <aside class="vp-sidebar" id="vpSidebar">
-        <nav class="vp-sidebar-nav">
-          <div class="vp-sidebar-group">
-            <ul>
-              <li class="vp-nav-cover">
-                <a href="./">
-                  <svg
-                    class="vp-nav-cover-icon"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                  </svg>
-                  <span>目录</span>
-                </a>
-              </li>
-              {{SIDEBAR}}
-            </ul>
-          </div>
-        </nav>
-      </aside>
+      <div class="vp-layout-container">
+        <!-- Left Sidebar -->
+        <aside class="vp-sidebar" id="vpSidebar">
+          <nav class="vp-sidebar-nav">
+            <div class="vp-sidebar-group">
+              <ul>
+                <li class="vp-nav-cover">
+                  <a href="./">
+                    <svg
+                      class="vp-nav-cover-icon"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                    </svg>
+                    <span>目录</span>
+                  </a>
+                </li>
+                {{SIDEBAR}}
+              </ul>
+            </div>
+          </nav>
+        </aside>
 
-      <!-- Main Content Area -->
-      <div class="vp-content-area">
-        <main class="vp-main" id="mainContent">{{CONTENT}}</main>
+        <!-- Main Content Area -->
+        <div class="vp-content-area">
+          <main class="vp-main" id="mainContent">{{CONTENT}}</main>
 
-        <!-- Right-side On This Page TOC -->
-        {{TOC}}
+          <!-- Right-side On This Page TOC -->
+          {{TOC}}
+        </div>
       </div>
     </div>
 

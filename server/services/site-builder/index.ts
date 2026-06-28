@@ -1,5 +1,5 @@
 import { readFileSync } from 'fs'
-import { writeFile, mkdir } from 'fs/promises'
+import { writeFile, mkdir, unlink } from 'fs/promises'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { getDb } from '../../db/index.js'
@@ -33,16 +33,19 @@ const TEMPLATE = readFileSync(join(__dirname, 'template.html'), 'utf-8')
 const STYLES = readFileSync(join(__dirname, 'style.css'), 'utf-8')
 const SCRIPTS_JS = readFileSync(join(__dirname, 'script.js'), 'utf-8')
 const SEARCH_JS = readFileSync(join(__dirname, 'search.js'), 'utf-8')
+const FAVICON_SVG = readFileSync(join(process.cwd(), 'public/favicon.svg'))
 
 /** 构建静态文档站点，返回输出目录路径 */
 export async function buildStaticSite(
   catalogId: string,
   versionLabel: string,
 ): Promise<string | null> {
+  const db = getDb()
   const manual = assembleManualForSite(catalogId)
   if (!manual) return null
 
   const catalogTitle = manual.catalog.title
+  const coverInfo = manual.catalog.coverInfo as Record<string, string> | undefined
   const outDir = join(process.cwd(), 'data/docs', catalogId, versionLabel)
 
   // 从 manual 中提取 parts 信息
@@ -83,7 +86,7 @@ export async function buildStaticSite(
 
   // ----- 封面页 -----
   const coverSidebarHtml = buildSidebarHtml(features, parts, hasParts, 0)
-  const coverContentHtml = buildCoverContentHtml(features, parts, hasParts, catalogTitle)
+  const coverContentHtml = buildCoverContentHtml(features, parts, hasParts, catalogTitle, versionLabel, coverInfo)
   const coverPageHtml = wrapTemplate({
     catalogId,
     title: catalogTitle,
@@ -122,6 +125,45 @@ export async function buildStaticSite(
   // ----- 搜索索引 -----
   const searchIndex = buildSearchIndex(features, chapterPages)
   await writeFile(join(outDir, 'search-index.json'), JSON.stringify(searchIndex), 'utf-8')
+
+  // ----- Favicon -----
+  await writeFile(join(outDir, 'favicon.svg'), FAVICON_SVG)
+
+  // ----- Catalog 根目录 index.html（跳转到最新公开版本）-----
+  const catalogRoot = join(process.cwd(), 'data/docs', catalogId)
+  const catalogIndexPath = join(catalogRoot, 'index.html')
+  const latestPublic = db
+    .prepare(
+      `SELECT version_major, version_minor FROM catalog_versions
+       WHERE catalog_id = ? AND visibility = 'public'
+       ORDER BY version_major DESC, version_minor DESC
+       LIMIT 1`,
+    )
+    .get(catalogId) as { version_major: number; version_minor: number } | undefined
+
+  if (latestPublic) {
+    const major = latestPublic.version_major
+    const minor = latestPublic.version_minor
+    const catalogTitle = manual.catalog.title
+    const redirectHtml = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>${catalogTitle} - 操作手册</title>
+  <script>
+    location.replace('./v${major}.${minor}/')
+  </script>
+</head>
+<body>
+  <p>正在跳转到最新版本 <a href="./v${major}.${minor}/">v${major}.${minor}</a>...</p>
+</body>
+</html>`
+    await mkdir(catalogRoot, { recursive: true })
+    await writeFile(catalogIndexPath, redirectHtml, 'utf-8')
+  } else {
+    // 没有公开版本时删除旧跳转页，避免指向过期版本
+    await unlink(catalogIndexPath).catch(() => {})
+  }
 
   return outDir
 }

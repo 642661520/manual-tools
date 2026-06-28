@@ -3,6 +3,7 @@ import { FastifyInstance } from 'fastify'
 import { authMiddleware } from '../auth/middleware.js'
 import { getDb } from '../db/index.js'
 import { getFeishuAuthUrl, exchangeCodeForToken } from '../services/feishu.js'
+import { recordAudit } from '../services/audit.js'
 import { generateState } from '../lib/crypto.js'
 import { success, ok, fail } from '../lib/response.js'
 
@@ -38,6 +39,15 @@ export async function feishuRoutes(app: FastifyInstance) {
       db.prepare(
         'UPDATE users SET display_name = ?, feishu_open_id = ?, feishu_name = ?, feishu_avatar_url = ? WHERE id = ?',
       ).run(info.name, info.open_id, info.name, info.avatar_url || null, userId)
+
+      recordAudit({
+        userId,
+        username: req.user?.username || '',
+        action: 'profile.bind_feishu',
+        targetType: 'user',
+        targetId: userId,
+        detail: { openId: info.open_id, name: info.name },
+      })
 
       return success({
         openId: info.open_id,
@@ -81,6 +91,15 @@ export async function feishuRoutes(app: FastifyInstance) {
     db.prepare(
       'UPDATE users SET feishu_open_id = NULL, feishu_name = NULL, feishu_avatar_url = NULL WHERE id = ?',
     ).run(req.user!.userId)
+
+    recordAudit({
+      userId: req.user!.userId,
+      username: req.user?.username || '',
+      action: 'profile.unbind_feishu',
+      targetType: 'user',
+      targetId: req.user!.userId,
+    })
+
     return ok()
   })
 }
