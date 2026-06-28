@@ -95,7 +95,7 @@ describe('yjs — WebSocket 协同编辑', () => {
   })
 
   it('有效认证 + 同步 step1 返回 update', async () => {
-    const { encoding, decoding } = await import('lib0')
+    const { decoding } = await import('lib0')
     await new Promise<void>((resolve) => {
       const ws = new WebSocket(`${serverAddress}/ws/doc/${WS_DOC}`)
       ws.on('open', () => {

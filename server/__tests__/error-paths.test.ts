@@ -10,7 +10,6 @@ const PREFIX = 'errp'
 let app: Awaited<ReturnType<typeof buildTestApp>>
 let adminToken: string
 let projectId: string
-let featureId: string
 
 beforeAll(async () => {
   app = await buildTestApp()

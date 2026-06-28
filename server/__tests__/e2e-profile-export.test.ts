@@ -17,7 +17,7 @@ beforeAll(async () => {
   })
   adminToken = loginRes.json().data.token
 
-  const mbrRes = await app.inject({
+  await app.inject({
     method: 'POST', url: '/api/v1/auth/users',
     headers: { authorization: `Bearer ${adminToken}` },
     payload: {
