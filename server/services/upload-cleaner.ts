@@ -5,7 +5,7 @@
 import { getDb } from '../db/index.js'
 import fs from 'fs'
 import path from 'path'
-import { extractUploadRefsFromBlob } from './export-service.js'
+import { extractUploadRefsFromBlob } from '../lib/upload-refs.js'
 import { config } from '../config.js'
 
 const UPLOAD_BASE = config.uploadDir
@@ -115,8 +115,8 @@ export function deleteOrphanFiles(): { deleted: number; freedBytes: number } {
   return { deleted, freedBytes }
 }
 
-/** 列出所有上传文件，标记是否被引用 */
-export function getUploadsList(): {
+/** 列出所有上传文件，标记是否被引用，支持分页切片 */
+export function getUploadsList(pagination?: { limit: number; offset: number }): {
   files: UploadFileInfo[]
   totalSize: number
   totalCount: number
@@ -149,7 +149,9 @@ export function getUploadsList(): {
   const referencedCount = files.filter((f) => f.referenced).length
   const orphanedCount = files.length - referencedCount
 
-  return { files, totalSize, totalCount: files.length, referencedCount, orphanedCount }
+  const sliced = pagination ? files.slice(pagination.offset, pagination.offset + pagination.limit) : files
+
+  return { files: sliced, totalSize, totalCount: files.length, referencedCount, orphanedCount }
 }
 
 /** 删除单个上传文件，校验路径防止目录穿越 */

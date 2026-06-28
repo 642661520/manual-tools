@@ -3,7 +3,7 @@ import { writeFile, mkdir } from 'fs/promises'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { getDb } from '../../db/index.js'
-import * as Y from 'yjs'
+import { yjsDataToHtml } from '../../lib/yjs-utils.js'
 import { isCatalogPart } from '../../types.js'
 import type {
   CatalogRow,
@@ -193,23 +193,18 @@ function getDocumentContent(docId: string): string {
     .prepare('SELECT update_data FROM document_updates WHERE document_id = ? ORDER BY id ASC')
     .all(docId) as UpdateRow[]
 
-  if (updates.length === 0) {
-    const snapshot = db
-      .prepare(
-        'SELECT snapshot_data FROM document_snapshots WHERE document_id = ? ORDER BY id DESC LIMIT 1',
-      )
-      .get(docId) as SnapshotRow | undefined
-    if (!snapshot) return ''
-    const doc = new Y.Doc()
-    Y.applyUpdate(doc, new Uint8Array(snapshot.snapshot_data))
-    return doc.getText('content').toString()
-  }
+  const snapshot = db
+    .prepare(
+      'SELECT snapshot_data FROM document_snapshots WHERE document_id = ? ORDER BY id DESC LIMIT 1',
+    )
+    .get(docId) as SnapshotRow | undefined
 
-  const doc = new Y.Doc()
-  for (const row of updates) {
-    Y.applyUpdate(doc, new Uint8Array(row.update_data))
-  }
-  return doc.getText('content').toString()
+  if (updates.length === 0 && !snapshot) return ''
+
+  return yjsDataToHtml(
+    snapshot?.snapshot_data ?? null,
+    updates.map((u) => u.update_data),
+  )
 }
 
 function wrapTemplate(params: {

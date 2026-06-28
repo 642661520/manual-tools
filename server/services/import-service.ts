@@ -1,5 +1,6 @@
 // ============================================================
 // 导入服务：解析 ZIP → 差异分析 → 执行导入
+// v2 格式：按实体类型拆分文件，文档为 HTML，图片用相对路径
 // ============================================================
 
 import { getDb } from '../db/index.js'
@@ -8,112 +9,261 @@ import path from 'path'
 import { createHash } from 'crypto'
 import unzipper from 'unzipper'
 import { config } from '../config.js'
+import { htmlToYjsSnapshot } from '../lib/yjs-utils.js'
+import { parseRelativeUploadRef } from '../lib/upload-refs.js'
 import type {
   ImportDiffReport,
   ImportApplyOptions,
   ImportApplyResult,
 } from '../../shared/types/models.js'
 import type { FeatureRow, CatalogRow, CategoryRow } from '../types.js'
+import type { CentralDirectory, File as UnzipFile } from 'unzipper'
 
 const UPLOAD_BASE = config.uploadDir
 
-/** 标准化上传文件引用路径为分片格式
- *  新格式: images/ab/hash.ext → 保持不变
- *  旧格式: images/hash.ext → 转换为 images/ab/hash.ext */
-function normalizeUploadRef(ref: string): string {
-  const parts = ref.split('/')
-  // parts[0] = images|videos, parts[1] = shard(2 hex) 或 filename(hash.ext)
-  if (parts.length === 3) return ref // 已是分片格式
-  if (parts.length === 2) {
-    const filename = parts[1]
-    const hash = filename.replace(/\.[^.]+$/, '')
-    if (/^[a-f0-9]{64}$/.test(hash)) {
-      return `${parts[0]}/${hash.slice(0, 2)}/${filename}`
+// ---- ZIP 文件读取辅助 ----
+
+/** 规范化 ZIP 内路径：去除前导 ./ 或 / */
+function normPath(p: string): string {
+  return p.replace(/^\.?\//, '')
+}
+
+class V2ZipReader {
+  constructor(private directory: CentralDirectory) {}
+
+  getFile(path: string): UnzipFile | undefined {
+    const target = normPath(path)
+    return this.directory.files.find((f: UnzipFile) => normPath(f.path) === target)
+  }
+
+  async readJson(relPath: string): Promise<Record<string, unknown>> {
+    const file = this.getFile(relPath)
+    if (!file) throw new Error(`ZIP 中缺少 ${relPath}`)
+    const buf = await file.buffer()
+    return JSON.parse(buf.toString('utf-8'))
+  }
+
+  async readText(relPath: string): Promise<string> {
+    const file = this.getFile(relPath)
+    if (!file) return ''
+    const buf = await file.buffer()
+    return buf.toString('utf-8')
+  }
+
+  listFiles(prefix: string): string[] {
+    const target = normPath(prefix)
+    return this.directory.files
+      .filter((f: UnzipFile) => normPath(f.path).startsWith(target) && f.type === 'File')
+      .map((f: UnzipFile) => f.path)
+  }
+}
+
+// ---- 数据解析 ----
+
+interface ParsedExport {
+  source: { projectId: string; projectName: string }
+  project: { id: string; name: string; description: string }
+  categories: Array<{ id: string; name: string; color: string; sort_order: number }>
+  features: Array<{
+    id: string
+    title: string
+    description: string
+    sections: string
+    is_custom: number
+    category_id: string | null
+  }>
+  documents: Map<
+    string,
+    { html: string; featureId: string; sectionKey: string }
+  >
+  catalogs: Array<{
+    row: { id: string; title: string; targets: string; features: string; cover_info: string }
+    versions: Array<{
+      id: string
+      catalog_id: string
+      version_major: number
+      version_minor: number
+      title: string
+      features_snapshot: string
+      change_notes: string
+      markdown: string
+      status_snapshot: string
+      visibility: string
+      features_json: string
+      headings_json: string
+      created_at: string
+    }>
+  }>
+}
+
+async function parseExportData(zipPath: string): Promise<ParsedExport> {
+  const directory = await unzipper.Open.file(zipPath)
+  const reader = new V2ZipReader(directory)
+
+  // manifest.json
+  const manifest = await reader.readJson('manifest.json')
+  const source = {
+    projectId: manifest.source?.projectId ?? '',
+    projectName: manifest.source?.projectName ?? 'Unknown',
+  }
+
+  // project.json
+  const project = await reader.readJson('project.json')
+
+  // categories.json
+  const categories = await reader.readJson('categories.json')
+
+  // features/*.json
+  const featurePaths = reader.listFiles('features/')
+  const features: ParsedExport['features'] = []
+  for (const fp of featurePaths) {
+    const f = await reader.readJson(fp)
+    features.push({
+      id: f.id,
+      title: f.title,
+      description: f.description,
+      sections: JSON.stringify(f.sections || []),
+      is_custom: f.is_custom ?? 0,
+      category_id: f.category_id ?? null,
+    })
+  }
+
+  // documents/*/*.html
+  const documentPaths = reader.listFiles('documents/')
+  const documents = new Map<string, { html: string; featureId: string; sectionKey: string }>()
+
+  for (const dp of documentPaths) {
+    // dp = "documents/{feature-id}/{section-key}.html"
+    const relative = dp.replace('documents/', '')
+    const lastSlash = relative.lastIndexOf('/')
+    if (lastSlash < 0) continue
+    const featureId = relative.slice(0, lastSlash)
+    const sectionKey = relative.slice(lastSlash + 1).replace(/\.html$/, '')
+    const docId = `${featureId}/${sectionKey}`
+    const html = await reader.readText(dp)
+    if (!html.trim()) continue
+    documents.set(docId, { html, featureId, sectionKey })
+  }
+
+  // catalogs/*.json
+  const catalogPaths = reader.listFiles('catalogs/')
+  const catalogs: ParsedExport['catalogs'] = []
+  for (const cp of catalogPaths) {
+    const c = await reader.readJson(cp)
+    catalogs.push({
+      row: {
+        id: c.id,
+        title: c.title,
+        targets: JSON.stringify(c.targets || []),
+        features: JSON.stringify(c.features || []),
+        cover_info: JSON.stringify(c.cover_info || {}),
+      },
+      versions: (c.versions || []).map((v: Record<string, unknown>) => ({
+        id: v.id,
+        catalog_id: v.catalog_id,
+        version_major: v.version_major,
+        version_minor: v.version_minor,
+        title: v.title,
+        features_snapshot: v.features_snapshot,
+        change_notes: v.change_notes,
+        markdown: v.markdown,
+        status_snapshot: v.status_snapshot,
+        visibility: v.visibility,
+        features_json: v.features_json || '[]',
+        headings_json: v.headings_json || '[]',
+        created_at: v.created_at,
+      })),
+    })
+  }
+
+  return { source, project, categories, features, documents, catalogs }
+}
+
+/**
+ * 扫描 HTML 中的相对路径 uploads 引用，解析为 ZIP 内路径
+ * 返回 [relPath, { zipPath, filename, isHashed }] 映射
+ */
+function collectRelativeUploadRefs(
+  html: string,
+): Map<string, { zipPath: string; filename: string; isHashed: boolean }> {
+  const refs = new Map<string, { zipPath: string; filename: string; isHashed: boolean }>()
+  const re = /\.\.\/\.\.\/uploads\/(images|videos)\/([a-f0-9]{2}\/)?([^"'\s>]+)/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(html)) !== null) {
+    const relPath = m[0]
+    if (refs.has(relPath)) continue
+    const parsed = parseRelativeUploadRef(relPath)
+    if (parsed) refs.set(relPath, parsed)
+  }
+  return refs
+}
+
+/**
+ * 构建上传文件路径映射：ZIP 内路径 → 最终绝对 URL 路径
+ * 非 hash 文件名自动计算 SHA-256
+ */
+async function buildUploadMapping(
+  zipPath: string,
+  documents: Map<string, { html: string; featureId: string; sectionKey: string }>,
+): Promise<Map<string, string>> {
+  const directory = await unzipper.Open.file(zipPath)
+  const mapping = new Map<string, string>() // zipPath → absolute URL
+
+  for (const [, doc] of documents) {
+    const refs = collectRelativeUploadRefs(doc.html)
+    for (const [, parsed] of refs) {
+      if (mapping.has(parsed.zipPath)) continue
+
+      const zipFile = directory.files.find(
+        (f: UnzipFile) => f.path === parsed.zipPath && f.type === 'File',
+      )
+      if (!zipFile) continue
+
+      if (parsed.isHashed) {
+        // 已哈希：直接使用
+        mapping.set(parsed.zipPath, `/uploads/${parsed.zipPath.replace('uploads/', '')}`)
+      } else {
+        // 非哈希：计算 SHA-256
+        const content = await zipFile.buffer()
+        const hash = createHash('sha256').update(content).digest('hex')
+        const ext = path.extname(parsed.filename)
+        const zipBase = parsed.zipPath.replace(/[^/]+$/, '') // "uploads/images/" or "uploads/images/ab/"
+        // 确保分片目录存在
+        const shard = hash.slice(0, 2)
+        const finalDir = zipBase.includes(`/${shard}/`)
+          ? zipBase
+          : `${zipBase}${shard}/`
+        const finalZipPath = `${finalDir}${hash}${ext}`
+        mapping.set(parsed.zipPath, `/uploads/${finalZipPath.replace('uploads/', '')}`)
+      }
     }
   }
-  return ref
+
+  return mapping
 }
 
-interface ExportData {
-  data: {
-    project: { id: string; name: string; description: string }
-    categories: Array<{ id: string; name: string; color: string; sort_order: number }>
-    features: Array<{
-      id: string
-      title: string
-      description: string
-      sections: string
-      is_custom: number
-      category_id: string | null
-    }>
-    documents: Record<
-      string,
-      {
-        row: {
-          id: string
-          feature_id: string
-          section_key: string
-          status: string
-          assignees: string
-          review_note: string
-          review_step: number
-          status_log: string
-        }
-        snapshot: string | null
-        updates: string[]
-      }
-    >
-    catalogs: Array<{
-      row: { id: string; title: string; targets: string; features: string; cover_info: string }
-      versions: Array<{
-        id: string
-        catalog_id: string
-        version_major: number
-        version_minor: number
-        title: string
-        features_snapshot: string
-        change_notes: string
-        markdown: string
-        status_snapshot: string
-        visibility: string
-        features_json: string
-        headings_json: string
-        created_at: string
-      }>
-    }>
-    projectMembers: string[]
+/**
+ * 用映射表替换 HTML 中的相对路径为绝对路径
+ */
+function rewriteUploadPaths(html: string, mapping: Map<string, string>): string {
+  let result = html
+  for (const [relPath, absoluteUrl] of mapping) {
+    // 转义特殊正则字符
+    const escaped = relPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    result = result.replace(new RegExp(escaped, 'g'), absoluteUrl)
   }
-  uploadsManifest: Array<{ path: string; size: number }>
+  return result
 }
 
-/** 从 ZIP 中读取并解析 data.json */
-async function parseDataJson(zipPath: string): Promise<ExportData> {
-  const directory = await unzipper.Open.file(zipPath)
-  const dataFile = directory.files.find((f: unzipper.File) => f.path === 'data.json')
-  if (!dataFile) throw new Error('ZIP 文件中缺少 data.json')
+// ---- 差异分析 ----
 
-  const buf = await dataFile.buffer()
-  const content: string = buf.toString('utf-8')
-  return JSON.parse(content)
-}
-
-/** 列出 ZIP 中的上传文件路径 */
-async function listZipUploads(zipPath: string): Promise<string[]> {
-  const directory = await unzipper.Open.file(zipPath)
-  return directory.files
-    .filter((f: unzipper.File) => f.path.startsWith('uploads/') && f.type === 'File')
-    .map((f: unzipper.File) => f.path.replace(/^uploads\//, ''))
-}
-
-/** 差异分析 */
 export async function analyzeImport(
   zipPath: string,
   targetProjectId: string,
 ): Promise<ImportDiffReport> {
   const db = getDb()
-  const data = await parseDataJson(zipPath)
+  const data = await parseExportData(zipPath)
 
-  const sourceProject = data.data.project
   const targetProject = db
     .prepare('SELECT id, name FROM projects WHERE id = ?')
     .get(targetProjectId) as { id: string; name: string } | undefined
@@ -127,7 +277,7 @@ export async function analyzeImport(
 
   const catAdded: string[] = []
   const catConflicted: { id: string; sourceName: string; targetName: string }[] = []
-  for (const c of data.data.categories) {
+  for (const c of data.categories) {
     const ex = existingCatMap.get(c.id)
     if (!ex) {
       catAdded.push(c.id)
@@ -144,7 +294,7 @@ export async function analyzeImport(
 
   const featAdded: string[] = []
   const featConflicted: { id: string; sourceTitle: string; targetTitle: string }[] = []
-  for (const f of data.data.features) {
+  for (const f of data.features) {
     const ex = existingFeatMap.get(f.id)
     if (!ex) {
       featAdded.push(f.id)
@@ -161,7 +311,7 @@ export async function analyzeImport(
 
   const catlAdded: string[] = []
   const catlConflicted: { id: string; sourceTitle: string; targetTitle: string }[] = []
-  for (const c of data.data.catalogs) {
+  for (const c of data.catalogs) {
     const ex = existingCatlMap.get(c.row.id)
     if (!ex) {
       catlAdded.push(c.row.id)
@@ -171,13 +321,12 @@ export async function analyzeImport(
   }
 
   // ---- 文档 ----
-  const docIds = Object.keys(data.data.documents)
   const existingDocIds = new Set(
     (db.prepare('SELECT id FROM documents').all() as { id: string }[]).map((r) => r.id),
   )
   let docAdded = 0
   let docConflicted = 0
-  for (const docId of docIds) {
+  for (const docId of data.documents.keys()) {
     if (existingDocIds.has(docId)) {
       docConflicted++
     } else {
@@ -185,75 +334,70 @@ export async function analyzeImport(
     }
   }
 
-  // ---- 成员 ----
-  const existingMemberIds = new Set(
-    (
-      db
-        .prepare('SELECT user_id FROM project_members WHERE project_id = ?')
-        .all(targetProjectId) as { user_id: string }[]
-    ).map((r) => r.user_id),
-  )
-  const existingUserIds = new Set(
-    (db.prepare('SELECT id FROM users').all() as { id: string }[]).map((r) => r.id),
-  )
-
-  const memberAdded: string[] = []
-  const unknownUsers: string[] = []
-  for (const uid of data.data.projectMembers) {
-    if (!existingMemberIds.has(uid)) {
-      if (existingUserIds.has(uid)) {
-        memberAdded.push(uid)
-      } else {
-        unknownUsers.push(uid)
-      }
-    }
-  }
-
   // ---- 上传文件 ----
-  const zipUploads = (await listZipUploads(zipPath)).map(normalizeUploadRef)
+  const directory = await unzipper.Open.file(zipPath)
+  const uploadPaths = directory.files
+    .filter((f: UnzipFile) => f.path.startsWith('uploads/') && f.type === 'File')
+    .map((f: UnzipFile) => f.path)
+
   let uploadsTotalSize = 0
   let uploadDuplicates = 0
-  for (const ref of zipUploads) {
-    const fp = path.join(UPLOAD_BASE, ref)
-    if (fs.existsSync(fp)) {
+  for (const up of uploadPaths) {
+    const zipFile = directory.files.find((f: UnzipFile) => f.path === up)
+    if (zipFile) {
+      const content = await zipFile.buffer()
+      uploadsTotalSize += content.length
+    }
+    // 检查是否已存在
+    const rel = up.replace('uploads/', '')
+    const diskPath = path.join(UPLOAD_BASE, rel)
+    if (fs.existsSync(diskPath)) {
       uploadDuplicates++
     }
-    const manifest = data.uploadsManifest.find((m) => normalizeUploadRef(m.path) === ref)
-    if (manifest) uploadsTotalSize += manifest.size
   }
 
   return {
-    sourceProject: { id: sourceProject.id, name: sourceProject.name },
+    sourceProject: { id: data.source.projectId, name: data.source.projectName },
     categories: { added: catAdded, conflicted: catConflicted },
     features: { added: featAdded, conflicted: featConflicted },
     catalogs: { added: catlAdded, conflicted: catlConflicted },
     documents: { added: docAdded, conflicted: docConflicted, skipped: 0 },
-    projectMembers: { added: memberAdded, unknownUsers },
     uploads: {
-      total: zipUploads.length,
+      total: uploadPaths.length,
       totalSize: uploadsTotalSize,
       duplicates: uploadDuplicates,
     },
   }
 }
 
-/** 执行导入 */
+// ---- 执行导入 ----
+
 export async function applyImport(
   zipPath: string,
   targetProjectId: string,
   options: ImportApplyOptions,
 ): Promise<ImportApplyResult> {
   const db = getDb()
-  const data = await parseDataJson(zipPath)
+  const data = await parseExportData(zipPath)
 
   const result: ImportApplyResult = {
     categories: { inserted: 0, updated: 0, skipped: 0 },
     features: { inserted: 0, updated: 0, skipped: 0 },
     catalogs: { inserted: 0, updated: 0, skipped: 0 },
     documents: { inserted: 0, updated: 0, skipped: 0 },
-    members: { inserted: 0 },
     uploads: { copied: 0, skipped: 0 },
   }
+
+  // 构建上传路径映射（HTML 相对路径 → 绝对 URL）
+  const uploadMapping = await buildUploadMapping(zipPath, data.documents)
+
+  // 重写文档 HTML 中的路径
+  const rewrittenDocs = new Map<string, string>() // docId → final HTML
+  for (const [docId, doc] of data.documents) {
+    rewrittenDocs.set(docId, rewriteUploadPaths(doc.html, uploadMapping))
+  }
+
+  const defaultStatus = options.documentStatus || 'draft'
 
   const transaction = db.transaction(() => {
     // ---- 分类 ----
@@ -261,12 +405,11 @@ export async function applyImport(
       INSERT OR REPLACE INTO categories (id, name, color, sort_order, project_id)
       VALUES (?, ?, ?, ?, ?)
     `)
-    for (const c of data.data.categories) {
+    for (const c of data.categories) {
       const existing = db
         .prepare('SELECT id FROM categories WHERE id = ? AND project_id = ?')
         .get(c.id, targetProjectId)
       if (existing) {
-        // 安全默认：只有用户明确选择 'overwrite' 才覆盖，否则跳过
         if (options.strategies.categories[c.id] !== 'overwrite') {
           result.categories.skipped++
           continue
@@ -283,7 +426,7 @@ export async function applyImport(
       INSERT OR REPLACE INTO features (id, title, description, sections, is_custom, category_id, project_id, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `)
-    for (const f of data.data.features) {
+    for (const f of data.features) {
       const existing = db
         .prepare('SELECT id FROM features WHERE id = ? AND project_id = ?')
         .get(f.id, targetProjectId)
@@ -317,7 +460,7 @@ export async function applyImport(
       (id, catalog_id, version_major, version_minor, title, features_snapshot, change_notes, markdown, status_snapshot, visibility, features_json, headings_json, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
-    for (const c of data.data.catalogs) {
+    for (const c of data.catalogs) {
       const existing = db
         .prepare('SELECT id FROM catalogs WHERE id = ? AND project_id = ?')
         .get(c.row.id, targetProjectId)
@@ -362,15 +505,11 @@ export async function applyImport(
       INSERT OR REPLACE INTO documents (id, feature_id, section_key, status, assignees, review_note, review_step, status_log, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `)
-    const insertUpdate = db.prepare(
-      'INSERT INTO document_updates (document_id, update_data) VALUES (?, ?)',
-    )
     const insertSnapshot = db.prepare(
       'INSERT INTO document_snapshots (document_id, snapshot_data) VALUES (?, ?)',
     )
 
-    for (const [docId, docData] of Object.entries(data.data.documents)) {
-      const r = docData.row
+    for (const [docId, doc] of data.documents) {
       const existing = db.prepare('SELECT id FROM documents WHERE id = ?').get(docId)
       if (existing) {
         if (options.strategies.documents[docId] !== 'overwrite') {
@@ -381,61 +520,73 @@ export async function applyImport(
       } else {
         result.documents.inserted++
       }
+
+      const finalHtml = rewrittenDocs.get(docId) || doc.html
+
       insertDoc.run(
-        r.id,
-        r.feature_id,
-        r.section_key,
-        r.status,
-        r.assignees,
-        r.review_note,
-        r.review_step,
-        r.status_log,
+        docId,
+        doc.featureId,
+        doc.sectionKey,
+        defaultStatus,
+        '[]',
+        '',
+        0,
+        '[]',
       )
 
-      // 先清理旧的 updates/snapshots（覆盖模式下）
+      // 清理旧的 updates/snapshots（覆盖模式下）
       if (existing) {
         db.prepare('DELETE FROM document_updates WHERE document_id = ?').run(docId)
         db.prepare('DELETE FROM document_snapshots WHERE document_id = ?').run(docId)
       }
-      if (docData.snapshot) {
-        insertSnapshot.run(docId, Buffer.from(docData.snapshot, 'base64'))
-      }
-      for (const upd of docData.updates) {
-        insertUpdate.run(docId, Buffer.from(upd, 'base64'))
-      }
-    }
 
-    // ---- 成员 ----
-    if (options.includeMembers) {
-      const insertMember = db.prepare(
-        'INSERT OR IGNORE INTO project_members (project_id, user_id) VALUES (?, ?)',
-      )
-      for (const uid of data.data.projectMembers) {
-        const existingUser = db.prepare('SELECT id FROM users WHERE id = ?').get(uid)
-        if (existingUser) {
-          insertMember.run(targetProjectId, uid)
-          result.members.inserted++
-        }
-      }
+      // HTML → Y.js snapshot
+      const snapshotBuf = htmlToYjsSnapshot(finalHtml)
+      insertSnapshot.run(docId, snapshotBuf)
     }
   })
 
   transaction()
 
-  // ---- 上传文件（在事务外，从 ZIP 流式解压） ----
+  // ---- 上传文件（事务外） ----
   const directory = await unzipper.Open.file(zipPath)
-  for (const file of directory.files) {
-    if (!file.path.startsWith('uploads/') || file.type !== 'File') continue
-    const ref: string = normalizeUploadRef(file.path.replace(/^uploads\//, ''))
-    const destPath = path.join(UPLOAD_BASE, ref)
+  const uploadFiles = directory.files.filter(
+    (f: UnzipFile) => f.path.startsWith('uploads/') && f.type === 'File',
+  )
+
+  for (const file of uploadFiles) {
+    const zipPathRel = file.path // "uploads/images/ab/hash.png"
+    const content = await file.buffer()
+
+    // 查找映射中是否有此文件的目标路径
+    const mappedUrl = uploadMapping.get(zipPathRel)
+    let destRel: string
+
+    if (mappedUrl) {
+      // 从映射的绝对 URL 反推相对磁盘路径
+      destRel = mappedUrl.replace(/^\/uploads\//, '')
+    } else {
+      // 未被文档引用的文件：检查是否 hash 命名
+      const filename = path.basename(zipPathRel)
+      const nameWithoutExt = filename.replace(/\.[^.]+$/, '')
+      if (/^[a-f0-9]{64}$/.test(nameWithoutExt)) {
+        destRel = zipPathRel.replace('uploads/', '')
+      } else {
+        // 非 hash 文件名：计算 hash
+        const hash = createHash('sha256').update(content).digest('hex')
+        const ext = path.extname(filename)
+        destRel = `images/${hash.slice(0, 2)}/${hash}${ext}`
+      }
+    }
+
+    const destPath = path.join(UPLOAD_BASE, destRel)
 
     // SHA-256 去重
     if (fs.existsSync(destPath)) {
-      const content = await file.buffer()
-      const hash = createHash('sha256').update(content).digest('hex')
-      const fileName = path.basename(destPath)
-      const expectedHash = fileName.replace(/\.[^.]+$/, '')
-      if (hash === expectedHash) {
+      const existingContent = fs.readFileSync(destPath)
+      const existingHash = createHash('sha256').update(existingContent).digest('hex')
+      const newHash = createHash('sha256').update(content).digest('hex')
+      if (existingHash === newHash) {
         result.uploads.skipped++
         continue
       }
@@ -445,7 +596,7 @@ export async function applyImport(
     if (!fs.existsSync(destDir)) {
       fs.mkdirSync(destDir, { recursive: true })
     }
-    fs.writeFileSync(destPath, await file.buffer())
+    fs.writeFileSync(destPath, content)
     result.uploads.copied++
   }
 

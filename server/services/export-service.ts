@@ -1,5 +1,6 @@
 // ============================================================
 // 导出服务：收集项目数据 → 流式生成 ZIP → 写入磁盘
+// v2 格式：按实体类型拆分文件，文档为 HTML，图片用相对路径
 // ============================================================
 
 import { getDb } from '../db/index.js'
@@ -7,6 +8,8 @@ import fs from 'fs'
 import path from 'path'
 import { ZipArchive } from 'archiver'
 import { config } from '../config.js'
+import { yjsDataToHtml } from '../lib/yjs-utils.js'
+import { extractUploadRefsFromHtml, absoluteToRelativeUploadPaths } from '../lib/upload-refs.js'
 import type { ExportEstimate } from '../../shared/types/models.js'
 import type {
   ProjectRow,
@@ -20,47 +23,37 @@ import type {
 const UPLOAD_BASE = config.uploadDir
 const EXPORT_BASE = config.exportDir
 
-/** 从 Y.js BLOB 中提取 /uploads/ 文件引用路径 */
-export function extractUploadRefsFromBlob(blob: Buffer): string[] {
-  const text = blob.toString('utf-8')
-  const re = /\/uploads\/(images|videos)\/[a-f0-9]{2}\/[a-f0-9]{64}\.[a-zA-Z]+/g
-  return [...new Set([...text.matchAll(re)].map((m) => m[0].replace(/^\/uploads\//, '')))]
-}
-
-/** 收集项目下所有文档 BLOB 中引用的上传文件路径 */
+/** 收集项目下所有文档 HTML 中引用的上传文件路径 */
 function collectUploadRefs(projectId: string): string[] {
   const db = getDb()
-
-  // 从最新快照中提取引用
-  const snapshots = db
-    .prepare(`
-    SELECT ds.snapshot_data FROM document_snapshots ds
-    JOIN documents d ON d.id = ds.document_id
-    JOIN features f ON f.id = d.feature_id
-    WHERE f.project_id = ?
-    ORDER BY ds.id DESC
-  `)
-    .all(projectId) as { snapshot_data: Buffer }[]
-
   const refs = new Set<string>()
-  for (const s of snapshots) {
-    for (const ref of extractUploadRefsFromBlob(s.snapshot_data)) {
-      refs.add(ref)
-    }
-  }
 
-  // 也从 pending updates 中提取
-  const updates = db
-    .prepare(`
-    SELECT du.update_data FROM document_updates du
-    JOIN documents d ON d.id = du.document_id
+  const docIds = (
+    db
+      .prepare(`
+    SELECT d.id FROM documents d
     JOIN features f ON f.id = d.feature_id
     WHERE f.project_id = ?
   `)
-    .all(projectId) as { update_data: Buffer }[]
+      .all(projectId) as { id: string }[]
+  ).map((r) => r.id)
 
-  for (const u of updates) {
-    for (const ref of extractUploadRefsFromBlob(u.update_data)) {
+  for (const docId of docIds) {
+    const snapshot = db
+      .prepare(
+        'SELECT snapshot_data FROM document_snapshots WHERE document_id = ? ORDER BY id DESC LIMIT 1',
+      )
+      .get(docId) as { snapshot_data: Buffer } | undefined
+
+    const updates = db
+      .prepare('SELECT update_data FROM document_updates WHERE document_id = ? ORDER BY id ASC')
+      .all(docId) as { update_data: Buffer }[]
+
+    const html = yjsDataToHtml(
+      snapshot?.snapshot_data ?? null,
+      updates.map((u) => u.update_data),
+    )
+    for (const ref of extractUploadRefsFromHtml(html)) {
       refs.add(ref)
     }
   }
@@ -72,7 +65,6 @@ function collectUploadRefs(projectId: string): string[] {
 export function estimateExport(projectId: string): ExportEstimate {
   const db = getDb()
 
-  // 结构计数
   const featureCount = (
     db.prepare('SELECT COUNT(*) as cnt FROM features WHERE project_id = ?').get(projectId) as {
       cnt: number
@@ -95,7 +87,7 @@ export function estimateExport(projectId: string): ExportEstimate {
       .get(projectId) as { cnt: number }
   ).cnt
 
-  // 结构化数据大小：updates + snapshots BLOB
+  // BLOB 大小近似（不解码，性能优先）
   const updatesSize = (
     db
       .prepare(`
@@ -120,7 +112,6 @@ export function estimateExport(projectId: string): ExportEstimate {
 
   const structuredSize = updatesSize + snapshotsSize
 
-  // 上传文件大小
   const refs = collectUploadRefs(projectId)
   let uploadsSize = 0
   for (const ref of refs) {
@@ -171,51 +162,6 @@ export async function runExportTask(
     .prepare('SELECT * FROM catalogs WHERE project_id = ?')
     .all(projectId) as CatalogRow[]
 
-  // 文档数据
-  const docIds = (
-    db
-      .prepare(`
-    SELECT d.id FROM documents d
-    JOIN features f ON f.id = d.feature_id
-    WHERE f.project_id = ?
-  `)
-      .all(projectId) as { id: string }[]
-  ).map((r) => r.id)
-
-  updateProgress(3, '正在收集文档数据...')
-
-  const documents: Record<
-    string,
-    {
-      row: DocumentRow
-      snapshot: string | null
-      updates: string[]
-    }
-  > = {}
-
-  for (const docId of docIds) {
-    const row = db.prepare('SELECT * FROM documents WHERE id = ?').get(docId) as
-      | DocumentRow
-      | undefined
-    if (!row) continue
-
-    const snapshot = db
-      .prepare(
-        'SELECT snapshot_data FROM document_snapshots WHERE document_id = ? ORDER BY id DESC LIMIT 1',
-      )
-      .get(docId) as { snapshot_data: Buffer } | undefined
-
-    const updates = db
-      .prepare('SELECT update_data FROM document_updates WHERE document_id = ? ORDER BY id ASC')
-      .all(docId) as { update_data: Buffer }[]
-
-    documents[docId] = {
-      row,
-      snapshot: snapshot ? snapshot.snapshot_data.toString('base64') : null,
-      updates: updates.map((u) => u.update_data.toString('base64')),
-    }
-  }
-
   // catalog versions
   const catalogVersions: Record<string, CatalogVersionRow[]> = {}
   for (const cat of catalogs) {
@@ -226,16 +172,46 @@ export async function runExportTask(
       .all(cat.id) as CatalogVersionRow[]
   }
 
-  // 项目成员
-  const members = db
-    .prepare(`
-    SELECT pm.user_id FROM project_members pm WHERE pm.project_id = ?
+  // 文档数据 — 收集 docId + 元数据，稍后在 ZIP 写入阶段解码 HTML
+  const docIds = (
+    db
+      .prepare(`
+    SELECT d.id FROM documents d
+    JOIN features f ON f.id = d.feature_id
+    WHERE f.project_id = ?
   `)
-    .all(projectId) as { user_id: string }[]
+      .all(projectId) as { id: string }[]
+  ).map((r) => r.id)
+
+  updateProgress(5, '正在处理文档内容...')
+
+  // 预加载所有文档的 Y.js 数据，稍后在 ZIP 流式写入时解码
+  const docSnapshots = new Map<string, Buffer | null>()
+  const docUpdates = new Map<string, Buffer[]>()
+  const docRows = new Map<string, DocumentRow>()
+
+  for (const docId of docIds) {
+    const row = db.prepare('SELECT * FROM documents WHERE id = ?').get(docId) as
+      | DocumentRow
+      | undefined
+    if (!row) continue
+    docRows.set(docId, row)
+
+    const snapshot = db
+      .prepare(
+        'SELECT snapshot_data FROM document_snapshots WHERE document_id = ? ORDER BY id DESC LIMIT 1',
+      )
+      .get(docId) as { snapshot_data: Buffer } | undefined
+    docSnapshots.set(docId, snapshot?.snapshot_data ?? null)
+
+    const updates = db
+      .prepare('SELECT update_data FROM document_updates WHERE document_id = ? ORDER BY id ASC')
+      .all(docId) as { update_data: Buffer }[]
+    docUpdates.set(docId, updates.map((u) => u.update_data))
+  }
 
   updateProgress(8, '正在扫描上传文件引用...')
 
-  // 收集上传文件引用
   const uploadRefs = collectUploadRefs(projectId)
 
   const summary: ExportEstimate = {
@@ -243,7 +219,7 @@ export async function runExportTask(
     catalogs: catalogs.length,
     documents: docIds.length,
     uploads: uploadRefs.length,
-    structuredSize: 0, // 稍后计算
+    structuredSize: 0,
     uploadsSize: 0,
     totalSize: 0,
   }
@@ -264,55 +240,139 @@ export async function runExportTask(
   const output = fs.createWriteStream(filePath)
   const archive = new ZipArchive({ zlib: { level: 9 } })
 
+  let structuredSize = 0
+
   await new Promise<void>((resolve, reject) => {
     output.on('close', resolve)
     archive.on('error', reject)
 
     archive.pipe(output)
 
-    // 写入 manifest.json
-    archive.append(
-      JSON.stringify(
+    // ---- manifest.json ----
+    const manifestJson = JSON.stringify(
+      {
+        exportedAt: new Date().toISOString(),
+        source: { projectId, projectName: project.name },
+      },
+      null,
+      2,
+    )
+    archive.append(manifestJson, { name: 'manifest.json' })
+    structuredSize += Buffer.byteLength(manifestJson, 'utf-8')
+
+    // ---- project.json ----
+    const projectJson = JSON.stringify(
+      {
+        id: project.id,
+        name: project.name,
+        description: project.description,
+      },
+      null,
+      2,
+    )
+    archive.append(projectJson, { name: 'project.json' })
+    structuredSize += Buffer.byteLength(projectJson, 'utf-8')
+
+    // ---- categories.json ----
+    const categoriesJson = JSON.stringify(
+      categories.map((c) => ({
+        id: c.id,
+        name: c.name,
+        color: c.color,
+        sort_order: c.sort_order,
+      })),
+      null,
+      2,
+    )
+    archive.append(categoriesJson, { name: 'categories.json' })
+    structuredSize += Buffer.byteLength(categoriesJson, 'utf-8')
+
+    // ---- features/{id}.json ----
+    for (const feature of features) {
+      const sections = JSON.parse(feature.sections || '[]')
+      const featureJson = JSON.stringify(
         {
-          version: 1,
-          exportedAt: new Date().toISOString(),
-          source: { projectId, projectName: project.name },
+          id: feature.id,
+          title: feature.title,
+          description: feature.description,
+          sections, // 原生数组
+          is_custom: feature.is_custom,
+          category_id: feature.category_id,
         },
         null,
         2,
-      ),
-      { name: 'manifest.json' },
-    )
+      )
+      archive.append(featureJson, { name: `features/${feature.id}.json` })
+      structuredSize += Buffer.byteLength(featureJson, 'utf-8')
+    }
 
-    // 写入 data.json
-    const dataJson = JSON.stringify({
-      data: {
-        project,
-        categories,
-        features,
-        documents,
-        catalogs: catalogs.map((c) => ({
-          row: c,
-          versions: catalogVersions[c.id] || [],
-        })),
-        projectMembers: members.map((m) => m.user_id),
-      },
-      uploadsManifest: uploadRefs.map((ref) => {
-        const fp = path.join(UPLOAD_BASE, ref)
-        let size = 0
-        try {
-          size = fs.statSync(fp).size
-        } catch {
-          /* ignore */
-        }
-        return { path: ref, size }
-      }),
-    })
-    archive.append(dataJson, { name: 'data.json' })
+    // ---- documents/{feature-id}/{section-key}.html ----
+    let docIdx = 0
+    const totalDocs = docIds.length
+    for (const docId of docIds) {
+      const row = docRows.get(docId)
+      if (!row) continue
 
-    summary.structuredSize = Buffer.byteLength(dataJson, 'utf-8')
+      const snapshot = docSnapshots.get(docId) ?? null
+      const updates = docUpdates.get(docId) ?? []
 
-    // 追加上传文件
+      // 解码 Y.js → HTML
+      const html = yjsDataToHtml(snapshot, updates)
+      if (!html.trim()) {
+        docIdx++
+        continue
+      }
+
+      // 绝对路径 → 相对路径
+      const relHtml = absoluteToRelativeUploadPaths(html)
+
+      archive.append(relHtml, {
+        name: `documents/${row.feature_id}/${row.section_key}.html`,
+      })
+      structuredSize += Buffer.byteLength(relHtml, 'utf-8')
+
+      docIdx++
+      const pct = 10 + Math.floor((docIdx / Math.max(totalDocs, 1)) * 30)
+      updateProgress(pct, `正在导出文档 ${docIdx}/${totalDocs}...`)
+    }
+
+    // ---- catalogs/{id}.json ----
+    for (const cat of catalogs) {
+      const versions = (catalogVersions[cat.id] || []).map((v) => ({
+        id: v.id,
+        catalog_id: v.catalog_id,
+        version_major: v.version_major,
+        version_minor: v.version_minor,
+        title: v.title,
+        features_snapshot: v.features_snapshot,
+        change_notes: v.change_notes,
+        markdown: v.markdown,
+        status_snapshot: v.status_snapshot,
+        visibility: v.visibility,
+        features_json: v.features_json,
+        headings_json: v.headings_json,
+        created_at: v.created_at,
+      }))
+
+      const catalogJson = JSON.stringify(
+        {
+          id: cat.id,
+          title: cat.title,
+          targets: JSON.parse(cat.targets || '[]'),
+          features: JSON.parse(cat.features || '[]'),
+          cover_info: JSON.parse(cat.cover_info || '{}'),
+          versions,
+        },
+        null,
+        2,
+      )
+      archive.append(catalogJson, { name: `catalogs/${cat.id}.json` })
+      structuredSize += Buffer.byteLength(catalogJson, 'utf-8')
+    }
+
+    summary.structuredSize = structuredSize
+
+    // ---- uploads/ 目录 ----
     const totalFiles = uploadRefs.length
     let completedFiles = 0
     let totalUploadSize = 0
@@ -325,7 +385,7 @@ export async function runExportTask(
         totalUploadSize += stat.size
       }
       completedFiles++
-      const pct = 10 + Math.floor((completedFiles / Math.max(totalFiles, 1)) * 85)
+      const pct = 40 + Math.floor((completedFiles / Math.max(totalFiles, 1)) * 55)
       updateProgress(pct, `正在打包文件 ${completedFiles}/${totalFiles}...`)
     }
 

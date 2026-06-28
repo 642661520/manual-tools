@@ -1,7 +1,7 @@
 /**
  * 全文搜索服务 — LIKE 搜索，每处出现一条结果
  */
-import * as Y from 'yjs'
+import { yjsDataToHtml } from '../lib/yjs-utils.js'
 import { getDb } from '../db/index.js'
 import { getLogger } from '../lib/logger.js'
 
@@ -124,7 +124,6 @@ export function rebuildProjectIndex(projectId: string) {
 
 function loadYjsText(docId: string): string {
   const db = getDb()
-  const ydoc = new Y.Doc()
 
   const snapshot = db
     .prepare(
@@ -132,29 +131,14 @@ function loadYjsText(docId: string): string {
     )
     .get(docId) as { snapshot_data: Buffer } | undefined
 
-  if (snapshot) {
-    try {
-      Y.applyUpdate(ydoc, new Uint8Array(snapshot.snapshot_data))
-    } catch {
-      /* skip */
-    }
-  }
-
   const updates = db
     .prepare('SELECT update_data FROM document_updates WHERE document_id = ? ORDER BY id ASC')
     .all(docId) as { update_data: Buffer }[]
 
-  for (const row of updates) {
-    try {
-      Y.applyUpdate(ydoc, new Uint8Array(row.update_data))
-    } catch {
-      /* skip */
-    }
-  }
-
-  const text = ydoc.getText('content').toString()
-  ydoc.destroy()
-  return text
+  return yjsDataToHtml(
+    snapshot?.snapshot_data ?? null,
+    updates.map((u) => u.update_data),
+  )
 }
 
 function stripHtml(html: string): string {

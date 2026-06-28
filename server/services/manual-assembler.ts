@@ -1,4 +1,4 @@
-import * as Y from 'yjs'
+import { yjsDataToHtml } from '../lib/yjs-utils.js'
 import { getDb } from '../db/index.js'
 import { isCatalogPart } from '../types.js'
 import type {
@@ -583,17 +583,10 @@ function batchGetDocumentContents(docIds: string[]): Map<string, string> {
 
   for (const docId of docIds) {
     const updates = updatesByDoc.get(docId)
-    const doc = new Y.Doc()
-    if (updates && updates.length > 0) {
-      for (const update of updates) {
-        Y.applyUpdate(doc, new Uint8Array(update))
-      }
-    } else {
-      const snapshot = snapshotByDoc.get(docId)
-      if (!snapshot) continue
-      Y.applyUpdate(doc, new Uint8Array(snapshot))
-    }
-    result.set(docId, doc.getText('content').toString())
+    const snapshot = snapshotByDoc.get(docId)
+    if (!updates && !snapshot) continue
+    const html = yjsDataToHtml(snapshot ?? null, updates ?? [])
+    result.set(docId, html)
   }
 
   return result

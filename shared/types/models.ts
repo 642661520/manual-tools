@@ -221,7 +221,6 @@ export interface ImportDiffReport {
     conflicted: { id: string; sourceTitle: string; targetTitle: string }[]
   }
   documents: { added: number; conflicted: number; skipped: number }
-  projectMembers: { added: string[]; unknownUsers: string[] }
   uploads: { total: number; totalSize: number; duplicates: number }
 }
 
@@ -230,7 +229,6 @@ export interface ImportApplyResult {
   features: { inserted: number; updated: number; skipped: number }
   catalogs: { inserted: number; updated: number; skipped: number }
   documents: { inserted: number; updated: number; skipped: number }
-  members: { inserted: number }
   uploads: { copied: number; skipped: number }
 }
 
@@ -241,7 +239,8 @@ export interface ImportApplyOptions {
     catalogs: Record<string, 'skip' | 'overwrite'>
     documents: Record<string, 'skip' | 'overwrite'>
   }
-  includeMembers: boolean
+  /** 导入文档的默认状态，默认 'draft' */
+  documentStatus?: string
 }
 
 export interface DataTaskInfo {

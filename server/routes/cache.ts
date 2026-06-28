@@ -17,6 +17,7 @@ import { join } from 'path'
 import { existsSync, readFileSync, unlinkSync } from 'fs'
 import { authMiddleware, requireRole } from '../auth/middleware.js'
 import { success, ok, fail } from '../lib/response.js'
+import { parsePagination } from '../lib/pagination.js'
 import { getRemoteCacheStats, cleanExpiredRemoteCache } from '../services/remote-cache.js'
 import { getExportCacheStats, cleanExpiredExportCache } from '../services/export-cache.js'
 import { getDb } from '../db/index.js'
@@ -101,12 +102,18 @@ export async function cacheRoutes(app: FastifyInstance) {
 
   // ================ 列表查询 =========================================
 
-  // 列出导出缓存文件详情（含 catalog 名称，按创建时间倒序）
+  // 列出导出缓存文件详情（分页，含 catalog 名称，按创建时间倒序）
   app.get(
     '/api/v1/cache/entries/export',
     { preHandler: [authMiddleware, requireRole('admin', 'pm')] },
-    async () => {
+    async (req) => {
       const db = getDb()
+      const { limit, offset } = parsePagination(req.query as Record<string, string>)
+
+      const total = (
+        db.prepare('SELECT COUNT(*) as cnt FROM export_cache').get() as { cnt: number }
+      ).cnt
+
       const rows = db
         .prepare(`
       SELECT ec.id, ec.catalog_id, ec.type,
@@ -117,8 +124,9 @@ export async function cacheRoutes(app: FastifyInstance) {
       FROM export_cache ec
       LEFT JOIN catalogs c ON ec.catalog_id = c.id
       ORDER BY ec.created_at DESC
+      LIMIT ? OFFSET ?
     `)
-        .all() as Array<{
+        .all(limit, offset) as Array<{
         id: string
         catalog_id: string
         type: string
@@ -144,7 +152,7 @@ export async function cacheRoutes(app: FastifyInstance) {
         createdAt: r.created_at,
       }))
 
-      return success(entries)
+      return success({ entries, total })
     },
   )
 
