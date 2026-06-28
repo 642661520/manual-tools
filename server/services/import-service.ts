@@ -99,7 +99,7 @@ async function parseExportData(zipPath: string): Promise<ParsedExport> {
 
   // manifest.json
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const manifest = await reader.readJson('manifest.json') as any
+  const manifest = (await reader.readJson('manifest.json')) as any
   const source = {
     projectId: (manifest.source?.projectId as string) ?? '',
     projectName: (manifest.source?.projectName as string) ?? 'Unknown',
@@ -107,18 +107,18 @@ async function parseExportData(zipPath: string): Promise<ParsedExport> {
 
   // project.json
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const project = await reader.readJson('project.json') as any as ParsedExport['project']
+  const project = (await reader.readJson('project.json')) as any as ParsedExport['project']
 
   // categories.json
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const categories = await reader.readJson('categories.json') as any as ParsedExport['categories']
+  const categories = (await reader.readJson('categories.json')) as any as ParsedExport['categories']
 
   // features/*.json
   const featurePaths = reader.listFiles('features/')
   const features: ParsedExport['features'] = []
   for (const fp of featurePaths) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const f = await reader.readJson(fp) as any
+    const f = (await reader.readJson(fp)) as any
     features.push({
       id: f.id as string,
       title: f.title as string,
@@ -151,7 +151,7 @@ async function parseExportData(zipPath: string): Promise<ParsedExport> {
   const catalogs: ParsedExport['catalogs'] = []
   for (const cp of catalogPaths) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const c = await reader.readJson(cp) as any
+    const c = (await reader.readJson(cp)) as any
     catalogs.push({
       row: {
         id: c.id as string,

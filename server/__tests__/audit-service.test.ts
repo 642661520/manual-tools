@@ -31,7 +31,9 @@ describe('recordAudit', () => {
     const db = getDb()
     const row = db
       .prepare('SELECT * FROM audit_log WHERE user_id = ? ORDER BY created_at DESC LIMIT 1')
-      .get(TEST_USER) as { action: string; target_type: string; target_id: string; detail: string } | undefined
+      .get(TEST_USER) as
+      | { action: string; target_type: string; target_id: string; detail: string }
+      | undefined
     expect(row).toBeTruthy()
     expect(row!.action).toBe('project.create')
     expect(row!.target_type).toBe('project')
@@ -59,8 +61,20 @@ describe('recordAudit', () => {
 
 describe('queryAuditLogs', () => {
   beforeAll(() => {
-    recordAudit({ userId: TEST_USER, username: TEST_USER, action: 'user.update', targetType: 'user', targetId: 'u1' })
-    recordAudit({ userId: TEST_USER, username: TEST_USER, action: 'user.delete', targetType: 'user', targetId: 'u2' })
+    recordAudit({
+      userId: TEST_USER,
+      username: TEST_USER,
+      action: 'user.update',
+      targetType: 'user',
+      targetId: 'u1',
+    })
+    recordAudit({
+      userId: TEST_USER,
+      username: TEST_USER,
+      action: 'user.delete',
+      targetType: 'user',
+      targetId: 'u2',
+    })
   })
 
   it('查询所有日志', () => {

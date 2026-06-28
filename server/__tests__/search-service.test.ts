@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getDb } from '../db/index.js'
-import { indexDocument, removeDocument, searchDocs, rebuildProjectIndex } from '../services/search.js'
+import {
+  indexDocument,
+  removeDocument,
+  searchDocs,
+  rebuildProjectIndex,
+} from '../services/search.js'
 
 const TEST_PROJECT = '__test_search_proj'
 const TEST_DOC_A = '__test_search/doc-a'
@@ -9,7 +14,9 @@ const TEST_DOC_B = '__test_search/doc-b'
 beforeAll(() => {
   const db = getDb()
   db.prepare('INSERT OR IGNORE INTO projects (id, name, description) VALUES (?, ?, ?)').run(
-    TEST_PROJECT, TEST_PROJECT, 'test',
+    TEST_PROJECT,
+    TEST_PROJECT,
+    'test',
   )
   db.prepare(
     'INSERT OR IGNORE INTO features (id, title, description, sections, is_custom, project_id) VALUES (?, ?, ?, ?, ?, ?)',

@@ -19,7 +19,8 @@ let serverAddress: string
 beforeAll(async () => {
   app = await buildTestAppWithWs()
   const loginRes = await app.inject({
-    method: 'POST', url: '/api/v1/auth/login',
+    method: 'POST',
+    url: '/api/v1/auth/login',
     payload: { username: 'admin', password: 'admin123' },
   })
   adminToken = loginRes.json().data.token
@@ -51,7 +52,8 @@ describe('yjs — HTTP ensure 端点', () => {
 
   it('创建文档记录', async () => {
     const res = await app.inject({
-      method: 'POST', url: '/api/v1/documents/ensure',
+      method: 'POST',
+      url: '/api/v1/documents/ensure',
       headers: { authorization: `Bearer ${adminToken}` },
       payload: { docId: `${TEST_FEATURE}/intro`, featureId: TEST_FEATURE, sectionKey: 'intro' },
     })
@@ -61,7 +63,8 @@ describe('yjs — HTTP ensure 端点', () => {
 
   it('未登录返回 401', async () => {
     const res = await app.inject({
-      method: 'POST', url: '/api/v1/documents/ensure',
+      method: 'POST',
+      url: '/api/v1/documents/ensure',
       payload: { docId: 'x/y', featureId: 'x', sectionKey: 'y' },
     })
     expect(res.statusCode).toBe(401)
@@ -69,7 +72,8 @@ describe('yjs — HTTP ensure 端点', () => {
 
   it('不存在的 feature 返回 403', async () => {
     const res = await app.inject({
-      method: 'POST', url: '/api/v1/documents/ensure',
+      method: 'POST',
+      url: '/api/v1/documents/ensure',
       headers: { authorization: `Bearer ${adminToken}` },
       payload: { docId: 'ghost/s1', featureId: 'ghost', sectionKey: 's1' },
     })
@@ -108,10 +112,13 @@ describe('yjs — WebSocket 协同编辑', () => {
         try {
           const decoder = decoding.createDecoder(new Uint8Array(data))
           const msgType = decoding.readVarUint(decoder)
-          if (msgType === 0) { // messageSync
+          if (msgType === 0) {
+            // messageSync
             receivedSync = true
           }
-        } catch { /* binary frame */ }
+        } catch {
+          /* binary frame */
+        }
 
         if (receivedSync) {
           ws.close()
@@ -120,7 +127,10 @@ describe('yjs — WebSocket 协同编辑', () => {
       })
 
       ws.on('error', () => resolve())
-      setTimeout(() => { ws.close(); resolve() }, 3000)
+      setTimeout(() => {
+        ws.close()
+        resolve()
+      }, 3000)
     })
   }, 5000)
 

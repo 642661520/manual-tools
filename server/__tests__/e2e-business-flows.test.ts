@@ -22,7 +22,8 @@ beforeAll(async () => {
 
   // 1. Admin 登录
   const loginRes = await app.inject({
-    method: 'POST', url: '/api/v1/auth/login',
+    method: 'POST',
+    url: '/api/v1/auth/login',
     payload: { username: 'admin', password: 'admin123' },
   })
   adminToken = loginRes.json().data.token
@@ -30,7 +31,8 @@ beforeAll(async () => {
 
   // 2. 创建成员用户
   const createUserRes = await app.inject({
-    method: 'POST', url: '/api/v1/auth/users',
+    method: 'POST',
+    url: '/api/v1/auth/users',
     headers: { authorization: `Bearer ${adminToken}` },
     payload: {
       username: `__test_${PREFIX}_writer`,
@@ -43,7 +45,8 @@ beforeAll(async () => {
 
   // 3. 成员登录
   const memberLoginRes = await app.inject({
-    method: 'POST', url: '/api/v1/auth/login',
+    method: 'POST',
+    url: '/api/v1/auth/login',
     payload: { username: `__test_${PREFIX}_writer`, password: 'WriterPass1!' },
   })
   memberToken = memberLoginRes.json().data.token
@@ -62,7 +65,8 @@ afterAll(async () => {
 describe('流程1: 项目管理', () => {
   it('1.1 创建项目', async () => {
     const res = await app.inject({
-      method: 'POST', url: '/api/v1/projects',
+      method: 'POST',
+      url: '/api/v1/projects',
       headers: { authorization: `Bearer ${adminToken}` },
       payload: { name: `__test_${PREFIX}_proj`, description: 'E2E 测试项目' },
     })
@@ -75,7 +79,8 @@ describe('流程1: 项目管理', () => {
 
   it('1.2 获取项目列表', async () => {
     const res = await app.inject({
-      method: 'GET', url: '/api/v1/projects',
+      method: 'GET',
+      url: '/api/v1/projects',
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(res.statusCode).toBe(200)
@@ -86,7 +91,8 @@ describe('流程1: 项目管理', () => {
 
   it('1.3 获取项目详情', async () => {
     const res = await app.inject({
-      method: 'GET', url: `/api/v1/projects/${projectId}`,
+      method: 'GET',
+      url: `/api/v1/projects/${projectId}`,
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(res.statusCode).toBe(200)
@@ -95,14 +101,16 @@ describe('流程1: 项目管理', () => {
 
   it('1.4 更新项目信息', async () => {
     const res = await app.inject({
-      method: 'PUT', url: `/api/v1/projects/${projectId}`,
+      method: 'PUT',
+      url: `/api/v1/projects/${projectId}`,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: { name: `__test_${PREFIX}_proj_updated`, description: '更新后的描述' },
     })
     expect(res.statusCode).toBe(200)
     // 验证更新生效
     const getRes = await app.inject({
-      method: 'GET', url: `/api/v1/projects/${projectId}`,
+      method: 'GET',
+      url: `/api/v1/projects/${projectId}`,
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(getRes.json().data.name).toContain('updated')
@@ -115,7 +123,8 @@ describe('流程1: 项目管理', () => {
 describe('流程2: 成员协作', () => {
   it('2.1 添加成员到项目', async () => {
     const res = await app.inject({
-      method: 'POST', url: `/api/v1/projects/${projectId}/members`,
+      method: 'POST',
+      url: `/api/v1/projects/${projectId}/members`,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: { userId: memberId, projectRole: 'writer' },
     })
@@ -125,7 +134,8 @@ describe('流程2: 成员协作', () => {
 
   it('2.2 查看项目成员列表', async () => {
     const res = await app.inject({
-      method: 'GET', url: `/api/v1/projects/${projectId}/members`,
+      method: 'GET',
+      url: `/api/v1/projects/${projectId}/members`,
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(res.statusCode).toBe(200)
@@ -135,7 +145,8 @@ describe('流程2: 成员协作', () => {
 
   it('2.3 更改成员角色（重复 POST 更新角色）', async () => {
     const res = await app.inject({
-      method: 'POST', url: `/api/v1/projects/${projectId}/members`,
+      method: 'POST',
+      url: `/api/v1/projects/${projectId}/members`,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: { userId: memberId, projectRole: 'pm' },
     })
@@ -143,7 +154,8 @@ describe('流程2: 成员协作', () => {
 
     // 验证角色变更
     const membersRes = await app.inject({
-      method: 'GET', url: `/api/v1/projects/${projectId}/members`,
+      method: 'GET',
+      url: `/api/v1/projects/${projectId}/members`,
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(membersRes.statusCode).toBe(200)
@@ -157,7 +169,8 @@ describe('流程2: 成员协作', () => {
 
   it('2.4 成员可以访问项目内容', async () => {
     const res = await app.inject({
-      method: 'GET', url: `/api/v1/features?projectId=${projectId}`,
+      method: 'GET',
+      url: `/api/v1/features?projectId=${projectId}`,
       headers: { authorization: `Bearer ${memberToken}` },
     })
     expect(res.statusCode).toBe(200)
@@ -170,7 +183,8 @@ describe('流程2: 成员协作', () => {
 describe('流程3: 内容创作', () => {
   it('3.1 创建分类', async () => {
     const res = await app.inject({
-      method: 'POST', url: '/api/v1/categories',
+      method: 'POST',
+      url: '/api/v1/categories',
       headers: { authorization: `Bearer ${adminToken}` },
       payload: { projectId, name: `__test_${PREFIX}_cat`, color: '#6366f1', sortOrder: 1 },
     })
@@ -181,7 +195,8 @@ describe('流程3: 内容创作', () => {
 
   it('3.2 创建功能（关联分类）', async () => {
     const res = await app.inject({
-      method: 'POST', url: '/api/v1/features',
+      method: 'POST',
+      url: '/api/v1/features',
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         projectId,
@@ -201,7 +216,8 @@ describe('流程3: 内容创作', () => {
 
   it('3.3 获取功能详情（含 sections）', async () => {
     const res = await app.inject({
-      method: 'GET', url: `/api/v1/features/${featureId}`,
+      method: 'GET',
+      url: `/api/v1/features/${featureId}`,
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(res.statusCode).toBe(200)
@@ -210,7 +226,8 @@ describe('流程3: 内容创作', () => {
 
   it('3.4 更新功能信息', async () => {
     const res = await app.inject({
-      method: 'PUT', url: `/api/v1/features/${featureId}`,
+      method: 'PUT',
+      url: `/api/v1/features/${featureId}`,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: { title: `__test_${PREFIX}_feature_v2`, description: '更新后', categoryId },
     })
@@ -219,7 +236,8 @@ describe('流程3: 内容创作', () => {
 
   it('3.5 按分类筛选功能', async () => {
     const res = await app.inject({
-      method: 'GET', url: `/api/v1/features?projectId=${projectId}&categoryId=${categoryId}`,
+      method: 'GET',
+      url: `/api/v1/features?projectId=${projectId}&categoryId=${categoryId}`,
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(res.statusCode).toBe(200)
@@ -234,15 +252,14 @@ describe('流程3: 内容创作', () => {
 describe('流程4: 目录发布', () => {
   it('4.1 创建目录', async () => {
     const res = await app.inject({
-      method: 'POST', url: '/api/v1/catalogs',
+      method: 'POST',
+      url: '/api/v1/catalogs',
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         projectId,
         title: `__test_${PREFIX}_catalog`,
         targets: ['新用户'],
-        features: [
-          { featureId, type: 'feature' as const },
-        ],
+        features: [{ featureId, type: 'feature' as const }],
         coverInfo: { description: 'E2E 测试目录' },
       },
     })
@@ -253,7 +270,8 @@ describe('流程4: 目录发布', () => {
 
   it('4.2 获取目录列表', async () => {
     const res = await app.inject({
-      method: 'GET', url: `/api/v1/catalogs?projectId=${projectId}`,
+      method: 'GET',
+      url: `/api/v1/catalogs?projectId=${projectId}`,
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(res.statusCode).toBe(200)
@@ -263,7 +281,8 @@ describe('流程4: 目录发布', () => {
   it('4.3 更新目录（添加更多功能）', async () => {
     // 先创建第二个功能
     const featRes = await app.inject({
-      method: 'POST', url: '/api/v1/features',
+      method: 'POST',
+      url: '/api/v1/features',
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         projectId,
@@ -275,7 +294,8 @@ describe('流程4: 目录发布', () => {
     const feat2Id = featRes.json().data.id
 
     const res = await app.inject({
-      method: 'PUT', url: `/api/v1/catalogs/${catalogId}`,
+      method: 'PUT',
+      url: `/api/v1/catalogs/${catalogId}`,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         title: `__test_${PREFIX}_catalog_v2`,
@@ -292,7 +312,8 @@ describe('流程4: 目录发布', () => {
 
   it('4.4 发布目录版本', async () => {
     const res = await app.inject({
-      method: 'POST', url: `/api/v1/catalogs/${catalogId}/publish`,
+      method: 'POST',
+      url: `/api/v1/catalogs/${catalogId}/publish`,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         changeNotes: '首次发布',
@@ -306,7 +327,8 @@ describe('流程4: 目录发布', () => {
 
   it('4.5 查看版本列表', async () => {
     const res = await app.inject({
-      method: 'GET', url: `/api/v1/catalogs/${catalogId}/versions`,
+      method: 'GET',
+      url: `/api/v1/catalogs/${catalogId}/versions`,
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(res.statusCode).toBe(200)
@@ -317,7 +339,8 @@ describe('流程4: 目录发布', () => {
 
   it('4.6 预览目录', async () => {
     const res = await app.inject({
-      method: 'GET', url: `/api/v1/catalogs/${catalogId}/preview`,
+      method: 'GET',
+      url: `/api/v1/catalogs/${catalogId}/preview`,
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(res.statusCode).toBe(200)
@@ -330,7 +353,8 @@ describe('流程4: 目录发布', () => {
 describe('流程5: 资源清理', () => {
   it('5.1 移除成员', async () => {
     const res = await app.inject({
-      method: 'DELETE', url: `/api/v1/projects/${projectId}/members/${memberId}`,
+      method: 'DELETE',
+      url: `/api/v1/projects/${projectId}/members/${memberId}`,
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(res.statusCode).toBe(200)
@@ -338,7 +362,8 @@ describe('流程5: 资源清理', () => {
 
   it('5.2 删除目录', async () => {
     const res = await app.inject({
-      method: 'DELETE', url: `/api/v1/catalogs/${catalogId}`,
+      method: 'DELETE',
+      url: `/api/v1/catalogs/${catalogId}`,
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(res.statusCode).toBe(200)
@@ -346,7 +371,8 @@ describe('流程5: 资源清理', () => {
 
   it('5.3 删除功能', async () => {
     const res = await app.inject({
-      method: 'DELETE', url: `/api/v1/features/${featureId}`,
+      method: 'DELETE',
+      url: `/api/v1/features/${featureId}`,
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(res.statusCode).toBe(200)
@@ -354,7 +380,8 @@ describe('流程5: 资源清理', () => {
 
   it('5.4 删除分类', async () => {
     const res = await app.inject({
-      method: 'DELETE', url: `/api/v1/categories/${categoryId}`,
+      method: 'DELETE',
+      url: `/api/v1/categories/${categoryId}`,
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(res.statusCode).toBe(200)
@@ -362,14 +389,16 @@ describe('流程5: 资源清理', () => {
 
   it('5.5 删除项目', async () => {
     const res = await app.inject({
-      method: 'DELETE', url: `/api/v1/projects/${projectId}`,
+      method: 'DELETE',
+      url: `/api/v1/projects/${projectId}`,
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(res.statusCode).toBe(200)
 
     // 验证已删除
     const getRes = await app.inject({
-      method: 'GET', url: `/api/v1/projects/${projectId}`,
+      method: 'GET',
+      url: `/api/v1/projects/${projectId}`,
       headers: { authorization: `Bearer ${adminToken}` },
     })
     expect(getRes.statusCode).toBe(404)
