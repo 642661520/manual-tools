@@ -20,34 +20,34 @@ server/db/seed-manual/
 ├── force-seed.ts      # CLI 入口（pnpm seed）
 ├── sync-export.ts     # CLI 入口（pnpm seed:export）
 ├── images/            # 预置图片（通过 @seed/filename 引用）
-└── documents/         # 92 个 HTML 种子文档
-    ├── project-overview/    (2 篇)
+└── documents/         # 72 个 HTML 种子文档（27 个功能）
+    ├── project-overview/    (1 篇)
+    ├── feishu-integration/  (3 篇)
+    ├── profile/             (1 篇)
     ├── project-crud/        (4 篇)
-    ├── project-members/     (3 篇)
+    ├── project-members/     (1 篇)
+    ├── data-import-export/  (1 篇)
+    ├── search/              (1 篇)
+    ├── editor/              (5 篇)
     ├── categories/          (4 篇)
     ├── features/            (4 篇)
-    ├── editor/              (5 篇)
     ├── collaborative-editing/(3 篇)
     ├── ai-writing/          (4 篇)
     ├── media-upload/        (4 篇)
     ├── status-workflow/     (4 篇)
     ├── review-chain/        (4 篇)
-    ├── todos/               (3 篇)
+    ├── todos/               (1 篇)
     ├── catalog-building/    (4 篇)
     ├── manual-preview/      (3 篇)
     ├── version-publishing/  (4 篇)
-    ├── static-site/         (3 篇)
+    ├── static-site/         (1 篇)
     ├── pdf-export/          (4 篇)
-    ├── markdown-export/     (2 篇)
-    ├── version-diff/        (2 篇)
-    ├── user-management/     (4 篇)
+    ├── markdown-export/     (1 篇)
+    ├── version-diff/        (1 篇)
+    ├── user-management/     (1 篇)
     ├── permissions/         (3 篇)
-    ├── profile/             (4 篇)
-    ├── feishu-integration/  (3 篇)
-    ├── data-import-export/  (4 篇)
-    ├── search/              (2 篇)
-    ├── audit-log/           (2 篇)
-    └── ...共 94 个 .html 文件
+    ├── audit-log/           (1 篇)
+    └── cache-management/    (4 篇)
 ```
 
 ## 种子内容
@@ -56,27 +56,27 @@ server/db/seed-manual/
 
 | ID               | 名称       | 颜色      | 排序 |
 | ---------------- | ---------- | --------- | ---- |
-| `cat-management` | 项目管理   | `#4f46e5` | 1    |
-| `cat-features`   | 功能与分类 | `#0891b2` | 2    |
-| `cat-editing`    | 文档编辑   | `#059669` | 3    |
-| `cat-workflow`   | 状态与审核 | `#d97706` | 4    |
-| `cat-publishing` | 目录与发布 | `#dc2626` | 5    |
-| `cat-users`      | 用户与权限 | `#7c3aed` | 6    |
-| `cat-system`     | 系统与集成 | `#64748b` | 7    |
+| `cat-overview`   | 平台概述   | `#6366f1` | 1    |
+| `cat-account`    | 账号与设置 | `#0891b2` | 2    |
+| `cat-projects`   | 项目管理   | `#4f46e5` | 3    |
+| `cat-writing`    | 文档编写   | `#059669` | 4    |
+| `cat-review`     | 审核流程   | `#d97706` | 5    |
+| `cat-publishing` | 发布与导出 | `#dc2626` | 6    |
+| `cat-admin`      | 系统管理   | `#64748b` | 7    |
 
 ### 功能（27 个）+ 目录（1 个，含 7 个 Part）
 
-目录 `manual-tools-manual` 将 22 个功能按 7 个 Part 组织为完整手册：
+目录 `manual-tools-manual` 将 26 个功能按 7 个 Part 组织为完整手册：
 
-| Part       | 包含功能                                                                  |
-| ---------- | ------------------------------------------------------------------------- |
-| 项目管理   | 项目管理概述、项目创建与管理、项目成员管理                                |
-| 功能与分类 | 分类管理、功能管理                                                        |
-| 文档编辑   | 富文本编辑器、实时协同编辑、AI 辅助写作、媒体上传                         |
-| 状态与审核 | 文档状态流转、审核链、待办管理                                            |
-| 目录与发布 | 目录编排、手册预览、版本发布、静态站点、PDF 导出、Markdown 导出、版本对比 |
-| 用户与权限 | 用户管理、权限体系、个人资料                                              |
-| 系统与集成 | 飞书集成、数据导入导出、全文搜索、审计日志                                |
+| Part       | 包含功能                                                                                                    |
+| ---------- | ----------------------------------------------------------------------------------------------------------- |
+| 平台概述   | 平台概述                                                                                                    |
+| 账号与设置 | 飞书集成、个人资料                                                                                          |
+| 项目管理   | 项目创建与管理、项目成员管理、数据导入导出、全文搜索                                                        |
+| 文档编写   | 富文本编辑器、分类管理、功能管理、实时协同编辑、AI 辅助写作、媒体上传                                       |
+| 审核流程   | 文档状态流转、审核链、待办管理                                                                              |
+| 发布与导出 | 目录编排、手册预览、版本发布、静态站点、PDF 导出、Markdown 导出、版本对比                                   |
+| 系统管理   | 用户管理、权限体系、审计日志、缓存管理                                                                      |
 
 ## 工作流
 

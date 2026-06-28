@@ -55,16 +55,20 @@
 | `feishu.ts`     | 飞书 OAuth 流程（授权 URL 生成、code 换 token、用户信息获取）                          |
 | `membership.ts` | `isProjectMember()` — 项目成员检查（admin 全局通过）                                   |
 
-## 工具库 (server/lib/) — 6 个
+## 工具库 (server/lib/) — 10 个
 
-| 文件          | 用途                                                                                                 |
-| ------------- | ---------------------------------------------------------------------------------------------------- |
-| `response.ts` | 统一 API 响应格式：`success()` / `created()` / `ok()` / `fail()`                                     |
-| `logger.ts`   | Pino 结构化日志（双路输出：stdout + 文件轮转），`getLogger()` / `createChildLogger()`                |
-| `password.ts` | 密码强度校验（3/4 规则：大写、小写、数字、特殊字符至少 3 种，8-128 位）                              |
-| `crypto.ts`   | `generateState()` — 安全随机字符串（OAuth state 参数）                                               |
-| `csrf.ts`     | CSRF 保护（double-submit cookie 模式）：`csrfMiddleware` + `generateCsrfToken()` + `setCsrfCookie()` |
-| `swagger.ts`  | `registerSwagger()` — OpenAPI 3.x 文档 + Swagger UI (`/docs/api`)，含公共 Schema 定义                |
+| 文件              | 用途                                                                                                 |
+| ----------------- | ---------------------------------------------------------------------------------------------------- |
+| `response.ts`     | 统一 API 响应格式：`success()` / `created()` / `ok()` / `fail()`                                     |
+| `logger.ts`       | Pino 结构化日志（双路输出：stdout + 文件轮转），`getLogger()` / `createChildLogger()`                |
+| `password.ts`     | 密码强度校验（3/4 规则：大写、小写、数字、特殊字符至少 3 种，8-128 位）                              |
+| `crypto.ts`       | `generateState()` — 安全随机字符串（OAuth state 参数）                                               |
+| `csrf.ts`         | CSRF 保护（double-submit cookie 模式）：`csrfMiddleware` + `generateCsrfToken()` + `setCsrfCookie()` |
+| `swagger.ts`      | `registerSwagger()` — OpenAPI 3.x 文档 + Swagger UI (`/docs/api`)，含公共 Schema 定义                |
+| `pagination.ts`   | 分页查询工具：`parsePagination()` 解析 limit/offset + `paginatedQuery<T>()` 封装 COUNT + SELECT      |
+| `upload-refs.ts`  | 上传文件引用提取：从 HTML/Y.js BLOB 中扫描 `/uploads/` 路径，绝对/相对路径互转                       |
+| `yjs-utils.ts`    | Y.js 编解码：`yjsDataToHtml()` 将 snapshot+updates 解码为 HTML，`htmlToYjsSnapshot()` 反向编码       |
+| `win-encoding.ts` | Windows 终端 UTF-8 修复（启动时自动 `chcp 65001`）                                                    |
 
 ## 配置 (server/config.ts)
 
@@ -77,8 +81,18 @@
 
 ### 种子数据系统 (server/db/seed-manual/)
 
-首次启动自动导入一份完整的操作手册内容（26 个功能、88 篇文档、7 个分类、1 个目录），让新实例立即可用。详见 [docs/seed.md](seed.md)。
+首次启动自动导入 Manual Tools 平台自身的操作手册内容（27 个功能、72 篇文档、7 个分类、1 个目录），让新实例立即可用。详见 [docs/seed.md](seed.md)。
 
 ## 测试 (server/\_\_tests\_\_/)
 
-10 个测试文件：`auth.integration.test.ts`, `catalogs.test.ts`, `features.test.ts`, `jwt.test.ts`, `password.test.ts`, `permissions.test.ts`, `response.test.ts`, `upload.test.ts`, `yjs.test.ts`，以及 `test-app.ts` 测试应用工厂。
+36 个测试文件，覆盖 5 大类别：
+
+- **单元测试 (7)**：`jwt.test.ts`, `password.test.ts`, `response.test.ts`, `crypto.test.ts`, `pagination.test.ts`, `token.test.ts`, `config.test.ts`
+- **工具库测试 (4)**：`yjs-utils.test.ts`, `upload-refs.test.ts`, `logger.test.ts`, `csrf.test.ts`
+- **认证/权限测试 (4)**：`auth.integration.test.ts`, `auth-middleware.test.ts`, `middleware.test.ts`, `membership.test.ts`
+- **业务功能测试 (10)**：`features.test.ts`, `catalogs.test.ts`, `upload.test.ts`, `yjs.test.ts`, `yjs-routes.test.ts`, `permissions.test.ts`, `search-service.test.ts`, `audit-service.test.ts`, `manual-assembler.test.ts`, `export-cache.test.ts`
+- **站点构建测试 (4)**：`site-builder-shared.test.ts`, `site-builder-sidebar.test.ts`, `site-builder-search.test.ts`, `site-builder-content.test.ts`
+- **E2E 测试 (3)**：`e2e-business-flows.test.ts`, `e2e-profile-export.test.ts`, `e2e-export-import.test.ts`
+- **其他 (4)**：`simple-routes.test.ts`, `more-routes.test.ts`, `error-paths.test.ts`, `feishu-card.test.ts`
+
+`test-app.ts` 为测试应用工厂，提供 `buildTestApp()` 构建最小 Fastify 实例。

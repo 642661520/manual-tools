@@ -11,8 +11,12 @@ shared/
 │   ├── models.ts         # 领域模型类型
 │   ├── api.ts            # API 响应类型
 │   └── requests.ts       # API 请求体类型
-└── utils/
-    └── sections.ts       # Section JSON 解析工具
+├── constants/
+│   └── audit-actions.ts  # 审计操作常量
+├── utils/
+│   └── sections.ts       # Section JSON 解析工具
+└── __tests__/
+    └── sections.test.ts  # Section 工具测试
 ```
 
 ## types/models.ts — 领域模型
@@ -22,77 +26,80 @@ shared/
 ### 用户相关
 
 ```ts
-UserInfo // { id, username, displayName, role, avatarUrl?, feishuName?, ... }
-UserDetail // UserInfo + { notifyEnabled, notifyPrefs, ... }
-UserRow // 数据库原始行（snake_case，仅后端用）
+UserInfo // { id, username, displayName, role, avatarUrl?, feishuName?, hasPassword?, notifyEnabled?, notifyPrefs?, usernameChanged? }
+UserDetail // UserInfo + { feishuOpenId, feishuAvatarUrl, createdAt, hasPassword, notifyEnabled, notifyPrefs }
 ```
 
 ### 项目相关
 
 ```ts
-ProjectInfo // { id, name, description, reviewChain?, defaultProjectReadonly? }
-ProjectRow // 数据库原始行
+ProjectInfo // { id, name, description, reviewChain, createdAt, updatedAt }
 ```
 
 ### 功能相关
 
 ```ts
-FeatureRow // { id, title, description, sections (JSON string), is_custom, category_id, project_id, ... }
-FeatureData // FeatureRow + { sections (parsed SectionDef[]), categoryName?, categoryColor? }
+SectionDef // { key, title, description? } — 功能章节定义
+FeatureSection // SectionDef + { status?, assignees?, reviewNote?, reviewStep?, statusLog? }
+StatusLogEntry // { action, userId, note, step, createdAt }
+FeatureInfo // { id, title, description, sections, isCustom, categoryId, projectId, createdAt, updatedAt }
+FeatureSummary // FeatureInfo + { totalSections, approvedSections, completedSections, editedSections, orphanedCount }
+FeatureDetail // FeatureInfo + { sections: FeatureSection[], orphaned: FeatureSection[] }
 ```
 
-### 目录相关
+### 目录/手册相关
 
 ```ts
-CatalogEntry // 目录条目：{ type: 'feature'|'part', featureId?, title?, features?[] }
-CatalogRow // { id, title, features (JSON), cover_info (JSON), project_id, ... }
-CatalogData // CatalogRow + { features (parsed), coverInfo (parsed) }
+CatalogFeatureEntry // { featureId, sectionOrder? }
+CatalogPart // { type: 'part', id, title, features: CatalogFeatureEntry[] }
+CatalogEntry = CatalogFeatureEntry | CatalogPart
+CatalogInfo // { id, title, features, coverInfo, projectId, createdAt, updatedAt }
+CatalogVersionStatus // 'active' | 'deprecated' | 'archived'
+CatalogVersionInfo // { id, versionMajor, versionMinor, title, changeNotes, visibility, publishScope, status, createdAt }
+isCatalogPart(entry)  // 类型守卫
+```
+
+### 分类相关
+
+```ts
+CategoryInfo // { id, name, color, sortOrder, projectId }
 ```
 
 ### 文档相关
 
 ```ts
-DocumentRow // { id, feature_id, section_key, status, assignees (JSON), review_note, review_step, status_log (JSON) }
-DocumentStatus // 'draft' | 'in_progress' | 'completed' | 'pending_review' | 'approved' | 'rejected'
+DocumentStatus // 'draft' | 'in_progress' | 'pending_review' | 'rejected' | 'approved'
+TodoItem // { docId, featureId, featureTitle, sectionKey, sectionTitle, status, reviewNote, reviewStep, todoType }
 ```
 
-### 版本相关
+### 项目成员相关
 
 ```ts
-CatalogVersion // { catalog_id, version_major, version_minor, title, change_notes, visibility, features_snapshot, ... }
+MemberInfo // { id, username, displayName, role, projectRole?, feishuOpenId?, feishuName?, feishuAvatarUrl? }
+```
+
+### 审核链相关
+
+```ts
+ReviewChainMember // { id, username, displayName, role, feishuName?, feishuAvatarUrl? }
+ReviewChainData // { chain: ReviewChainMember[], availablePMs: ReviewChainMember[] }
 ```
 
 ### 导入导出相关
 
 ```ts
-ExportEstimate // { features, documents, catalogs, versions, categories, members, uploads, totalBytes }
-ImportDiffReport // { categories, features, catalogs (各有 new/conflicted/unchanged 列表) }
-ImportApplyResult // { categories, features, catalogs, documents 的写入计数 }
-ImportApplyOptions // { strategies: { categories, features, catalogs, documents } }
-DataTaskInfo // 异步任务状态
+ExportEstimate // { features, catalogs, documents, uploads, structuredSize, uploadsSize, totalSize }
+ImportDiffReport // { sourceProject, categories, features, catalogs, documents, uploads }
+ImportApplyResult // { categories, features, catalogs, documents, uploads }
+ImportApplyOptions // { strategies: { categories, features, catalogs, documents }, documentStatus? }
+DataTaskInfo // 异步任务状态（含进度、摘要、差异报告等）
 ```
 
 ### 上传相关
 
 ```ts
-OrphanFile // { path, filename, size, modified }
-UploadFileInfo // { path, filename, size, modified, referenced, orphaned }
-```
-
-### 通知相关
-
-```ts
-NotificationPrefs // 用户通知偏好
-AuditLogEntry // { userId, action, targetType, targetId, detail }
-AuditLogRow // 数据库审计日志行 + { username, displayName }
-```
-
-### 工具类型
-
-```ts
-SectionDef // { key, title, description? } — 功能章节定义
-CatalogPart // { type: 'part', id, title, features[] } — 目录分区
-isCatalogPart(entry) // 类型守卫
+OrphanFile // { path, size, mtime }
+UploadFileInfo // { path, size, mtime, referenced }
 ```
 
 ## types/api.ts — API 响应类型
@@ -109,17 +116,22 @@ isCatalogPart(entry) // 类型守卫
 | `UsernameChangeResponse`              | `PUT /api/auth/me/username`                                                 |
 | `PasswordChangeResponse`              | `PUT /api/auth/me/password`                                                 |
 | `FeishuBindingResponse`               | `PUT /api/auth/me/feishu-binding`                                           |
+| `FeishuBindingStatus`                 | `GET /api/auth/me/feishu-binding`                                           |
 | `PublishResponse`                     | `POST /api/catalogs/:id/publish`                                            |
 | `UploadImageResponse`                 | `POST /api/upload/image`                                                    |
 | `CreateResponse`                      | `POST` 创建资源通用响应 `{ id: string }`                                    |
+| `UpdateSectionsResponse`              | `PUT /api/features/:id/sections`                                            |
 | `ManualPreviewResponse`               | `GET /api/catalogs/:id/preview`                                             |
 | `ChapterResponse`                     | `GET /api/catalogs/:id/chapters/:chNum`                                     |
 | `VersionPreviewResponse`              | `GET /api/catalogs/:id/versions/:versionId/preview`                         |
 | `OAuthUrlResponse`                    | 飞书 OAuth URL                                                              |
+| `OkResponse`                          | 通用成功响应 `{ ok: true }`                                                 |
 | `ExportEstimateResponse`              | 导出大小预估                                                                |
 | `ImportAnalyzeResponse`               | 导入差异分析                                                                |
 | `ImportApplyResponse`                 | 导入应用结果                                                                |
+| `DataTaskResponse`                    | 异步任务状态                                                                |
 | `OrphansResponse` / `UploadsResponse` | 上传文件状态                                                                |
+| `OrphansDeleteResponse`               | 孤儿文件清理结果                                                            |
 
 ## types/requests.ts — API 请求体类型
 

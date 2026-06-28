@@ -13,25 +13,54 @@ pnpm test:coverage     # 生成覆盖率报告
 ## 测试结构
 
 ```
-server/__tests__/                    # 后端测试（10 个文件）
+server/__tests__/                    # 后端测试（36 个文件）
 ├── test-app.ts                      # 测试应用工厂（构建 Fastify 实例）
 ├── auth.integration.test.ts         # 认证集成测试
-├── catalogs.test.ts                 # 目录测试
-├── features.test.ts                 # 功能测试
+├── auth-middleware.test.ts          # 认证中间件测试
+├── middleware.test.ts               # 通用中间件测试
+├── membership.test.ts               # 成员资格检查测试
+├── token.test.ts                    # Token 提取测试
+├── config.test.ts                   # 配置模块测试
+├── catalogs.test.ts                 # 目录 CRUD 测试
+├── features.test.ts                 # 功能 CRUD 测试
+├── permissions.test.ts              # 权限中间件测试
 ├── jwt.test.ts                      # JWT 签发/验证单元测试
 ├── password.test.ts                 # 密码强度校验测试
-├── permissions.test.ts              # 权限中间件测试
 ├── response.test.ts                 # API 响应格式测试
+├── crypto.test.ts                   # 加密工具测试
+├── pagination.test.ts               # 分页工具测试
 ├── upload.test.ts                   # 上传功能测试
-└── yjs.test.ts                      # Y.js 协同编辑测试
+├── upload-refs.test.ts              # 上传引用提取测试
+├── yjs.test.ts                      # Y.js 协同编辑测试
+├── yjs-routes.test.ts               # Y.js WebSocket 路由测试
+├── yjs-utils.test.ts                # Y.js 编解码工具测试
+├── logger.test.ts                   # 日志工具测试
+├── csrf.test.ts                     # CSRF 保护测试
+├── search-service.test.ts           # 搜索服务测试
+├── audit-service.test.ts            # 审计服务测试
+├── manual-assembler.test.ts         # 手册组装器测试
+├── export-cache.test.ts             # 导出缓存测试
+├── site-builder-shared.test.ts      # 站点构建共享逻辑
+├── site-builder-sidebar.test.ts     # 站点构建侧边栏
+├── site-builder-search.test.ts      # 站点构建搜索
+├── site-builder-content.test.ts     # 站点构建内容
+├── e2e-business-flows.test.ts       # E2E 核心业务流程
+├── e2e-profile-export.test.ts       # E2E 资料导出
+├── e2e-export-import.test.ts        # E2E 导入导出
+├── simple-routes.test.ts            # 基础路由冒烟测试
+├── more-routes.test.ts              # 扩展路由测试
+├── error-paths.test.ts              # 错误路径覆盖测试
+└── feishu-card.test.ts              # 飞书卡片消息测试
 
-src/__tests__/                       # 前端测试（5 个文件）
+src/__tests__/                       # 前端测试（7 个文件）
 ├── api/
 │   └── transform.test.ts            # API 字段转换测试
 ├── components/
 │   └── shared-components.test.ts    # 共享组件渲染测试
 ├── composables/
-│   └── useAuth.test.ts              # 认证逻辑测试
+│   ├── useAuth.test.ts              # 认证逻辑测试
+│   ├── useDialog.test.ts            # 对话框逻辑测试
+│   └── toast.test.ts                # Toast 消息测试
 └── utils/
     ├── markdown.test.ts             # Markdown 渲染测试
     └── storage.test.ts              # localStorage 工具测试

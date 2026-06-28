@@ -1,6 +1,6 @@
 # 前端架构
 
-## 路由 (src/router.ts) — 13 条
+## 路由 (src/router.ts) — 18 条（含 7 条旧路径兼容重定向）
 
 | 路径                    | 名称             | 视图                                 | 权限  |
 | ----------------------- | ---------------- | ------------------------------------ | ----- |
@@ -8,15 +8,16 @@
 | `/`                     | —                | 重定向到 `/features`                 | —     |
 | `/features`             | feature-list     | `views/feature-list/index.vue`       | 登录  |
 | `/features/:id/edit`    | feature-editor   | `views/feature-editor/index.vue`     | 登录  |
-| `/catalogs/:id`         | catalog-builder  | `views/catalog-builder/index.vue`    | 登录  |
-| `/preview`              | preview-index    | `views/manual-preview/index.vue`     | 登录  |
-| `/preview/:id`          | manual-preview   | `views/manual-preview/index.vue`     | 登录  |
-| `/catalogs/:id/preview` | —                | 重定向到 `/preview/:id`              | —     |
+| `/manuals`              | manual-list      | `views/catalog-list/index.vue`       | 登录  |
+| `/manuals/:id/edit`     | manual-builder   | `views/catalog-builder/index.vue`    | 登录  |
+| `/manuals/:id`          | manual-preview   | `views/manual-preview/index.vue`     | 登录  |
 | `/settings`             | settings         | `views/settings/index.vue`           | admin |
 | `/settings/project`     | project-settings | `views/settings/ProjectSettings.vue` | 登录  |
 | `/profile`              | profile          | `views/profile/index.vue`            | 登录  |
 | `/todos`                | todo-list        | `views/todo-list/index.vue`          | 登录  |
 | `/feishu-callback`      | feishu-callback  | `views/feishu-callback/index.vue`    | 公开  |
+
+旧路径兼容重定向（保留向后兼容）：`/catalogs` → `/manuals`，`/catalogs/:id` → `/manuals/:id`，`/catalogs/:id/preview` → `/manuals/:id`，`/preview` → `/manuals`，`/preview/:id` → `/manuals/:id`。
 
 ## API 端点 (src/api/) — 17 个文件
 
@@ -62,7 +63,7 @@
 | `diff.ts`       | 版本对比         |
 | `search.ts`     | 全文搜索         |
 
-## 共享组件 (src/components/) — 23 个 + 4 编辑器子组件
+## 共享组件 (src/components/) — 24 个 + 4 编辑器子组件
 
 ### 基础组件
 
@@ -81,12 +82,13 @@
 
 ### 表单组件
 
-| 组件             | 用途                                                        |
-| ---------------- | ----------------------------------------------------------- |
-| `SelectDropdown` | 可搜索下拉选择框                                            |
-| `PasswordInput`  | 密码输入框（含显示/隐藏切换），v-model 绑定                 |
-| `SearchBox`      | 全局搜索框，支持快捷键 `Ctrl+K` 唤起，调用 `/api/v1/search` |
-| `ColorPicker`    | 颜色选择器（文字颜色 10 色 + 背景高亮 10 色）               |
+| 组件                     | 用途                                                        |
+| ------------------------ | ----------------------------------------------------------- |
+| `SelectDropdown`         | 可搜索下拉选择框                                            |
+| `PasswordInput`          | 密码输入框（含显示/隐藏切换），v-model 绑定                 |
+| `SearchBox`              | 全局搜索框，支持快捷键 `Ctrl+K` 唤起，调用 `/api/v1/search` |
+| `ColorPicker`            | 颜色选择器（文字颜色 10 色 + 背景高亮 10 色）               |
+| `CreateEditManualModal`  | 创建/编辑手册对话框（标题 + 描述表单）                      |
 
 ### 编辑器组件
 
@@ -121,29 +123,35 @@
 | `AiPopover`         | AI 操作结果弹出层                               |
 | `MediaUploadDialog` | 媒体上传对话框（图片/视频，含大小限制提示）     |
 
-## 组合式函数 (src/composables/) — 11 个
+## 组合式函数 (src/composables/) — 16 个
 
-| Composable         | 用途                                                                                       |
-| ------------------ | ------------------------------------------------------------------------------------------ |
-| `useAuth`          | 模块级 reactive refs，login/logout/token 管理                                              |
-| `useProject`       | 模块级单例，localStorage 持久化 `active_project_id`，`switchProject()` / `loadProjects()`  |
-| `useYjsDoc`        | 客户端 Y.js doc + WebSocket 连接，sync step 握手 + update 广播 + awareness 收发            |
-| `useTiptapYjs`     | TipTap editor 绑定到 Y.js `ytext('content')`，本地编辑→Y.js 同步，远程更新→editor dispatch |
-| `useDialog`        | 对话框堆栈管理（alert/confirm/prompt）                                                     |
-| `useSidebarTree`   | 编辑器左侧导航树：从 catalog features 构建章节/分部分层级结构                              |
-| `cursor-awareness` | TipTap Extension，渲染远程用户光标位置                                                     |
-| `search-highlight` | 查找高亮 composable                                                                        |
-| `markdown-paste`   | Markdown 粘贴处理（粘贴时自动转换 Markdown 为 TipTap 节点）                                |
-| `crossref-node`    | 交叉引用 Node 定义（feature/section 内链）                                                 |
-| `video-node`       | 视频 Node 定义（video 类型节点）                                                           |
+| Composable             | 用途                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------ |
+| `useAuth`              | 模块级 reactive refs，login/logout/token 管理                                              |
+| `useProject`           | 模块级单例，localStorage 持久化 `active_project_id`，`switchProject()` / `loadProjects()`  |
+| `useYjsDoc`            | 客户端 Y.js doc + WebSocket 连接，sync step 握手 + update 广播 + awareness 收发            |
+| `useTiptapYjs`         | TipTap editor 绑定到 Y.js `ytext('content')`，本地编辑→Y.js 同步，远程更新→editor dispatch |
+| `useDialog`            | 对话框堆栈管理（alert/confirm/prompt）                                                     |
+| `useSidebarTree`       | 编辑器左侧导航树：从 catalog features 构建章节/分部分层级结构                              |
+| `cursor-awareness`     | TipTap Extension，渲染远程用户光标位置                                                     |
+| `search-highlight`     | 查找高亮 composable                                                                        |
+| `markdown-paste`       | Markdown 粘贴处理（粘贴时自动转换 Markdown 为 TipTap 节点）                                |
+| `crossref-node`        | 交叉引用 Node 定义（feature/section 内链）                                                 |
+| `video-node`           | 视频 Node 定义（video 类型节点）                                                           |
+| `toast`                | Toast 消息提示 composable（成功/错误/警告/信息）                                           |
+| `useCoverColors`       | 封面颜色主题管理                                                                           |
+| `useBreakpoint`        | 响应式断点检测（sm/md/lg/xl）                                                              |
+| `useResponsiveSidebar` | 响应式侧边栏（自动折叠/展开，移动端手势支持）                                              |
+| `useTheme`             | 主题模式管理（亮色/暗色/自动）                                                             |
 
-## 页面视图 (src/views/) — 9 个
+## 页面视图 (src/views/) — 10 个
 
 | 视图               | 文件                                                                     | 用途                                                                               |
 | ------------------ | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
 | `login/`           | `index.vue`                                                              | 用户名密码登录 + 飞书 OAuth 登录                                                   |
 | `feature-list/`    | `index.vue`                                                              | PM 集中管理：创建/编辑/删除自定义功能、导入 JSON 骨架（diff 确认界面）、按分类分组 |
 | `feature-editor/`  | `index.vue`                                                              | 运维编写：左侧功能导航树 + 右侧 TipTap 编辑器，支持状态流转和 AI 写作              |
+| `catalog-list/`    | `index.vue`                                                              | 手册列表：浏览所有手册、创建/编辑/删除手册                                          |
 | `catalog-builder/` | `index.vue`                                                              | PM 编排：左侧可选功能池（搜索+按分类分组）+ 右侧拖拽排序已选功能                   |
 | `manual-preview/`  | `index.vue`, `PreviewContent.vue`, `PreviewSidebar.vue`                  | 手册预览 + 版本发布 + 版本对比                                                     |
 | `settings/`        | `index.vue`, `AuditLog.vue`, `DataManagement.vue`, `ProjectSettings.vue` | 系统/项目设置：项目管理 + 账号管理 + 存储管理 + 操作日志                           |
@@ -155,8 +163,9 @@
 
 - `src/utils/markdown.ts` — Markdown 渲染（基于 markdown-it，支持 HTML、自动链接、排版美化）
 - `src/utils/storage.ts` — localStorage 安全读写（用户信息持久化）
+- `src/utils/token-validation.ts` — JWT Token 过期检测与校验
 - `src/directives/tooltip.ts` — `v-tooltip` 指令，hover/focus 时显示提示文本，支持 top/bottom 位置
 
 ## 测试 (src/\_\_tests\_\_/)
 
-5 个测试文件：`api/transform.test.ts`, `components/shared-components.test.ts`, `composables/useAuth.test.ts`, `utils/markdown.test.ts`, `utils/storage.test.ts`
+7 个测试文件：`api/transform.test.ts`, `components/shared-components.test.ts`, `composables/useAuth.test.ts`, `composables/useDialog.test.ts`, `composables/toast.test.ts`, `utils/markdown.test.ts`, `utils/storage.test.ts`
