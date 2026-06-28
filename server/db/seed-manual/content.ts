@@ -119,7 +119,6 @@ export const SEED_CATEGORIES = [
 export const SEED_CATALOG = {
   id: 'manual-tools-manual',
   title: 'Manual Tools 用户手册',
-  targets: ['新用户', '文档编辑者', '项目负责人', '系统管理员'],
   features: [
     {
       type: 'part' as const,
@@ -197,8 +196,6 @@ export const SEED_CATALOG = {
     },
   ],
   cover_info: {
-    title: 'Manual Tools 用户手册',
     subtitle: '操作手册编写平台 · 使用指南',
-    version: '1.0.0',
   },
 }

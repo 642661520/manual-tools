@@ -172,7 +172,6 @@ export async function buildSeedZip(projectId: string): Promise<{
         {
           id: SEED_CATALOG.id,
           title: SEED_CATALOG.title,
-          targets: SEED_CATALOG.targets,
           features: SEED_CATALOG.features,
           cover_info: SEED_CATALOG.cover_info,
           versions: [],
