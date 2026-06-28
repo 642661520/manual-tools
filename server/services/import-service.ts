@@ -98,30 +98,34 @@ async function parseExportData(zipPath: string): Promise<ParsedExport> {
   const reader = new V2ZipReader(directory)
 
   // manifest.json
-  const manifest = await reader.readJson('manifest.json')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const manifest = await reader.readJson('manifest.json') as any
   const source = {
-    projectId: manifest.source?.projectId ?? '',
-    projectName: manifest.source?.projectName ?? 'Unknown',
+    projectId: (manifest.source?.projectId as string) ?? '',
+    projectName: (manifest.source?.projectName as string) ?? 'Unknown',
   }
 
   // project.json
-  const project = await reader.readJson('project.json')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const project = await reader.readJson('project.json') as any as ParsedExport['project']
 
   // categories.json
-  const categories = await reader.readJson('categories.json')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const categories = await reader.readJson('categories.json') as any as ParsedExport['categories']
 
   // features/*.json
   const featurePaths = reader.listFiles('features/')
   const features: ParsedExport['features'] = []
   for (const fp of featurePaths) {
-    const f = await reader.readJson(fp)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const f = await reader.readJson(fp) as any
     features.push({
-      id: f.id,
-      title: f.title,
-      description: f.description,
+      id: f.id as string,
+      title: f.title as string,
+      description: f.description as string,
       sections: JSON.stringify(f.sections || []),
-      is_custom: f.is_custom ?? 0,
-      category_id: f.category_id ?? null,
+      is_custom: (f.is_custom as number) ?? 0,
+      category_id: (f.category_id as string) ?? null,
     })
   }
 
@@ -146,29 +150,30 @@ async function parseExportData(zipPath: string): Promise<ParsedExport> {
   const catalogPaths = reader.listFiles('catalogs/')
   const catalogs: ParsedExport['catalogs'] = []
   for (const cp of catalogPaths) {
-    const c = await reader.readJson(cp)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const c = await reader.readJson(cp) as any
     catalogs.push({
       row: {
-        id: c.id,
-        title: c.title,
+        id: c.id as string,
+        title: c.title as string,
         targets: JSON.stringify(c.targets || []),
         features: JSON.stringify(c.features || []),
         cover_info: JSON.stringify(c.cover_info || {}),
       },
       versions: (c.versions || []).map((v: Record<string, unknown>) => ({
-        id: v.id,
-        catalog_id: v.catalog_id,
-        version_major: v.version_major,
-        version_minor: v.version_minor,
-        title: v.title,
-        features_snapshot: v.features_snapshot,
-        change_notes: v.change_notes,
-        markdown: v.markdown,
-        status_snapshot: v.status_snapshot,
-        visibility: v.visibility,
-        features_json: v.features_json || '[]',
-        headings_json: v.headings_json || '[]',
-        created_at: v.created_at,
+        id: v.id as string,
+        catalog_id: v.catalog_id as string,
+        version_major: v.version_major as number,
+        version_minor: v.version_minor as number,
+        title: v.title as string,
+        features_snapshot: v.features_snapshot as string,
+        change_notes: v.change_notes as string,
+        markdown: v.markdown as string,
+        status_snapshot: v.status_snapshot as string,
+        visibility: v.visibility as string,
+        features_json: (v.features_json as string) || '[]',
+        headings_json: (v.headings_json as string) || '[]',
+        created_at: v.created_at as string,
       })),
     })
   }

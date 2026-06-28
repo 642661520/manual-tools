@@ -6,8 +6,8 @@ describe('buildCardMessage', () => {
     const card = buildCardMessage('标题', '正文内容')
     expect(card.header.title).toEqual({ content: '标题', tag: 'plain_text' })
     expect(card.header.template).toBe('blue') // 默认蓝色
-    expect(card.elements).toHaveLength(1)
-    expect(card.elements[0]).toEqual({ tag: 'markdown', content: '正文内容' })
+    expect(card.elements!).toHaveLength(1)
+    expect(card.elements![0]).toEqual({ tag: 'markdown', content: '正文内容' })
   })
 
   it('自定义颜色', () => {
@@ -19,8 +19,8 @@ describe('buildCardMessage', () => {
     const card = buildCardMessage('标题', '内容', {
       link: { url: 'https://example.com', title: '查看详情' },
     })
-    expect(card.elements).toHaveLength(2)
-    const action = card.elements[1] as { tag: string; actions: Array<Record<string, unknown>> }
+    expect(card.elements!).toHaveLength(2)
+    const action = card.elements![1] as { tag: string; actions: Array<Record<string, unknown>> }
     expect(action.tag).toBe('action')
     expect(action.actions[0].tag).toBe('button')
     expect(action.actions[0].text).toEqual({ tag: 'plain_text', content: '查看详情' })
@@ -30,6 +30,6 @@ describe('buildCardMessage', () => {
   it('不传 options 使用默认值', () => {
     const card = buildCardMessage('A', 'B')
     expect(card.header.template).toBe('blue')
-    expect(card.elements).toHaveLength(1)
+    expect(card.elements!).toHaveLength(1)
   })
 })
