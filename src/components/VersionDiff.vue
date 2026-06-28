@@ -66,15 +66,15 @@ function onV2Change(val: string | number | null) {
     <div
       v-if="visible"
       class="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] bg-black/40"
-      @click.self="emit('close')"
+      @click.self="() => emit('close')"
     >
       <div
-        class="bg-white rounded-xl shadow-2xl w-full max-w-4xl mx-4 max-h-[80vh] flex flex-col overflow-hidden"
+        class="bg-surface rounded-xl shadow-2xl w-full max-w-4xl mx-4 max-h-[80vh] flex flex-col overflow-hidden"
       >
         <div
-          class="flex items-center justify-between px-5 py-3 border-b border-gray-200 flex-shrink-0"
+          class="flex items-center justify-between px-5 py-3 border-b border-default flex-shrink-0"
         >
-          <span class="text-sm font-semibold text-gray-700">版本对比</span>
+          <span class="text-sm font-semibold text-secondary">版本对比</span>
           <div class="flex items-center gap-3">
             <SelectDropdown
               :model-value="v1"
@@ -83,7 +83,7 @@ function onV2Change(val: string | number | null) {
               width-class="w-56"
               @update:model-value="onV1Change"
             />
-            <span class="text-gray-300">→</span>
+            <span class="text-muted">→</span>
             <SelectDropdown
               :model-value="v2"
               :options="versionOptions"
@@ -91,25 +91,24 @@ function onV2Change(val: string | number | null) {
               width-class="w-56"
               @update:model-value="onV2Change"
             />
-            <button class="text-gray-400 hover:text-gray-600" @click="emit('close')">
+            <button class="text-muted hover:text-secondary" @click="() => emit('close')">
               <span class="i-lucide-x w-4 h-4" />
             </button>
           </div>
         </div>
 
-        <div
-          v-if="loading"
-          class="flex items-center gap-2 justify-center py-12 text-sm text-gray-400"
-        >
+        <div v-if="loading" class="flex items-center gap-2 justify-center py-12 text-sm text-muted">
           <span class="i-lucide-loader-2 w-4 h-4 animate-spin" />加载中...
         </div>
-        <div v-else-if="error" class="p-6 text-center text-sm text-red-500">{{ error }}</div>
+        <div v-else-if="error" class="p-6 text-center text-sm color-danger">
+          {{ error }}
+        </div>
         <div v-else-if="result" class="flex-1 overflow-y-auto">
           <div
-            class="flex gap-4 px-5 py-2 border-b border-gray-100 bg-gray-50 text-xs text-gray-500 sticky top-0"
+            class="flex gap-4 px-5 py-2 border-b border-light bg-base text-xs text-secondary sticky top-0"
           >
             <span class="text-green-600">+{{ result.stats.added }}</span>
-            <span class="text-red-500">-{{ result.stats.removed }}</span>
+            <span class="color-danger">-{{ result.stats.removed }}</span>
             <span>{{ result.stats.unchanged }} unchanged</span>
           </div>
           <div class="font-mono text-sm">
@@ -121,12 +120,12 @@ function onV2Change(val: string | number | null) {
                 line.type === 'added'
                   ? 'bg-green-50 text-green-800'
                   : line.type === 'removed'
-                    ? 'bg-red-50 text-red-700'
-                    : 'text-gray-700'
+                    ? 'bg-danger text-red-700'
+                    : 'text-secondary'
               "
             >
               <span
-                class="inline-block w-5 text-xs text-gray-400 flex-shrink-0 select-none mr-2 text-right"
+                class="inline-block w-5 text-xs text-muted flex-shrink-0 select-none mr-2 text-right"
               >
                 {{ line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' ' }}
               </span>
@@ -134,7 +133,7 @@ function onV2Change(val: string | number | null) {
             </div>
           </div>
         </div>
-        <div v-else class="p-6 text-center text-sm text-gray-400">请选择两个版本进行对比</div>
+        <div v-else class="p-6 text-center text-sm text-muted">请选择两个版本进行对比</div>
       </div>
     </div>
   </Teleport>

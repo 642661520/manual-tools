@@ -65,9 +65,11 @@ function handleActionChange(value: SelectOption['value']) {
 }
 
 function actionClass(action: string): string {
-  if (HIGH_RISK_ACTIONS.has(action as AuditAction)) return 'bg-red-100 text-red-700'
-  if (SECURITY_ACTIONS.has(action as AuditAction)) return 'bg-orange-100 text-orange-700'
-  return 'bg-gray-100 text-gray-700'
+  if (HIGH_RISK_ACTIONS.has(action as AuditAction))
+    return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+  if (SECURITY_ACTIONS.has(action as AuditAction))
+    return 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
+  return 'bg-hover text-secondary'
 }
 
 async function load() {
@@ -124,36 +126,38 @@ onMounted(load)
         width-class="w-44"
         @update:model-value="handleActionChange"
       />
-      <span class="text-xs text-gray-400">共 {{ total }} 条记录</span>
+      <span class="text-xs text-muted">共 {{ total }} 条记录</span>
     </div>
 
-    <div v-if="loading" class="flex-1 flex items-center justify-center text-gray-400 text-sm">
+    <div v-if="loading" class="flex-1 flex items-center justify-center text-muted text-sm">
       加载中...
     </div>
     <div
       v-else-if="rows.length === 0"
-      class="flex-1 flex items-center justify-center text-gray-400 text-sm"
+      class="flex-1 flex items-center justify-center text-muted text-sm"
     >
       暂无操作记录
     </div>
     <div v-else class="flex-1 overflow-y-auto min-h-0">
       <table class="w-full text-sm border-collapse">
         <thead>
-          <tr class="border-b border-gray-200 text-left text-xs text-gray-500">
-            <th class="py-2 pr-4 sticky top-0 bg-white z-10">时间</th>
-            <th class="py-2 pr-4 sticky top-0 bg-white z-10">操作人</th>
-            <th class="py-2 pr-4 sticky top-0 bg-white z-10">操作对象</th>
-            <th class="py-2 pr-4 sticky top-0 bg-white z-10">操作</th>
-            <th class="py-2 sticky top-0 bg-white z-10">详情</th>
+          <tr class="border-b border-default text-left text-xs text-secondary">
+            <th class="py-2 pr-4 sticky top-0 bg-surface z-10">时间</th>
+            <th class="py-2 pr-4 sticky top-0 bg-surface z-10">操作人</th>
+            <th class="py-2 pr-4 sticky top-0 bg-surface z-10">操作对象</th>
+            <th class="py-2 pr-4 sticky top-0 bg-surface z-10">操作</th>
+            <th class="py-2 sticky top-0 bg-surface z-10">详情</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="r in rows" :key="r.id" class="border-b border-gray-100 hover:bg-gray-50">
-            <td class="py-2 pr-4 text-gray-500 whitespace-nowrap">
+          <tr v-for="r in rows" :key="r.id" class="border-b border-light hover:bg-hover">
+            <td class="py-2 pr-4 text-secondary whitespace-nowrap">
               {{ new Date(r.createdAt).toLocaleString() }}
             </td>
-            <td class="py-2 pr-4">{{ r.username }}</td>
-            <td class="py-2 pr-4 text-xs text-gray-500">
+            <td class="py-2 pr-4">
+              {{ r.username }}
+            </td>
+            <td class="py-2 pr-4 text-xs text-secondary">
               {{ TARGET_TYPE_LABELS[r.targetType] || r.targetType }}
             </td>
             <td class="py-2 pr-4">
@@ -161,7 +165,7 @@ onMounted(load)
                 {{ actionLabels[r.action] || r.action }}
               </span>
             </td>
-            <td class="py-2 text-gray-600 text-xs max-w-xs truncate">
+            <td class="py-2 text-secondary text-xs max-w-xs truncate">
               {{ formatDetail(r.detail) }}
             </td>
           </tr>

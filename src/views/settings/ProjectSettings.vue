@@ -22,7 +22,7 @@ import DataManagement from './DataManagement.vue'
 
 const route = useRoute()
 const router = useRouter()
-const { canManageProject, user } = useAuth()
+const { canManageProject } = useAuth()
 const { currentProjectId, currentProject, loadProjects } = useProject()
 const { dangerConfirm } = useDialog()
 
@@ -248,22 +248,16 @@ watch(
   },
   { immediate: true },
 )
-
-const projectRoleLabel: Record<string, string> = {
-  pm: '项目负责人',
-  writer: '编辑者',
-  viewer: '查阅者',
-}
 </script>
 
 <template>
-  <div v-if="!canManageProject" class="p-8 text-center text-gray-500">你没有项目负责人权限</div>
+  <div v-if="!canManageProject" class="p-8 text-center text-secondary">你没有项目负责人权限</div>
 
   <div v-else class="flex flex-col md:flex-row h-full">
     <SettingsSidebar
+      v-model="activeTab"
       :title="`项目设置 / ${currentProject?.name || '未选择'}`"
       :tabs="projectSettingsTabs"
-      v-model="activeTab"
     />
 
     <!-- 右侧内容区 -->
@@ -272,24 +266,24 @@ const projectRoleLabel: Record<string, string> = {
       <div v-if="activeTab === 'members'">
         <div class="mb-4">
           <h2 class="text-lg font-semibold">项目成员管理</h2>
-          <p class="text-xs text-gray-400 mt-0.5">管理项目成员和角色，控制编辑与查阅权限。</p>
+          <p class="text-xs text-muted mt-0.5">管理项目成员和角色，控制编辑与查阅权限。</p>
         </div>
 
         <div class="card">
           <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-semibold text-gray-500">成员列表</h3>
+            <h3 class="text-sm font-semibold text-secondary">成员列表</h3>
             <button class="btn-primary text-sm" @click="openAddMember">
               <span class="i-lucide-plus w-4 h-4 inline-block align-middle mr-1" />添加成员
             </button>
           </div>
           <ErrorMessage :message="membersError" />
-          <div v-if="members.length === 0" class="text-gray-400 text-sm py-4 text-center">
+          <div v-if="members.length === 0" class="text-muted text-sm py-4 text-center">
             暂无成员
           </div>
           <div
             v-for="m in members"
             :key="m.id"
-            class="flex items-center justify-between py-3 border-t border-gray-100 first:border-t-0"
+            class="flex items-center justify-between py-3 border-t border-light first:border-t-0"
           >
             <div class="flex items-center gap-3">
               <UserAvatar
@@ -298,8 +292,10 @@ const projectRoleLabel: Record<string, string> = {
                 size="md"
               />
               <div>
-                <div class="text-sm font-medium">{{ (m as any).feishuName || m.displayName }}</div>
-                <div class="text-xs text-gray-400">
+                <div class="text-sm font-medium">
+                  {{ (m as any).feishuName || m.displayName }}
+                </div>
+                <div class="text-xs text-muted">
                   {{ m.username }} ·
                   {{
                     (m as any).role === 'admin'
@@ -321,8 +317,8 @@ const projectRoleLabel: Record<string, string> = {
                 "
               />
               <button
-                class="text-xs text-red-400 hover:text-red-600 ml-2"
-                @click="handleRemoveMember(m.id)"
+                class="text-xs text-red-400 hover:color-danger ml-2"
+                @click="() => handleRemoveMember(m.id)"
               >
                 移除
               </button>
@@ -381,18 +377,18 @@ const projectRoleLabel: Record<string, string> = {
       <div v-if="activeTab === 'review-chain'">
         <div class="mb-4">
           <h2 class="text-lg font-semibold">审核流程配置</h2>
-          <p class="text-xs text-gray-400 mt-0.5">
+          <p class="text-xs text-muted mt-0.5">
             审核人按顺序依次审核，提交后第1位先审，通过后流转至下一位。未配置时通知所有项目负责人。
           </p>
         </div>
         <ErrorMessage :message="reviewChainError" />
-        <div v-if="reviewChainSaving" class="text-xs text-blue-500 mb-2 flex items-center gap-1">
+        <div v-if="reviewChainSaving" class="text-xs color-accent mb-2 flex items-center gap-1">
           <span class="i-lucide-loader-2 w-3.5 h-3.5 animate-spin inline-block" />保存中...
         </div>
 
         <div class="card">
           <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-semibold text-gray-500">审核人列表</h3>
+            <h3 class="text-sm font-semibold text-secondary">审核人列表</h3>
             <button
               v-if="reviewChain.length > 0 && availablePMsFiltered.length > 0"
               class="btn-primary text-sm"
@@ -405,18 +401,16 @@ const projectRoleLabel: Record<string, string> = {
 
           <div v-if="reviewChain.length === 0">
             <div
-              class="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-blue-50 border border-blue-200 mb-3"
+              class="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-active border border-[var(--c-accent)]/25 mb-3"
             >
-              <span class="i-lucide-info w-4 h-4 text-blue-500 flex-shrink-0" />
-              <span class="text-sm text-blue-700"
-                >默认模式：提交审核时将通知以下所有项目负责人</span
-              >
+              <span class="i-lucide-info w-4 h-4 color-accent flex-shrink-0" />
+              <span class="text-sm color-accent">默认模式：提交审核时将通知以下所有项目负责人</span>
             </div>
             <div v-if="availablePMs.length > 0">
               <div
                 v-for="pm in availablePMs"
                 :key="pm.id"
-                class="flex items-center gap-3 py-3 border-t border-gray-100 first:border-t-0"
+                class="flex items-center gap-3 py-3 border-t border-light first:border-t-0"
               >
                 <UserAvatar
                   :avatar-url="(pm as any).feishuAvatarUrl"
@@ -427,45 +421,43 @@ const projectRoleLabel: Record<string, string> = {
                   <div class="text-sm font-medium">
                     {{ (pm as any).feishuName || pm.displayName }}
                   </div>
-                  <div class="text-xs text-gray-400">{{ pm.username }}</div>
+                  <div class="text-xs text-muted">
+                    {{ pm.username }}
+                  </div>
                 </div>
-                <span class="text-xs text-gray-400">将收到通知</span>
+                <span class="text-xs text-muted">将收到通知</span>
                 <button
-                  class="text-xs text-blue-500 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  class="text-xs color-accent hover:color-accent hover:bg-active px-2 py-1 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   :disabled="reviewChainSaving"
-                  @click="addToChain(pm.id)"
+                  @click="() => addToChain(pm.id)"
                 >
                   加入审核链
                 </button>
               </div>
             </div>
-            <div v-else class="text-gray-400 text-xs text-center py-4">暂无可用的项目负责人</div>
+            <div v-else class="text-muted text-xs text-center py-4">暂无可用的项目负责人</div>
           </div>
           <div v-else>
             <div
               v-for="(pm, index) in reviewChain"
               :key="pm.id"
-              class="flex items-center gap-3 py-3 border-t border-gray-100 first:border-t-0 transition-colors select-none"
+              class="flex items-center gap-3 py-3 border-t border-light first:border-t-0 transition-colors select-none"
               :class="[
-                dragOverIndex === index ? 'bg-blue-50 border-x-2 border-blue-300' : '',
+                dragOverIndex === index ? 'bg-active border-x-2 border-[var(--c-accent)]/40' : '',
                 dragIndex === index ? 'opacity-50' : '',
                 reviewChainSaving
                   ? 'opacity-60 pointer-events-none'
                   : 'cursor-grab active:cursor-grabbing',
               ]"
               :draggable="!reviewChainSaving"
-              @dragstart="onDragStart(index, $event)"
-              @dragover="onDragOver(index, $event)"
+              @dragstart="(e) => onDragStart(index, e)"
+              @dragover="(e) => onDragOver(index, e)"
               @dragleave="onDragLeave"
-              @drop="onDrop(index)"
+              @drop="() => onDrop(index)"
               @dragend="onDragEnd"
             >
-              <span
-                class="i-lucide-grip-vertical w-4 h-4 text-gray-300 flex-shrink-0 cursor-grab"
-              />
-              <span class="text-xs text-gray-400 w-5 text-right flex-shrink-0"
-                >{{ index + 1 }}.</span
-              >
+              <span class="i-lucide-grip-vertical w-4 h-4 text-muted flex-shrink-0 cursor-grab" />
+              <span class="text-xs text-muted w-5 text-right flex-shrink-0">{{ index + 1 }}.</span>
               <UserAvatar
                 :avatar-url="(pm as any).feishuAvatarUrl"
                 :name="(pm as any).feishuName || pm.displayName"
@@ -475,19 +467,21 @@ const projectRoleLabel: Record<string, string> = {
                 <div class="text-sm font-medium">
                   {{ (pm as any).feishuName || pm.displayName }}
                 </div>
-                <div class="text-xs text-gray-400">{{ pm.username }}</div>
+                <div class="text-xs text-muted">
+                  {{ pm.username }}
+                </div>
               </div>
               <button
-                class="text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                class="text-xs text-red-400 hover:color-danger transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 :disabled="reviewChainSaving"
-                @click="removeFromChain(index)"
+                @click="() => removeFromChain(index)"
               >
                 移除
               </button>
             </div>
             <div
               v-if="availablePMsFiltered.length === 0"
-              class="text-xs text-gray-400 pt-3 border-t border-gray-100 mt-1"
+              class="text-xs text-muted pt-3 border-t border-light mt-1"
             >
               所有项目负责人已加入审核链
             </div>
@@ -504,17 +498,14 @@ const projectRoleLabel: Record<string, string> = {
           @close="showAddReviewer = false"
           @confirm="showAddReviewer = false"
         >
-          <div
-            v-if="availablePMsFiltered.length === 0"
-            class="text-sm text-gray-400 text-center py-4"
-          >
+          <div v-if="availablePMsFiltered.length === 0" class="text-sm text-muted text-center py-4">
             所有项目负责人已加入审核链
           </div>
           <div v-else class="max-h-80 overflow-y-auto">
             <div
               v-for="pm in availablePMsFiltered"
               :key="pm.id"
-              class="flex items-center gap-3 py-3 border-t border-gray-100 first:border-t-0"
+              class="flex items-center gap-3 py-3 border-t border-light first:border-t-0"
             >
               <UserAvatar
                 :avatar-url="(pm as any).feishuAvatarUrl"
@@ -525,12 +516,14 @@ const projectRoleLabel: Record<string, string> = {
                 <div class="text-sm font-medium">
                   {{ (pm as any).feishuName || pm.displayName }}
                 </div>
-                <div class="text-xs text-gray-400">{{ pm.username }}</div>
+                <div class="text-xs text-muted">
+                  {{ pm.username }}
+                </div>
               </div>
               <button
-                class="text-xs text-blue-500 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors border border-blue-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                class="text-xs color-accent hover:color-accent hover:bg-active px-3 py-1.5 rounded-lg transition-colors border border-[var(--c-accent)]/30 disabled:opacity-40 disabled:cursor-not-allowed"
                 :disabled="reviewChainSaving"
-                @click="addToChain(pm.id)"
+                @click="() => addToChain(pm.id)"
               >
                 添加
               </button>
@@ -543,7 +536,7 @@ const projectRoleLabel: Record<string, string> = {
       <div v-if="activeTab === 'data'">
         <div class="mb-4">
           <h2 class="text-lg font-semibold">项目导入导出</h2>
-          <p class="text-xs text-gray-400 mt-0.5">
+          <p class="text-xs text-muted mt-0.5">
             导出项目数据或从 ZIP 文件导入，支持差异预览和冲突处理。
           </p>
         </div>

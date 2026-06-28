@@ -29,8 +29,6 @@ const matches = ref<Match[]>([])
 const currentIndex = ref(-1)
 const searchInput = ref<HTMLInputElement>()
 
-const matchCount = matches.value.length
-
 function normalizedTerm() {
   return caseSensitive.value ? searchTerm.value : searchTerm.value.toLowerCase()
 }
@@ -222,22 +220,22 @@ defineExpose({ focusSearch })
 
 <template>
   <div
-    class="search-replace-bar flex items-center gap-2 px-3 py-1.5 bg-white border-b border-gray-200 text-sm"
+    class="search-replace-bar flex items-center gap-2 px-3 py-1.5 bg-surface border-b border-default text-sm"
   >
     <!-- 查找 -->
     <div class="flex items-center gap-1 flex-1 min-w-0">
-      <span class="i-lucide-search w-4 h-4 text-gray-400 flex-shrink-0" />
+      <span class="i-lucide-search w-4 h-4 text-muted flex-shrink-0" />
       <input
         ref="searchInput"
         v-model="searchTerm"
         class="flex-1 min-w-0 border-none outline-none bg-transparent text-sm py-0.5"
-        :class="searchTerm && matches.length === 0 ? 'text-red-500' : ''"
+        :class="searchTerm && matches.length === 0 ? 'color-danger' : ''"
         placeholder="查找..."
         @keydown="onFindKeydown"
       />
       <span
         v-if="searchTerm"
-        class="text-xs text-gray-400 flex-shrink-0 tabular-nums min-w-10 text-right"
+        class="text-xs text-muted flex-shrink-0 tabular-nums min-w-10 text-right"
       >
         {{ matches.length > 0 ? `${currentIndex + 1}/${matches.length}` : '无结果' }}
       </span>
@@ -245,9 +243,9 @@ defineExpose({ focusSearch })
 
     <!-- 区分大小写 -->
     <button
-      class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded transition-colors"
-      :class="caseSensitive ? 'bg-blue-100 text-blue-700' : 'text-gray-400 hover:text-gray-600'"
       v-tooltip="'区分大小写'"
+      class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded transition-colors"
+      :class="caseSensitive ? 'bg-blue-100 color-accent' : 'text-muted hover:text-secondary'"
       @click="caseSensitive = !caseSensitive"
     >
       <span class="i-lucide-case-sensitive w-4 h-4 inline-block align-middle" />
@@ -255,17 +253,17 @@ defineExpose({ focusSearch })
 
     <!-- 上下导航 -->
     <button
-      class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500"
-      :class="{ 'opacity-30': matches.length === 0 }"
       v-tooltip="'上一个 (Shift+Enter)'"
+      class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded hover:bg-hover text-secondary"
+      :class="{ 'opacity-30': matches.length === 0 }"
       @click="prev"
     >
       <span class="i-lucide-chevron-up w-4 h-4" />
     </button>
     <button
-      class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500"
-      :class="{ 'opacity-30': matches.length === 0 }"
       v-tooltip="'下一个 (Enter)'"
+      class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded hover:bg-hover text-secondary"
+      :class="{ 'opacity-30': matches.length === 0 }"
       @click="next"
     >
       <span class="i-lucide-chevron-down w-4 h-4" />
@@ -273,9 +271,11 @@ defineExpose({ focusSearch })
 
     <!-- 切换替换 -->
     <button
-      class="flex-shrink-0 px-1.5 py-0.5 rounded text-xs transition-colors"
-      :class="showReplace ? 'bg-gray-200 text-gray-700' : 'text-gray-400 hover:text-gray-600'"
       v-tooltip="'切换替换'"
+      class="flex-shrink-0 px-1.5 py-0.5 rounded text-xs transition-colors"
+      :class="
+        showReplace ? 'bg-[var(--c-border)] text-secondary' : 'text-muted hover:text-secondary'
+      "
       @click="showReplace = !showReplace"
     >
       <span class="i-lucide-chevrons-left-right w-3.5 h-3.5 inline-block align-middle" />
@@ -303,8 +303,8 @@ defineExpose({ focusSearch })
 
     <!-- 关闭 -->
     <button
-      class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 text-gray-400"
       v-tooltip="'关闭 (Esc)'"
+      class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded hover:bg-hover text-muted"
       @click="close"
     >
       <span class="i-lucide-x w-4 h-4" />
@@ -314,9 +314,9 @@ defineExpose({ focusSearch })
   <!-- 替换行 -->
   <div
     v-if="showReplace"
-    class="flex items-center gap-2 px-3 py-1.5 bg-white border-b border-gray-200 text-sm"
+    class="flex items-center gap-2 px-3 py-1.5 bg-surface border-b border-default text-sm"
   >
-    <span class="i-lucide-corner-down-right w-4 h-4 text-gray-400 flex-shrink-0" />
+    <span class="i-lucide-corner-down-right w-4 h-4 text-muted flex-shrink-0" />
     <input
       v-model="replaceTerm"
       class="flex-1 border-none outline-none bg-transparent text-sm py-0.5"

@@ -5,7 +5,12 @@ import { useProject } from '@/composables/useProject'
 import { useAuth } from '@/composables/useAuth'
 import { useDialog } from '@/composables/useDialog'
 import { getTitleHash, getCoverColors } from '@/composables/useCoverColors'
-import { getCatalogs, deleteCatalog as apiDeleteCatalog } from '@/api/endpoints/catalogs'
+import {
+  getCatalogs,
+  deleteCatalog as apiDeleteCatalog,
+  getSiteExportUrl,
+} from '@/api/endpoints/catalogs'
+import { api } from '@/api/client'
 import type { CatalogInfo } from '@shared/types'
 import PageHeader from '@/components/PageHeader.vue'
 import LoadingState from '@/components/LoadingState.vue'
@@ -15,7 +20,9 @@ import CreateEditManualModal from '@/components/CreateEditManualModal.vue'
 const router = useRouter()
 const { currentProjectId } = useProject()
 const { canManageProject } = useAuth()
-const { dangerConfirm } = useDialog()
+const { dangerConfirm, alert } = useDialog()
+
+const exportingSite = ref<Set<string>>(new Set())
 
 const catalogs = ref<CatalogInfo[]>([])
 const loading = ref(false)
@@ -30,12 +37,13 @@ const editTarget = ref<CatalogInfo | null>(null)
 interface CatalogRowRaw {
   id: string
   title: string
-  targets: string
   features: string
-  cover_info: string
-  project_id: string
-  created_at: string
-  updated_at: string
+  coverInfo: string
+  projectId: string
+  createdAt: string
+  updatedAt: string
+  latestVersionMajor: number | null
+  latestVersionMinor: number | null
 }
 
 function parseFeatures(featuresRaw: unknown): CatalogInfo['features'] {
@@ -64,7 +72,7 @@ function parseCoverInfo(coverRaw: unknown): Record<string, string> {
 
 // 计算手册内章数（含 Part 内的 feature）
 function countFeatures(cat: CatalogInfo): number {
-  const features = parseFeatures((cat as unknown as CatalogRowRaw).features || cat.features)
+  const features = parseFeatures((cat as unknown as CatalogRowRaw).features)
   let count = 0
   for (const entry of features) {
     if ((entry as { type?: string }).type === 'part') {
@@ -83,8 +91,15 @@ function getBookColor(title: string): ReturnType<typeof getCoverColors> {
 
 // 副标题
 function getSubtitle(cat: CatalogInfo): string {
-  const cover = parseCoverInfo((cat as unknown as CatalogRowRaw).cover_info || cat.coverInfo)
+  const cover = parseCoverInfo((cat as unknown as CatalogRowRaw).coverInfo)
   return cover.subtitle || ''
+}
+
+// 最新发布版本号（来自发布系统）
+function getLatestVersion(cat: CatalogInfo): string {
+  const raw = cat as unknown as CatalogRowRaw
+  if (raw.latestVersionMajor == null) return ''
+  return `v${raw.latestVersionMajor}.${raw.latestVersionMinor ?? 0}`
 }
 
 // 格式化日期
@@ -145,6 +160,18 @@ async function handleDelete(id: string, title: string) {
   }
 }
 
+async function downloadSite(id: string) {
+  exportingSite.value.add(id)
+  try {
+    const url = getSiteExportUrl(id)
+    await api.download(url)
+  } catch (e: unknown) {
+    await alert('下载失败: ' + (e instanceof Error ? e.message : '网络错误'))
+  } finally {
+    exportingSite.value.delete(id)
+  }
+}
+
 // 排序
 const sortedCatalogs = computed(() => {
   return [...catalogs.value].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
@@ -160,8 +187,8 @@ watch(currentProjectId, () => {
   <div class="h-full flex flex-col">
     <PageHeader>
       <template #left>
-        <span class="text-lg font-semibold text-gray-800 flex items-center gap-2">
-          <span class="i-lucide-books w-5 h-5 inline-block align-middle text-blue-600" />
+        <span class="text-lg font-semibold text-primary flex items-center gap-2">
+          <span class="i-lucide-library w-5 h-5 inline-block align-middle color-accent" />
           手册
         </span>
       </template>
@@ -201,7 +228,7 @@ watch(currentProjectId, () => {
           <div
             class="relative rounded-lg shadow-md overflow-hidden transition-all duration-200 group-hover:shadow-lg group-hover:-translate-y-1 cursor-pointer"
             style="aspect-ratio: 3/4"
-            @click="goToPreview(cat.id)"
+            @click="() => goToPreview(cat.id)"
           >
             <!-- 书封背景层 -->
             <div class="absolute inset-0 select-none">
@@ -270,6 +297,11 @@ watch(currentProjectId, () => {
 
               <!-- 底部弹性分隔（保持封面内容居中） -->
               <span class="mt-auto mb-0" />
+
+              <!-- 最新发布版本号 -->
+              <div v-if="getLatestVersion(cat)" class="w-full flex justify-end px-1 pb-3">
+                <span class="text-white/50 text-xs font-mono">{{ getLatestVersion(cat) }}</span>
+              </div>
             </div>
 
             <!-- 悬停遮罩提示 -->
@@ -286,37 +318,53 @@ watch(currentProjectId, () => {
           <div class="mt-2.5 px-1">
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0 flex-1">
-                <p class="text-sm font-medium text-gray-800 truncate">{{ cat.title }}</p>
-                <div class="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                <p class="text-sm font-medium text-primary truncate">
+                  {{ cat.title }}
+                </p>
+                <div class="flex items-center gap-3 mt-1 text-xs text-muted">
                   <span>{{ countFeatures(cat) }} 章</span>
-                  <span class="text-gray-200">&middot;</span>
+                  <span class="text-muted">&middot;</span>
                   <span>{{ formatDate(cat.updatedAt) }}</span>
                 </div>
               </div>
               <div v-if="canManageProject" class="flex items-center gap-0.5 flex-shrink-0">
                 <button
-                  class="text-gray-300 hover:text-blue-500 p-1 transition-colors"
                   v-tooltip="'编辑信息'"
-                  @click.stop="openEditModal(cat)"
+                  class="text-muted hover:color-accent p-1 transition-colors"
+                  @click.stop="() => openEditModal(cat)"
                 >
                   <span class="i-lucide-pencil w-3.5 h-3.5 inline-block align-middle" />
                 </button>
               </div>
             </div>
             <!-- 操作按钮 -->
-            <div v-if="canManageProject" class="flex items-center gap-2 mt-2">
+            <div class="flex items-center gap-2 mt-2">
               <button
-                class="flex-1 text-xs text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 py-1.5 rounded-md transition-colors"
-                @click.stop="goToEdit(cat.id)"
+                class="flex-1 text-xs text-secondary hover:color-accent bg-base hover:bg-active py-1.5 rounded-md transition-colors inline-flex items-center justify-center gap-0.5"
+                :disabled="exportingSite.has(cat.id)"
+                @click.stop="() => downloadSite(cat.id)"
               >
-                <span class="i-lucide-list-tree w-3.5 h-3.5 inline-block align-middle mr-1" />编排
+                <span
+                  v-if="exportingSite.has(cat.id)"
+                  class="i-lucide-loader-2 w-3.5 h-3.5 inline-block align-middle animate-spin"
+                />
+                <span v-else class="i-lucide-download w-3.5 h-3.5 inline-block align-middle" />
+                离线站点
               </button>
-              <button
-                class="text-xs text-gray-400 hover:text-red-500 bg-gray-50 hover:bg-red-50 px-2 py-1.5 rounded-md transition-colors"
-                @click.stop="handleDelete(cat.id, cat.title)"
-              >
-                <span class="i-lucide-trash-2 w-3.5 h-3.5 inline-block align-middle" />
-              </button>
+              <template v-if="canManageProject">
+                <button
+                  class="flex-1 text-xs text-secondary hover:color-accent bg-base hover:bg-active py-1.5 rounded-md transition-colors"
+                  @click.stop="() => goToEdit(cat.id)"
+                >
+                  <span class="i-lucide-list-tree w-3.5 h-3.5 inline-block align-middle mr-1" />编排
+                </button>
+                <button
+                  class="text-xs text-muted hover:color-danger bg-base hover:bg-danger px-2 py-1.5 rounded-md transition-colors"
+                  @click.stop="() => handleDelete(cat.id, cat.title)"
+                >
+                  <span class="i-lucide-trash-2 w-3.5 h-3.5 inline-block align-middle" />
+                </button>
+              </template>
             </div>
           </div>
         </div>

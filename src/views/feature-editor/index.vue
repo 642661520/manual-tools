@@ -12,7 +12,6 @@ import {
 import { getUsers } from '@/api/endpoints/auth'
 import { getMembers } from '@/api/endpoints/projects'
 import type { FeatureDetail, UpdateSectionStatusBody } from '@shared/types'
-import { parseSections } from '@shared/utils/sections'
 import { getStoredUser } from '@/utils/storage'
 
 // API 响应已自动转为 camelCase
@@ -59,7 +58,7 @@ type ComponentStatus =
   | 'approved'
 const { canManageProject, canWriteContent } = useAuth()
 
-const { confirm, dangerConfirm, prompt } = useDialog()
+const { dangerConfirm } = useDialog()
 const featureId = computed(() => route.params.id as string)
 const searchText = computed(() => (route.query.find as string) || undefined)
 
@@ -293,12 +292,12 @@ function statusLogIcon(action: string): string {
   const icons: Record<string, string> = {
     submitted: 'i-lucide-send text-blue-400',
     approved: 'i-lucide-check-circle text-green-500',
-    rejected: 'i-lucide-x-circle text-red-500',
+    rejected: 'i-lucide-x-circle color-danger',
     direct_approved: 'i-lucide-zap text-yellow-500',
-    reset_to_draft: 'i-lucide-rotate-ccw text-gray-400',
+    reset_to_draft: 'i-lucide-rotate-ccw text-muted',
     reset_to_in_progress: 'i-lucide-rotate-ccw text-orange-400',
   }
-  return icons[action] || 'i-lucide-circle text-gray-400'
+  return icons[action] || 'i-lucide-circle text-muted'
 }
 
 function statusLogLabel(action: string): string {
@@ -390,25 +389,29 @@ async function deleteOrphaned(sectionKey: string) {
   <!-- 错误 -->
   <div v-else-if="loadError || !feature" class="h-full flex items-center justify-center">
     <div class="text-center">
-      <p class="text-red-500 mb-4">{{ loadError || '内容不存在' }}</p>
-      <router-link to="/features" class="btn-secondary text-sm">返回列表</router-link>
+      <p class="color-danger mb-4">
+        {{ loadError || '内容不存在' }}
+      </p>
+      <router-link to="/features" class="btn-secondary text-sm"> 返回列表 </router-link>
     </div>
   </div>
 
   <!-- 正常编辑器 -->
   <div v-else class="h-full flex flex-col">
     <header
-      class="flex items-center justify-between px-3 sm:px-6 py-3 bg-white border-b border-gray-200"
+      class="flex items-center justify-between px-3 sm:px-6 py-3 bg-surface border-b border-default"
     >
       <div class="flex items-center gap-4">
-        <router-link to="/features" class="text-gray-400 hover:text-gray-600">
+        <router-link to="/features" class="text-muted hover:text-secondary">
           <span class="i-lucide-arrow-left w-4 h-4 inline-block align-middle mr-1" />返回
         </router-link>
-        <h1 class="text-lg font-semibold truncate">{{ feature.title }}</h1>
+        <h1 class="text-lg font-semibold truncate">
+          {{ feature.title }}
+        </h1>
       </div>
       <!-- 移动端大纲按钮 -->
       <button
-        class="md:hidden flex items-center gap-1 text-xs text-blue-600 px-2 py-1.5 rounded hover:bg-blue-50 flex-shrink-0 ml-2"
+        class="md:hidden flex items-center gap-1 text-xs color-accent px-2 py-1.5 rounded hover:bg-active flex-shrink-0 ml-2"
         @click="toggleSections"
       >
         <span class="i-lucide-list w-4 h-4" />大纲
@@ -418,20 +421,22 @@ async function deleteOrphaned(sectionKey: string) {
     <div class="flex-1 flex overflow-hidden">
       <!-- 左侧：内容骨架 -->
       <aside
-        class="w-72 border-r border-gray-200 bg-white overflow-y-auto flex-shrink-0 hidden md:block"
+        class="w-72 border-r border-default bg-surface overflow-y-auto flex-shrink-0 hidden md:block"
       >
-        <div class="p-4 border-b border-gray-100">
-          <div class="text-xs font-semibold text-gray-400 uppercase mb-2">内容概述</div>
-          <p class="text-sm text-gray-600">{{ feature.description }}</p>
+        <div class="p-4 border-b border-light">
+          <div class="text-xs font-semibold text-muted uppercase mb-2">内容概述</div>
+          <p class="text-sm text-secondary">
+            {{ feature.description }}
+          </p>
         </div>
 
         <div class="p-4">
-          <span class="text-xs font-semibold text-gray-400 uppercase">编写进度</span>
+          <span class="text-xs font-semibold text-muted uppercase">编写进度</span>
           <nav class="space-y-1 mt-3">
             <!-- 无显式小节时显示默认小节 -->
             <template v-if="feature.sections.length === 0">
               <div
-                class="w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 bg-blue-50 text-blue-700 font-medium"
+                class="w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 bg-active color-accent font-medium"
               >
                 <span class="i-lucide-file-text w-4 h-4 inline-block flex-shrink-0 text-blue-400" />
                 <span class="flex-1 truncate">正文</span>
@@ -444,10 +449,10 @@ async function deleteOrphaned(sectionKey: string) {
               class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2"
               :class="
                 currentSection === section.key
-                  ? 'bg-blue-50 text-blue-700 font-medium'
-                  : 'text-gray-600 hover:bg-gray-50'
+                  ? 'bg-active color-accent font-medium'
+                  : 'text-secondary hover:bg-hover'
               "
-              @click="selectSection(section.key)"
+              @click="() => selectSection(section.key)"
             >
               <span
                 :class="statusIcon(section.status || 'draft')"
@@ -465,14 +470,14 @@ async function deleteOrphaned(sectionKey: string) {
         <!-- 游离文档 -->
         <div
           v-if="feature.orphaned && feature.orphaned.length > 0"
-          class="px-4 pb-4 border-t border-gray-100 pt-3"
+          class="px-4 pb-4 border-t border-light pt-3"
         >
-          <span class="text-xs font-semibold text-gray-400 uppercase flex items-center gap-1"
+          <span class="text-xs font-semibold text-muted uppercase flex items-center gap-1"
             ><span
               class="i-lucide-alert-triangle w-3.5 h-3.5 text-orange-400 inline-block align-middle"
             />游离文档</span
           >
-          <p class="text-xs text-gray-400 mt-1 mb-2">这些文档的小节已从骨架中移除</p>
+          <p class="text-xs text-muted mt-1 mb-2">这些文档的小节已从骨架中移除</p>
           <nav class="space-y-1">
             <button
               v-for="o in feature.orphaned"
@@ -481,15 +486,15 @@ async function deleteOrphaned(sectionKey: string) {
               :class="
                 currentSection === o.key
                   ? 'bg-orange-50 text-orange-700'
-                  : 'text-gray-400 hover:bg-gray-50 line-through'
+                  : 'text-muted hover:bg-hover line-through'
               "
-              @click="selectSection(o.key)"
+              @click="() => selectSection(o.key)"
             >
               <span class="flex-1 truncate">{{ o.key }}</span>
               <button
                 v-if="canManageProject"
-                class="text-red-400 hover:text-red-600 text-xs flex-shrink-0 p-1"
-                @click.stop="deleteOrphaned(o.key)"
+                class="text-red-400 hover:color-danger text-xs flex-shrink-0 p-1"
+                @click.stop="() => deleteOrphaned(o.key)"
               >
                 <span class="i-lucide-x w-4 h-4 inline-block align-middle" />
               </button>
@@ -497,7 +502,7 @@ async function deleteOrphaned(sectionKey: string) {
           </nav>
         </div>
 
-        <div class="px-4 pb-4" v-if="currentSectionData">
+        <div v-if="currentSectionData" class="px-4 pb-4">
           <div
             v-if="isOrphaned"
             class="bg-orange-50 border border-orange-200 rounded p-2 mb-3 text-xs text-orange-600"
@@ -506,10 +511,12 @@ async function deleteOrphaned(sectionKey: string) {
               class="i-lucide-alert-triangle w-4 h-4 text-orange-500 mr-1 inline-block"
             />此小节已从骨架中移除，内容未删除。可将内容合并到现有小节后清除。
           </div>
-          <div class="text-xs font-semibold text-gray-400 uppercase mb-1">当前小节</div>
-          <p class="text-xs text-gray-500 mb-3">{{ currentSectionData?.description || '' }}</p>
+          <div class="text-xs font-semibold text-muted uppercase mb-1">当前小节</div>
+          <p class="text-xs text-secondary mb-3">
+            {{ currentSectionData?.description || '' }}
+          </p>
 
-          <div class="text-xs font-semibold text-gray-400 uppercase mb-2 flex items-center gap-2">
+          <div class="text-xs font-semibold text-muted uppercase mb-2 flex items-center gap-2">
             状态
             <StatusBadge :status="(currentSectionData.status || 'draft') as ComponentStatus" />
           </div>
@@ -537,19 +544,24 @@ async function deleteOrphaned(sectionKey: string) {
 
           <!-- 指派操作人 -->
           <div class="mt-3">
-            <div class="text-xs font-semibold text-gray-400 uppercase mb-1">指派编辑者</div>
-            <p v-if="assigneeError" class="text-xs text-red-500 mb-2">{{ assigneeError }}</p>
+            <div class="text-xs font-semibold text-muted uppercase mb-1">指派编辑者</div>
+            <p v-if="assigneeError" class="text-xs color-danger mb-2">
+              {{ assigneeError }}
+            </p>
             <!-- PM：tag 模式多选 -->
             <div v-if="canManageProject">
               <div class="flex flex-wrap gap-1 mb-2">
                 <span
                   v-for="uid in getCurrentAssignees()"
                   :key="uid"
-                  class="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs"
+                  class="inline-flex items-center gap-1 bg-active color-accent px-2 py-0.5 rounded text-xs"
                 >
                   <UserAvatar :avatar-url="getUserAvatar(uid)" :name="getUserName(uid)" size="xs" />
                   {{ getUserName(uid) }}
-                  <button @click="removeAssignee(currentSection, uid)" class="hover:text-red-500">
+                  <button
+                    class="hover:color-danger"
+                    @click="() => removeAssignee(currentSection, uid)"
+                  >
                     &times;
                   </button>
                 </span>
@@ -578,7 +590,7 @@ async function deleteOrphaned(sectionKey: string) {
               />
             </div>
             <!-- 非 PM：只读显示 -->
-            <div v-else class="text-sm text-gray-600">
+            <div v-else class="text-sm text-secondary">
               <template v-if="getCurrentAssignees().length > 0">
                 <span
                   v-for="(uid, i) in getCurrentAssignees()"
@@ -598,11 +610,11 @@ async function deleteOrphaned(sectionKey: string) {
             v-if="currentSectionData.status === 'pending_review' && reviewChain.length > 0"
             class="mt-3"
           >
-            <div class="text-xs font-semibold text-gray-400 uppercase mb-1">审核进度</div>
-            <div class="text-sm text-gray-600">
+            <div class="text-xs font-semibold text-muted uppercase mb-1">审核进度</div>
+            <div class="text-sm text-secondary">
               第 {{ currentReviewStep + 1 }} / {{ reviewChain.length }} 步
             </div>
-            <div class="text-xs text-gray-400">
+            <div class="text-xs text-muted">
               <UserAvatar
                 :avatar-url="getUserAvatar(reviewChain[currentReviewStep])"
                 :name="getUserName(reviewChain[currentReviewStep])"
@@ -615,7 +627,7 @@ async function deleteOrphaned(sectionKey: string) {
 
           <!-- 状态变更记录 -->
           <div v-if="sectionStatusLog.length > 0" class="mt-3">
-            <div class="text-xs font-semibold text-gray-400 uppercase mb-1">状态变更记录</div>
+            <div class="text-xs font-semibold text-muted uppercase mb-1">状态变更记录</div>
             <div
               v-for="(entry, i) in sectionStatusLog.slice().reverse()"
               :key="i"
@@ -627,8 +639,8 @@ async function deleteOrphaned(sectionKey: string) {
                   :class="statusLogIcon(entry.action)"
                   class="w-4 h-4 inline-block flex-shrink-0"
                 />
-                <span class="text-sm text-gray-700">{{ statusLogLabel(entry.action) }}</span>
-                <span class="text-xs text-gray-400 ml-auto">{{
+                <span class="text-sm text-secondary">{{ statusLogLabel(entry.action) }}</span>
+                <span class="text-xs text-muted ml-auto">{{
                   entry.createdAt.slice(0, 16).replace('T', ' ')
                 }}</span>
               </div>
@@ -639,8 +651,8 @@ async function deleteOrphaned(sectionKey: string) {
                   :name="getUserName(entry.userId)"
                   size="xs"
                 />
-                <span class="text-xs text-gray-500">{{ getUserName(entry.userId) }}</span>
-                <span v-if="entry.note" class="text-xs text-gray-400">· {{ entry.note }}</span>
+                <span class="text-xs text-secondary">{{ getUserName(entry.userId) }}</span>
+                <span v-if="entry.note" class="text-xs text-muted">· {{ entry.note }}</span>
               </div>
             </div>
           </div>
@@ -653,29 +665,31 @@ async function deleteOrphaned(sectionKey: string) {
           <div v-if="showSections" class="fixed inset-0 z-40 md:hidden">
             <div class="absolute inset-0 bg-black/30" @click="closeSections" />
             <aside
-              class="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] bg-white shadow-xl overflow-y-auto"
+              class="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] bg-surface shadow-xl overflow-y-auto"
             >
               <div
-                class="sticky top-0 bg-white border-b border-gray-200 flex items-center justify-between px-4 py-3 z-10"
+                class="sticky top-0 bg-surface border-b border-default flex items-center justify-between px-4 py-3 z-10"
               >
-                <span class="text-sm font-semibold text-gray-700">大纲</span>
+                <span class="text-sm font-semibold text-secondary">大纲</span>
                 <button
-                  class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100"
+                  class="w-7 h-7 flex items-center justify-center rounded hover:bg-hover"
                   @click="closeSections"
                 >
-                  <span class="i-lucide-x w-5 h-5 text-gray-500" />
+                  <span class="i-lucide-x w-5 h-5 text-secondary" />
                 </button>
               </div>
-              <div class="p-4 border-b border-gray-100">
-                <div class="text-xs font-semibold text-gray-400 uppercase mb-2">内容概述</div>
-                <p class="text-sm text-gray-600">{{ feature.description }}</p>
+              <div class="p-4 border-b border-light">
+                <div class="text-xs font-semibold text-muted uppercase mb-2">内容概述</div>
+                <p class="text-sm text-secondary">
+                  {{ feature.description }}
+                </p>
               </div>
               <div class="p-4">
-                <span class="text-xs font-semibold text-gray-400 uppercase">编写进度</span>
+                <span class="text-xs font-semibold text-muted uppercase">编写进度</span>
                 <nav class="space-y-1 mt-3">
                   <template v-if="feature.sections.length === 0">
                     <div
-                      class="w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 bg-blue-50 text-blue-700 font-medium"
+                      class="w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 bg-active color-accent font-medium"
                     >
                       <span
                         class="i-lucide-file-text w-4 h-4 inline-block flex-shrink-0 text-blue-400"
@@ -690,10 +704,10 @@ async function deleteOrphaned(sectionKey: string) {
                     class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2"
                     :class="
                       currentSection === section.key
-                        ? 'bg-blue-50 text-blue-700 font-medium'
-                        : 'text-gray-600 hover:bg-gray-50'
+                        ? 'bg-active color-accent font-medium'
+                        : 'text-secondary hover:bg-hover'
                     "
-                    @click="selectSection(section.key)"
+                    @click="() => selectSection(section.key)"
                   >
                     <span
                       :class="statusIcon(section.status || 'draft')"
@@ -710,9 +724,9 @@ async function deleteOrphaned(sectionKey: string) {
               <!-- 游离文档 -->
               <div
                 v-if="feature.orphaned && feature.orphaned.length > 0"
-                class="px-4 pb-4 border-t border-gray-100 pt-3"
+                class="px-4 pb-4 border-t border-light pt-3"
               >
-                <span class="text-xs font-semibold text-gray-400 uppercase flex items-center gap-1"
+                <span class="text-xs font-semibold text-muted uppercase flex items-center gap-1"
                   ><span
                     class="i-lucide-alert-triangle w-3.5 h-3.5 text-orange-400 inline-block align-middle"
                   />游离文档</span
@@ -725,9 +739,9 @@ async function deleteOrphaned(sectionKey: string) {
                     :class="
                       currentSection === o.key
                         ? 'bg-orange-50 text-orange-700'
-                        : 'text-gray-400 hover:bg-gray-50 line-through'
+                        : 'text-muted hover:bg-hover line-through'
                     "
-                    @click="selectSection(o.key)"
+                    @click="() => selectSection(o.key)"
                   >
                     <span class="flex-1 truncate">{{ o.key }}</span>
                   </button>
@@ -739,7 +753,7 @@ async function deleteOrphaned(sectionKey: string) {
       </Teleport>
 
       <!-- 右侧：编辑器 -->
-      <main class="flex-1 flex flex-col overflow-hidden bg-gray-50">
+      <main class="flex-1 flex flex-col overflow-hidden bg-base">
         <TiptapEditor
           :key="docId"
           :doc-id="docId"

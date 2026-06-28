@@ -23,7 +23,7 @@ const route = useRoute()
 const router = useRouter()
 const { isAdmin, user: currentUser } = useAuth()
 const { projects, loadProjects } = useProject()
-const { confirm, dangerConfirm } = useDialog()
+const { dangerConfirm } = useDialog()
 
 type Tab = 'projects' | 'users' | 'storage' | 'audit'
 const validTabs: Tab[] = ['projects', 'users', 'storage', 'audit']
@@ -599,60 +599,65 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-if="!isAdmin" class="p-8 text-center text-gray-500">你没有系统管理员权限</div>
+  <div v-if="!isAdmin" class="p-8 text-center text-secondary">你没有系统管理员权限</div>
 
   <div v-else class="flex flex-col md:flex-row h-full">
-    <SettingsSidebar title="系统设置" :tabs="settingsTabs" v-model="activeTab" />
+    <SettingsSidebar v-model="activeTab" title="系统设置" :tabs="settingsTabs" />
 
     <main class="flex-1 overflow-auto p-3 sm:p-6">
       <!-- 项目管理 -->
       <div v-if="activeTab === 'projects'">
         <div class="mb-4">
           <h2 class="text-lg font-semibold">项目管理</h2>
-          <p class="text-xs text-gray-400 mt-0.5">创建和管理项目，每个项目独立维护内容和手册。</p>
+          <p class="text-xs text-muted mt-0.5">创建和管理项目，每个项目独立维护内容和手册。</p>
         </div>
 
         <div class="card">
           <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-semibold text-gray-500">项目列表</h3>
+            <h3 class="text-sm font-semibold text-secondary">项目列表</h3>
             <button class="btn-primary text-sm" @click="showAddProject = true">
               <span class="i-lucide-plus w-4 h-4 inline-block align-middle mr-1" />新建项目
             </button>
           </div>
-          <div v-if="projects.length === 0" class="text-sm text-gray-400 py-4 text-center">
+          <div v-if="projects.length === 0" class="text-sm text-muted py-4 text-center">
             暂无项目
           </div>
           <div
             v-for="p in projects"
             :key="p.id"
-            class="flex items-center gap-3 py-3 border-t border-gray-100 first:border-t-0"
+            class="flex items-center gap-3 py-3 border-t border-light first:border-t-0"
           >
             <div class="flex-1 min-w-0">
               <div class="font-medium text-sm truncate">
                 {{ p.name }}
                 <span
                   v-if="p.id === 'default'"
-                  class="inline-block text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded ml-1 align-middle"
+                  class="inline-block text-xs text-muted bg-hover px-1.5 py-0.5 rounded ml-1 align-middle"
                   >默认</span
                 >
               </div>
-              <div class="text-xs text-gray-400 truncate">{{ p.description || '无描述' }}</div>
+              <div class="text-xs text-muted truncate">
+                {{ p.description || '无描述' }}
+              </div>
             </div>
-            <button class="text-blue-400 hover:text-blue-600 text-sm" @click="openEditProject(p)">
+            <button
+              class="text-blue-400 hover:color-accent text-sm"
+              @click="() => openEditProject(p)"
+            >
               编辑
             </button>
             <button
               v-if="p.id !== 'default'"
-              class="text-red-400 hover:text-red-600 text-sm"
               v-tooltip="'删除'"
-              @click="deleteProject(p.id)"
+              class="text-red-400 hover:color-danger text-sm"
+              @click="() => deleteProject(p.id)"
             >
               <span class="i-lucide-x w-4 h-4 inline-block align-middle" />
             </button>
             <span
               v-else
-              class="text-xs text-gray-300 cursor-not-allowed select-none"
               v-tooltip="'不能删除默认项目'"
+              class="text-xs text-muted cursor-not-allowed select-none"
               >—</span
             >
           </div>
@@ -663,23 +668,23 @@ onBeforeUnmount(() => {
       <div v-if="activeTab === 'users'">
         <div class="mb-4">
           <h2 class="text-lg font-semibold">账号管理</h2>
-          <p class="text-xs text-gray-400 mt-0.5">管理系统登录账号和角色权限。</p>
+          <p class="text-xs text-muted mt-0.5">管理系统登录账号和角色权限。</p>
         </div>
 
         <div class="card">
           <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-semibold text-gray-500">账号列表</h3>
+            <h3 class="text-sm font-semibold text-secondary">账号列表</h3>
             <button class="btn-primary text-sm" @click="showAddUser = true">
               <span class="i-lucide-plus w-4 h-4 inline-block align-middle mr-1" />添加账号
             </button>
           </div>
-          <div v-if="localUsers.length === 0" class="text-sm text-gray-400 py-4 text-center">
+          <div v-if="localUsers.length === 0" class="text-sm text-muted py-4 text-center">
             暂无账号
           </div>
           <div
             v-for="u in localUsers"
             :key="u.id"
-            class="flex items-center gap-3 py-3 border-t border-gray-100 first:border-t-0"
+            class="flex items-center gap-3 py-3 border-t border-light first:border-t-0"
           >
             <UserAvatar
               :avatar-url="u.feishuAvatarUrl"
@@ -687,8 +692,10 @@ onBeforeUnmount(() => {
               size="md"
             />
             <div class="flex-1 min-w-0">
-              <div class="font-medium text-sm truncate">{{ u.feishuName || u.displayName }}</div>
-              <div class="text-xs text-gray-400 truncate">
+              <div class="font-medium text-sm truncate">
+                {{ u.feishuName || u.displayName }}
+              </div>
+              <div class="text-xs text-muted truncate">
                 {{ u.username }} · {{ roleLabel(u.role) }}
               </div>
             </div>
@@ -705,11 +712,11 @@ onBeforeUnmount(() => {
                 class="text-sm flex-shrink-0"
                 :class="
                   u.id === currentUser?.id
-                    ? 'text-gray-300 cursor-not-allowed'
-                    : 'text-red-400 hover:text-red-600'
+                    ? 'text-muted cursor-not-allowed'
+                    : 'text-red-400 hover:color-danger'
                 "
                 :disabled="u.id === currentUser?.id"
-                @click="deleteUser(u.id)"
+                @click="() => deleteUser(u.id)"
               >
                 删除
               </button>
@@ -724,13 +731,13 @@ onBeforeUnmount(() => {
       <div v-if="activeTab === 'storage'">
         <div class="mb-4">
           <h2 class="text-lg font-semibold">存储管理</h2>
-          <p class="text-xs text-gray-400 mt-0.5">管理孤立文件和导出缓存，释放磁盘空间。</p>
+          <p class="text-xs text-muted mt-0.5">管理孤立文件和导出缓存，释放磁盘空间。</p>
         </div>
 
         <!-- 上传资源 -->
         <div class="card mb-6">
           <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-semibold text-gray-500">上传资源</h3>
+            <h3 class="text-sm font-semibold text-secondary">上传资源</h3>
             <div class="flex gap-2">
               <button
                 class="btn-secondary text-sm"
@@ -748,7 +755,7 @@ onBeforeUnmount(() => {
               </button>
             </div>
           </div>
-          <p class="text-xs text-gray-400 mb-3">管理所有上传的图片和视频文件，查看引用状态。</p>
+          <p class="text-xs text-muted mb-3">管理所有上传的图片和视频文件，查看引用状态。</p>
           <ErrorMessage :message="uploadFilesError" />
           <div v-if="uploadFilesResult" class="text-xs text-green-600 mb-3">
             {{ uploadFilesResult }}
@@ -758,7 +765,7 @@ onBeforeUnmount(() => {
             <!-- 统计概览 -->
             <div
               v-if="uploadFilesTotalCount > 0"
-              class="flex items-center gap-4 mb-3 text-xs text-gray-500"
+              class="flex items-center gap-4 mb-3 text-xs text-secondary"
             >
               <span
                 >共 <strong>{{ uploadFilesTotalCount }}</strong> 个文件</span
@@ -769,35 +776,33 @@ onBeforeUnmount(() => {
                 >{{ uploadFilesOrphanedCount }} 个未引用</span
               >
             </div>
-            <div v-else-if="!uploadFilesLoading" class="text-xs text-gray-400 py-4 text-center">
+            <div v-else-if="!uploadFilesLoading" class="text-xs text-muted py-4 text-center">
               暂无上传文件
             </div>
 
             <!-- 文件列表 -->
             <div
               v-if="uploadFiles.length > 0"
-              class="border-t border-gray-100 pt-3 max-h-[500px] overflow-y-auto"
+              class="border-t border-light pt-3 max-h-[500px] overflow-y-auto"
             >
               <table class="w-full text-xs">
-                <thead
-                  class="text-left text-gray-400 border-b border-gray-100 sticky top-0 bg-white"
-                >
+                <thead class="text-left text-muted border-b border-light sticky top-0 bg-surface">
                   <tr>
-                    <th class="py-1.5 pr-2 font-medium w-6"></th>
+                    <th class="py-1.5 pr-2 font-medium w-6" />
                     <th class="py-1.5 pr-2 font-medium">路径</th>
                     <th class="py-1.5 pr-2 font-medium w-16 text-right">大小</th>
                     <th class="py-1.5 pr-2 font-medium w-14 text-center">状态</th>
                     <th class="py-1.5 pr-2 font-medium w-36">时间</th>
-                    <th class="py-1.5 font-medium w-12"></th>
+                    <th class="py-1.5 font-medium w-12" />
                   </tr>
                 </thead>
                 <tbody>
                   <tr
                     v-for="file in uploadFiles"
                     :key="file.path"
-                    class="border-b border-gray-50 hover:bg-gray-50"
+                    class="border-b border-light hover:bg-hover"
                     :class="{ 'cursor-pointer': isImagePath(file.path) || isVideoPath(file.path) }"
-                    @click="openUploadPreview(file)"
+                    @click="() => openUploadPreview(file)"
                   >
                     <td class="py-1.5 pr-2">
                       <span
@@ -810,32 +815,34 @@ onBeforeUnmount(() => {
                       />
                       <span
                         v-else
-                        class="i-lucide-file w-4 h-4 inline-block align-middle text-gray-400"
+                        class="i-lucide-file w-4 h-4 inline-block align-middle text-muted"
                       />
                     </td>
-                    <td class="py-1.5 pr-2 truncate max-w-[240px]" v-tooltip="file.path">
+                    <td v-tooltip="file.path" class="py-1.5 pr-2 truncate max-w-[240px]">
                       <span
                         v-if="isImagePath(file.path) || isVideoPath(file.path)"
-                        class="text-blue-500 hover:underline"
+                        class="color-accent hover:underline"
                         >{{ file.path }}</span
                       >
-                      <template v-else>{{ file.path }}</template>
+                      <template v-else>
+                        {{ file.path }}
+                      </template>
                     </td>
-                    <td class="py-1.5 pr-2 text-right text-gray-500">
+                    <td class="py-1.5 pr-2 text-right text-secondary">
                       {{ formatSize(file.size) }}
                     </td>
                     <td class="py-1.5 pr-2 text-center">
                       <span v-if="file.referenced" class="text-green-600">已引用</span>
                       <span v-else class="text-red-400">未引用</span>
                     </td>
-                    <td class="py-1.5 pr-2 text-gray-400">
+                    <td class="py-1.5 pr-2 text-muted">
                       {{ new Date(file.mtime).toLocaleString() }}
                     </td>
                     <td class="py-1.5">
                       <button
-                        class="text-red-400 hover:text-red-600"
                         v-tooltip="'删除此文件'"
-                        @click.stop="handleDeleteUploadFile(file)"
+                        class="text-red-400 hover:color-danger"
+                        @click.stop="() => handleDeleteUploadFile(file)"
                       >
                         <span class="i-lucide-trash-2 w-3.5 h-3.5 inline-block align-middle" />
                       </button>
@@ -861,7 +868,7 @@ onBeforeUnmount(() => {
         <!-- 缓存管理 -->
         <div class="card">
           <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-semibold text-gray-500">缓存管理</h3>
+            <h3 class="text-sm font-semibold text-secondary">缓存管理</h3>
             <div class="flex gap-2">
               <button
                 class="btn-danger text-sm"
@@ -874,26 +881,24 @@ onBeforeUnmount(() => {
               </button>
             </div>
           </div>
-          <p class="text-xs text-gray-400 mb-3">
+          <p class="text-xs text-muted mb-3">
             查看和清理导出的 Markdown ZIP、PDF 文件缓存以及远程资源缓存。
           </p>
           <ErrorMessage :message="cacheStatsError" />
 
-          <div v-if="cacheStatsLoading" class="flex items-center gap-2 text-xs text-gray-400 mb-3">
+          <div v-if="cacheStatsLoading" class="flex items-center gap-2 text-xs text-muted mb-3">
             <span class="i-lucide-loader-2 w-4 h-4 animate-spin" />加载统计中...
           </div>
-          <div v-else-if="cacheStats" class="text-xs text-gray-500 space-y-1 mb-3">
+          <div v-else-if="cacheStats" class="text-xs text-secondary space-y-1 mb-3">
             <div class="flex items-center gap-2">
-              <span
-                class="i-lucide-hard-drive w-3.5 h-3.5 inline-block align-middle text-gray-400"
-              />
+              <span class="i-lucide-hard-drive w-3.5 h-3.5 inline-block align-middle text-muted" />
               <span
                 >远程资源（图片/视频）：{{ cacheStats.remote.count }} 个 ·
                 {{ formatSize(cacheStats.remote.totalSize) }}</span
               >
               <button
                 v-if="cacheStats.remote.count > 0"
-                class="text-blue-400 hover:text-blue-600 ml-1"
+                class="text-blue-400 hover:color-accent ml-1"
                 :disabled="cacheEntriesLoading"
                 @click="toggleRemoteDetail"
               >
@@ -902,7 +907,7 @@ onBeforeUnmount(() => {
             </div>
             <div class="flex items-center gap-2">
               <span
-                class="i-lucide-file-archive w-3.5 h-3.5 inline-block align-middle text-gray-400"
+                class="i-lucide-file-archive w-3.5 h-3.5 inline-block align-middle text-muted"
               />
               <span
                 >导出产物（MD ZIP / PDF）：{{ cacheStats.export.count }} 个 ·
@@ -910,14 +915,14 @@ onBeforeUnmount(() => {
               >
               <button
                 v-if="cacheStats.export.count > 0"
-                class="text-blue-400 hover:text-blue-600 ml-1"
+                class="text-blue-400 hover:color-accent ml-1"
                 :disabled="cacheEntriesLoading"
                 @click="toggleExportDetail"
               >
                 {{ showExportDetail ? '收起' : '查看' }}
               </button>
             </div>
-            <p class="text-gray-400">远程 7 天 · 导出 30 天自动过期</p>
+            <p class="text-muted">远程 7 天 · 导出 30 天自动过期</p>
           </div>
 
           <div v-if="cacheCleanResult" class="text-xs text-green-600 mb-3">
@@ -925,37 +930,37 @@ onBeforeUnmount(() => {
           </div>
 
           <!-- 导出缓存：紧凑表格 -->
-          <div v-if="showExportDetail" class="border-t border-gray-100 pt-3 mb-3">
+          <div v-if="showExportDetail" class="border-t border-light pt-3 mb-3">
             <div class="flex items-center justify-between mb-2">
               <h4 class="text-sm font-medium">导出缓存文件</h4>
               <button
-                class="text-xs text-blue-400 hover:text-blue-600"
+                class="text-xs text-blue-400 hover:color-accent"
                 :disabled="cacheEntriesLoading"
                 @click="loadExportEntries"
               >
                 {{ cacheEntriesLoading ? '加载中...' : '刷新' }}
               </button>
             </div>
-            <div v-if="exportEntries.length === 0" class="text-xs text-gray-400 py-4 text-center">
+            <div v-if="exportEntries.length === 0" class="text-xs text-muted py-4 text-center">
               暂无导出缓存文件
             </div>
             <table v-else class="w-full text-xs">
               <thead>
-                <tr class="text-left text-gray-400 border-b border-gray-100">
-                  <th class="py-1.5 pr-2 font-medium w-6"></th>
+                <tr class="text-left text-muted border-b border-light">
+                  <th class="py-1.5 pr-2 font-medium w-6" />
                   <th class="py-1.5 pr-2 font-medium">文件名</th>
                   <th class="py-1.5 pr-2 font-medium">内容</th>
                   <th class="py-1.5 pr-2 font-medium w-14">类型</th>
                   <th class="py-1.5 pr-2 font-medium w-16 text-right">大小</th>
                   <th class="py-1.5 pr-2 font-medium w-36">时间</th>
-                  <th class="py-1.5 font-medium w-12"></th>
+                  <th class="py-1.5 font-medium w-12" />
                 </tr>
               </thead>
               <tbody>
                 <tr
                   v-for="entry in exportEntries"
                   :key="entry.id"
-                  class="border-b border-gray-50 hover:bg-gray-50"
+                  class="border-b border-light hover:bg-hover"
                 >
                   <td class="py-1.5 pr-2">
                     <span
@@ -964,33 +969,37 @@ onBeforeUnmount(() => {
                       :style="{ color: entry.type === 'pdf' ? '#ef4444' : '#f59e0b' }"
                     />
                   </td>
-                  <td class="py-1.5 pr-2 truncate max-w-[200px]" v-tooltip="entry.fileName">
+                  <td v-tooltip="entry.fileName" class="py-1.5 pr-2 truncate max-w-[200px]">
                     {{ entry.fileName }}
                   </td>
                   <td
-                    class="py-1.5 pr-2 truncate max-w-[160px] text-gray-500"
                     v-tooltip="entry.catalogTitle"
+                    class="py-1.5 pr-2 truncate max-w-[160px] text-secondary"
                   >
                     {{ entry.catalogTitle }}
                   </td>
-                  <td class="py-1.5 pr-2 text-gray-500">{{ typeLabel(entry.type) }}</td>
-                  <td class="py-1.5 pr-2 text-right text-gray-500">
+                  <td class="py-1.5 pr-2 text-secondary">
+                    {{ typeLabel(entry.type) }}
+                  </td>
+                  <td class="py-1.5 pr-2 text-right text-secondary">
                     {{ formatSize(entry.fileSize) }}
                   </td>
-                  <td class="py-1.5 pr-2 text-gray-400">{{ timeLabelShort(entry.createdAt) }}</td>
+                  <td class="py-1.5 pr-2 text-muted">
+                    {{ timeLabelShort(entry.createdAt) }}
+                  </td>
                   <td class="py-1.5">
                     <div class="flex items-center gap-1">
                       <button
-                        class="text-blue-400 hover:text-blue-600"
                         v-tooltip="'下载此文件'"
-                        @click="handleDownloadExportEntry(entry)"
+                        class="text-blue-400 hover:color-accent"
+                        @click="() => handleDownloadExportEntry(entry)"
                       >
                         <span class="i-lucide-download w-3.5 h-3.5 inline-block align-middle" />
                       </button>
                       <button
-                        class="text-red-400 hover:text-red-600"
                         v-tooltip="'删除此缓存'"
-                        @click="handleDeleteExportEntry(entry)"
+                        class="text-red-400 hover:color-danger"
+                        @click="() => handleDeleteExportEntry(entry)"
                       >
                         <span class="i-lucide-trash-2 w-3.5 h-3.5 inline-block align-middle" />
                       </button>
@@ -1004,22 +1013,22 @@ onBeforeUnmount(() => {
           <Paginator :current="exportCurrentPage" :total="exportTotalPages" @go="exportGoPage" />
 
           <!-- 远程缓存：网格缩略图 -->
-          <div v-if="showRemoteDetail" class="border-t border-gray-100 pt-3">
+          <div v-if="showRemoteDetail" class="border-t border-light pt-3">
             <div class="flex items-center justify-between mb-2">
               <h4 class="text-sm font-medium">
-                远程资源缓存 <span class="text-gray-400 font-normal">({{ remoteTotal }} 条)</span>
+                远程资源缓存 <span class="text-muted font-normal">({{ remoteTotal }} 条)</span>
               </h4>
               <div class="flex gap-2">
                 <button
-                  class="text-xs text-blue-400 hover:text-blue-600"
+                  class="text-xs text-blue-400 hover:color-accent"
                   :disabled="cacheEntriesLoading"
-                  @click="loadRemoteEntries(remoteOffset)"
+                  @click="() => loadRemoteEntries(remoteOffset)"
                 >
                   {{ cacheEntriesLoading ? '加载中...' : '刷新' }}
                 </button>
                 <button
                   v-if="cacheStats && cacheStats.remote.count > 0"
-                  class="text-xs text-red-400 hover:text-red-600"
+                  class="text-xs text-red-400 hover:color-danger"
                   :disabled="cacheCleaning"
                   @click="handleClearAllRemote"
                 >
@@ -1029,14 +1038,11 @@ onBeforeUnmount(() => {
             </div>
             <div
               v-if="cacheEntriesLoading && remoteEntries.length === 0"
-              class="flex items-center justify-center py-8 text-gray-400 text-xs"
+              class="flex items-center justify-center py-8 text-muted text-xs"
             >
               <span class="i-lucide-loader-2 w-5 h-5 animate-spin mr-2" />加载中...
             </div>
-            <div
-              v-else-if="remoteEntries.length === 0"
-              class="text-xs text-gray-400 py-4 text-center"
-            >
+            <div v-else-if="remoteEntries.length === 0" class="text-xs text-muted py-4 text-center">
               暂无远程缓存
             </div>
             <template v-else>
@@ -1044,11 +1050,11 @@ onBeforeUnmount(() => {
                 <div
                   v-for="entry in remoteEntries"
                   :key="`${entry.url}-${entry.hash}`"
-                  class="group relative rounded-lg border border-gray-200 overflow-hidden cursor-pointer hover:border-blue-400 hover:shadow-sm transition-all"
-                  @click="openPreview(entry)"
+                  class="group relative rounded-lg border border-default overflow-hidden cursor-pointer hover:border-[var(--c-accent)] hover:shadow-sm transition-all"
+                  @click="() => openPreview(entry)"
                 >
                   <div
-                    class="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden"
+                    class="aspect-square bg-base flex items-center justify-center overflow-hidden"
                   >
                     <template v-if="isImageMime(entry.mimeType) || isVideoMime(entry.mimeType)">
                       <img
@@ -1067,10 +1073,10 @@ onBeforeUnmount(() => {
                         preload="metadata"
                       />
                       <div v-else class="flex items-center justify-center">
-                        <span class="i-lucide-loader-2 w-6 h-6 text-gray-300 animate-spin" />
+                        <span class="i-lucide-loader-2 w-6 h-6 text-muted animate-spin" />
                       </div>
                     </template>
-                    <div v-else class="flex flex-col items-center gap-1 text-gray-400">
+                    <div v-else class="flex flex-col items-center gap-1 text-muted">
                       <span class="i-lucide-file w-8 h-8" />
                       <span class="text-[10px]">{{
                         entry.ext.replace('.', '').toUpperCase()
@@ -1080,7 +1086,7 @@ onBeforeUnmount(() => {
                   <div
                     class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-1.5 py-1 opacity-0 group-hover:opacity-100 transition-opacity"
                   >
-                    <div class="text-[10px] text-white truncate" v-tooltip="entry.url">
+                    <div v-tooltip="entry.url" class="text-[10px] text-white truncate">
                       {{ shortUrl(entry.url, 25) }}
                     </div>
                     <div class="text-[10px] text-white/70">
@@ -1088,9 +1094,9 @@ onBeforeUnmount(() => {
                     </div>
                   </div>
                   <button
-                    class="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/40 text-white/80 hover:bg-red-500 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                     v-tooltip="'删除此缓存'"
-                    @click.stop="handleDeleteRemoteEntry(entry)"
+                    class="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/40 text-white/80 hover:bg-red-500 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    @click.stop="() => handleDeleteRemoteEntry(entry)"
                   >
                     <span class="i-lucide-x w-3 h-3 inline-block align-middle" />
                   </button>
@@ -1111,7 +1117,7 @@ onBeforeUnmount(() => {
       <div v-if="activeTab === 'audit'">
         <div class="mb-4">
           <h2 class="text-lg font-semibold">操作日志</h2>
-          <p class="text-xs text-gray-400 mt-0.5">记录系统中敏感操作的审计信息，仅管理员可见。</p>
+          <p class="text-xs text-muted mt-0.5">记录系统中敏感操作的审计信息，仅管理员可见。</p>
         </div>
         <div class="card">
           <AuditLog />
@@ -1207,18 +1213,18 @@ onBeforeUnmount(() => {
       @click.self="closePreview"
     >
       <div
-        class="relative bg-white rounded-xl shadow-2xl max-w-4xl max-h-[90vh] flex flex-col overflow-hidden"
+        class="relative bg-surface rounded-xl shadow-2xl max-w-4xl max-h-[90vh] flex flex-col overflow-hidden"
         @click.stop
       >
-        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-light">
           <div class="text-sm font-medium truncate mr-4">
             {{ previewEntry.mimeType }} · {{ formatSize(previewEntry.size) }}
           </div>
-          <button class="text-gray-400 hover:text-gray-600" @click="closePreview">
+          <button class="text-muted hover:text-secondary" @click="closePreview">
             <span class="i-lucide-x w-5 h-5 inline-block align-middle" />
           </button>
         </div>
-        <div class="flex-1 overflow-auto flex items-center justify-center p-4 bg-gray-50 min-h-0">
+        <div class="flex-1 overflow-auto flex items-center justify-center p-4 bg-base min-h-0">
           <img
             v-if="isImageMime(previewEntry.mimeType) && previewBlobUrl"
             :src="previewBlobUrl"
@@ -1231,22 +1237,20 @@ onBeforeUnmount(() => {
             class="max-w-full max-h-[70vh] rounded"
             controls
           />
-          <div v-else-if="!previewBlobUrl" class="flex items-center gap-2 text-gray-400">
+          <div v-else-if="!previewBlobUrl" class="flex items-center gap-2 text-muted">
             <span class="i-lucide-loader-2 w-5 h-5 animate-spin" />加载中...
           </div>
-          <div v-else class="text-sm text-gray-400">此类型文件不支持预览</div>
+          <div v-else class="text-sm text-muted">此类型文件不支持预览</div>
         </div>
-        <div
-          class="px-4 py-2.5 border-t border-gray-100 text-xs text-gray-400 space-y-0.5 bg-white"
-        >
-          <div class="truncate" v-tooltip="previewEntry.url">
-            <span class="text-gray-500 font-medium">URL：</span>{{ previewEntry.url }}
+        <div class="px-4 py-2.5 border-t border-light text-xs text-muted space-y-0.5 bg-surface">
+          <div v-tooltip="previewEntry.url" class="truncate">
+            <span class="text-secondary font-medium">URL：</span>{{ previewEntry.url }}
           </div>
           <div>
-            <span class="text-gray-500 font-medium">访问：</span>{{ previewEntry.fetchCount }} 次 ·
-            <span class="text-gray-500 font-medium">最后访问：</span
+            <span class="text-secondary font-medium">访问：</span>{{ previewEntry.fetchCount }} 次 ·
+            <span class="text-secondary font-medium">最后访问：</span
             >{{ timeLabelShort(previewEntry.accessedAt) }} ·
-            <span class="text-gray-500 font-medium">缓存时间：</span
+            <span class="text-secondary font-medium">缓存时间：</span
             >{{ timeLabelShort(previewEntry.createdAt) }}
           </div>
         </div>
@@ -1262,18 +1266,18 @@ onBeforeUnmount(() => {
       @click.self="closeUploadPreview"
     >
       <div
-        class="relative bg-white rounded-xl shadow-2xl max-w-4xl max-h-[90vh] flex flex-col overflow-hidden"
+        class="relative bg-surface rounded-xl shadow-2xl max-w-4xl max-h-[90vh] flex flex-col overflow-hidden"
         @click.stop
       >
-        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-light">
           <div class="text-sm font-medium truncate mr-4">
             {{ uploadPreviewFile.path }} · {{ formatSize(uploadPreviewFile.size) }}
           </div>
-          <button class="text-gray-400 hover:text-gray-600" @click="closeUploadPreview">
+          <button class="text-muted hover:text-secondary" @click="closeUploadPreview">
             <span class="i-lucide-x w-5 h-5 inline-block align-middle" />
           </button>
         </div>
-        <div class="flex-1 overflow-auto flex items-center justify-center p-4 bg-gray-50 min-h-0">
+        <div class="flex-1 overflow-auto flex items-center justify-center p-4 bg-base min-h-0">
           <img
             v-if="isImagePath(uploadPreviewFile.path)"
             :src="getUploadPreviewUrl(uploadPreviewFile)"
@@ -1286,16 +1290,16 @@ onBeforeUnmount(() => {
             class="max-w-full max-h-[70vh] rounded"
             controls
           />
-          <div v-else class="text-sm text-gray-400">此类型文件不支持预览</div>
+          <div v-else class="text-sm text-muted">此类型文件不支持预览</div>
         </div>
-        <div class="px-4 py-2.5 border-t border-gray-100 text-xs text-gray-400 bg-white">
+        <div class="px-4 py-2.5 border-t border-light text-xs text-muted bg-surface">
           <div>
-            <span class="text-gray-500 font-medium">路径：</span>{{ uploadPreviewFile.path }}
+            <span class="text-secondary font-medium">路径：</span>{{ uploadPreviewFile.path }}
           </div>
           <div>
-            <span class="text-gray-500 font-medium">大小：</span
+            <span class="text-secondary font-medium">大小：</span
             >{{ formatSize(uploadPreviewFile.size) }} ·
-            <span class="text-gray-500 font-medium">修改时间：</span
+            <span class="text-secondary font-medium">修改时间：</span
             >{{ new Date(uploadPreviewFile.mtime).toLocaleString() }} ·
             <span :class="uploadPreviewFile.referenced ? 'text-green-600' : 'text-red-400'">
               {{ uploadPreviewFile.referenced ? '已引用' : '未引用' }}

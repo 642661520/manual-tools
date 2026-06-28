@@ -14,21 +14,21 @@ const labels: Record<string, string> = {
 }
 
 const badgeClass: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-500',
-  in_progress: 'bg-blue-100 text-blue-700',
-  completed: 'bg-green-100 text-green-700',
-  pending_review: 'bg-yellow-100 text-yellow-700',
-  rejected: 'bg-orange-100 text-orange-700',
-  approved: 'bg-emerald-100 text-emerald-700',
+  draft: 'bg-hover text-secondary',
+  in_progress: 'bg-blue-100 dark:bg-blue-900/30 color-accent dark:text-blue-300',
+  completed: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+  pending_review: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
+  rejected: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
+  approved: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300',
 }
 
 const textClass: Record<string, string> = {
-  draft: 'text-gray-400',
-  in_progress: 'text-blue-500',
-  completed: 'text-green-500',
-  pending_review: 'text-yellow-500',
-  rejected: 'text-orange-500',
-  approved: 'text-emerald-600',
+  draft: 'text-muted',
+  in_progress: 'color-accent dark:text-blue-400',
+  completed: 'text-green-500 dark:text-green-400',
+  pending_review: 'text-yellow-500 dark:text-yellow-400',
+  rejected: 'text-orange-500 dark:text-orange-400',
+  approved: 'text-emerald-600 dark:text-emerald-400',
 }
 </script>
 

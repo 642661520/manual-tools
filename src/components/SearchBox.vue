@@ -102,10 +102,10 @@ defineExpose({ open })
       class="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-black/30"
       @click.self="close"
     >
-      <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl mx-4 overflow-hidden">
+      <div class="bg-surface rounded-xl shadow-2xl w-full max-w-xl mx-4 overflow-hidden">
         <!-- Search input -->
-        <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-200">
-          <span class="i-lucide-search w-5 h-5 text-gray-400 flex-shrink-0" />
+        <div class="flex items-center gap-3 px-4 py-3 border-b border-default">
+          <span class="i-lucide-search w-5 h-5 text-muted flex-shrink-0" />
           <input
             ref="inputRef"
             v-model="query"
@@ -114,8 +114,7 @@ defineExpose({ open })
             :placeholder="currentProjectId ? '搜索当前项目中的手册内容...' : '请先选择一个项目'"
             @keydown="onKeydown"
           />
-          <kbd
-            class="hidden sm:inline-block text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded"
+          <kbd class="hidden sm:inline-block text-xs text-muted bg-hover px-1.5 py-0.5 rounded"
             >Esc</kbd
           >
         </div>
@@ -124,13 +123,13 @@ defineExpose({ open })
         <div class="max-h-80 overflow-y-auto">
           <div
             v-if="searching"
-            class="flex items-center gap-2 px-4 py-8 text-sm text-gray-400 justify-center"
+            class="flex items-center gap-2 px-4 py-8 text-sm text-muted justify-center"
           >
             <span class="i-lucide-loader-2 w-4 h-4 animate-spin" />搜索中...
           </div>
           <div
             v-else-if="query && results.length === 0"
-            class="px-4 py-8 text-sm text-gray-400 text-center"
+            class="px-4 py-8 text-sm text-muted text-center"
           >
             未找到相关结果
           </div>
@@ -138,23 +137,22 @@ defineExpose({ open })
             <div
               v-for="(r, i) in results"
               :key="r.docId"
-              class="px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
-              :class="{ 'bg-blue-50': i === selectedIndex }"
-              @click="goTo(r)"
+              class="px-4 py-3 cursor-pointer hover:bg-hover transition-colors"
+              :class="{ 'bg-active': i === selectedIndex }"
+              @click="() => goTo(r)"
             >
               <div class="flex items-center gap-2 mb-1">
-                <span class="i-lucide-file-text w-4 h-4 text-gray-400 flex-shrink-0" />
-                <span class="text-sm font-medium text-gray-800 truncate">{{ r.title }}</span>
-                <span class="text-xs text-gray-400">· {{ r.sectionTitle }}</span>
+                <span class="i-lucide-file-text w-4 h-4 text-muted flex-shrink-0" />
+                <span class="text-sm font-medium text-primary truncate">{{ r.title }}</span>
+                <span class="text-xs text-muted">· {{ r.sectionTitle }}</span>
               </div>
-              <div class="text-xs text-gray-500 leading-relaxed" v-html="r.snippet" />
+              <!-- eslint-disable vue/no-v-html -- 搜索片段含 <mark> 高亮标签，后端生成 -->
+              <div class="text-xs text-secondary leading-relaxed" v-html="r.snippet" />
+              <!-- eslint-enable vue/no-v-html -->
             </div>
           </template>
         </div>
-        <div
-          v-if="results.length > 0"
-          class="px-4 py-2 text-xs text-gray-400 border-t border-gray-100"
-        >
+        <div v-if="results.length > 0" class="px-4 py-2 text-xs text-muted border-t border-light">
           共 {{ total }} 条结果
         </div>
       </div>

@@ -3,7 +3,7 @@
  * AI 浮动气泡 — 选中文本后出现在选区附近
  * 纯 DOM 定位，不依赖 TipTap 的 BubbleMenu API
  */
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { Editor } from '@tiptap/vue-3'
 import AiPopover from './AiPopover.vue'
 
@@ -66,31 +66,31 @@ watch(
   <Teleport to="body">
     <div
       v-if="showToolbar"
-      class="fixed z-50 flex items-center gap-0.5 bg-white rounded-lg shadow-lg border border-gray-200 px-1 py-1 transition-opacity"
+      class="fixed z-50 flex items-center gap-0.5 bg-surface rounded-lg shadow-lg border border-default px-1 py-1 transition-opacity"
       :style="toolbarStyle"
     >
       <button
-        class="w-8 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-600"
+        class="w-8 h-7 flex items-center justify-center rounded hover:bg-hover text-secondary"
         title="加粗"
-        @mousedown.prevent="editor.chain().focus().toggleBold().run()"
+        @mousedown.prevent="() => editor.chain().focus().toggleBold().run()"
       >
         <span class="i-lucide-bold w-4 h-4" />
       </button>
       <button
-        class="w-8 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-600"
+        class="w-8 h-7 flex items-center justify-center rounded hover:bg-hover text-secondary"
         title="斜体"
-        @mousedown.prevent="editor.chain().focus().toggleItalic().run()"
+        @mousedown.prevent="() => editor.chain().focus().toggleItalic().run()"
       >
         <span class="i-lucide-italic w-4 h-4" />
       </button>
       <button
-        class="w-8 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-600"
+        class="w-8 h-7 flex items-center justify-center rounded hover:bg-hover text-secondary"
         title="删除线"
-        @mousedown.prevent="editor.chain().focus().toggleStrike().run()"
+        @mousedown.prevent="() => editor.chain().focus().toggleStrike().run()"
       >
         <span class="i-lucide-strikethrough w-4 h-4" />
       </button>
-      <div class="w-px h-4 bg-gray-200 mx-0.5" />
+      <div class="w-px h-4 bg-[var(--c-border-input)] mx-0.5" />
       <button
         class="flex items-center gap-1 h-7 px-2 rounded text-xs font-medium transition-colors"
         :class="

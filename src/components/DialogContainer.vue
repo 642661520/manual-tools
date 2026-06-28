@@ -43,7 +43,9 @@ function fillDangerPhrase() {
     @confirm="dialogConfirm"
   >
     <div class="space-y-3">
-      <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ dialogState.message }}</p>
+      <p class="text-sm text-secondary whitespace-pre-wrap">
+        {{ dialogState.message }}
+      </p>
       <div v-if="dialogState.type === 'danger'">
         <p class="text-xs text-red-500 mb-1">请输入「{{ dialogState.dangerPhrase }}」以确认</p>
         <div class="flex gap-2">

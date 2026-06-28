@@ -53,88 +53,88 @@ function deleteTable() {
     :options="{ offset: 8, placement: 'top' }"
   >
     <div
-      class="flex items-center gap-0.5 px-1.5 py-1 bg-white rounded-lg shadow-lg border border-gray-200"
+      class="flex items-center gap-0.5 px-1.5 py-1 bg-surface rounded-lg shadow-lg border border-default"
     >
       <!-- 行操作 -->
       <button
-        class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         v-tooltip="'上方插入行'"
+        class="w-7 h-7 flex items-center justify-center rounded hover:bg-hover text-sm"
         @click="addRowBefore"
       >
         <span class="i-lucide-arrow-up-to-line w-3.5 h-3.5 inline-block align-middle" />
       </button>
       <button
-        class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         v-tooltip="'下方插入行'"
+        class="w-7 h-7 flex items-center justify-center rounded hover:bg-hover text-sm"
         @click="addRowAfter"
       >
         <span class="i-lucide-arrow-down-to-line w-3.5 h-3.5 inline-block align-middle" />
       </button>
       <button
-        class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        v-tooltip="'删除行'"
+        class="w-7 h-7 flex items-center justify-center rounded hover:bg-hover text-sm"
         :class="{ 'opacity-40 cursor-not-allowed': !canDeleteRow }"
         :disabled="!canDeleteRow"
-        v-tooltip="'删除行'"
         @click="deleteRow"
       >
         <span class="i-lucide-trash-2 w-3.5 h-3.5 inline-block align-middle" />
       </button>
 
-      <div class="w-px h-4 bg-gray-200 mx-0.5" />
+      <div class="w-px h-4 bg-[var(--c-border)] mx-0.5" />
 
       <!-- 列操作 -->
       <button
-        class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         v-tooltip="'左侧插入列'"
+        class="w-7 h-7 flex items-center justify-center rounded hover:bg-hover text-sm"
         @click="addColumnBefore"
       >
         <span class="i-lucide-arrow-left-to-line w-3.5 h-3.5 inline-block align-middle" />
       </button>
       <button
-        class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         v-tooltip="'右侧插入列'"
+        class="w-7 h-7 flex items-center justify-center rounded hover:bg-hover text-sm"
         @click="addColumnAfter"
       >
         <span class="i-lucide-arrow-right-to-line w-3.5 h-3.5 inline-block align-middle" />
       </button>
       <button
-        class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        v-tooltip="'删除列'"
+        class="w-7 h-7 flex items-center justify-center rounded hover:bg-hover text-sm"
         :class="{ 'opacity-40 cursor-not-allowed': !canDeleteColumn }"
         :disabled="!canDeleteColumn"
-        v-tooltip="'删除列'"
         @click="deleteColumn"
       >
         <span class="i-lucide-trash-2 w-3.5 h-3.5 inline-block align-middle" />
       </button>
 
-      <div class="w-px h-4 bg-gray-200 mx-0.5" />
+      <div class="w-px h-4 bg-[var(--c-border)] mx-0.5" />
 
       <!-- 单元格操作 -->
       <button
-        class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        v-tooltip="'合并单元格'"
+        class="w-7 h-7 flex items-center justify-center rounded hover:bg-hover text-sm"
         :class="{ 'opacity-40 cursor-not-allowed': !canMergeCells }"
         :disabled="!canMergeCells"
-        v-tooltip="'合并单元格'"
         @click="mergeCells"
       >
         <span class="i-lucide-table-cells-merge w-3.5 h-3.5 inline-block align-middle" />
       </button>
       <button
-        class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        v-tooltip="'拆分单元格'"
+        class="w-7 h-7 flex items-center justify-center rounded hover:bg-hover text-sm"
         :class="{ 'opacity-40 cursor-not-allowed': !canSplitCell }"
         :disabled="!canSplitCell"
-        v-tooltip="'拆分单元格'"
         @click="splitCell"
       >
         <span class="i-lucide-table-cells-split w-3.5 h-3.5 inline-block align-middle" />
       </button>
 
-      <div class="w-px h-4 bg-gray-200 mx-0.5" />
+      <div class="w-px h-4 bg-[var(--c-border)] mx-0.5" />
 
       <!-- 删除表格 -->
       <button
-        class="w-7 h-7 flex items-center justify-center rounded hover:bg-red-50 text-sm text-red-600"
         v-tooltip="'删除表格'"
+        class="w-7 h-7 flex items-center justify-center rounded hover:bg-danger text-sm color-danger"
         @click="deleteTable"
       >
         <span class="i-lucide-table-2 w-3.5 h-3.5 inline-block align-middle" />

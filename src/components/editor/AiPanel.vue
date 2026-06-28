@@ -48,11 +48,11 @@ const actions = [
 
 <template>
   <div class="p-3 space-y-3 h-full flex flex-col">
-    <div class="text-xs text-gray-500 font-medium flex items-center gap-1.5">
+    <div class="text-xs text-secondary font-medium flex items-center gap-1.5">
       <span class="i-lucide-sparkles w-3.5 h-3.5" />AI 助手
     </div>
 
-    <div v-if="!props.selectedText" class="text-xs text-gray-400 bg-yellow-50 rounded p-2">
+    <div v-if="!props.selectedText" class="text-xs text-muted bg-yellow-50 rounded p-2">
       在编辑器中选中文本后可使用，或对全文操作
     </div>
 
@@ -60,25 +60,27 @@ const actions = [
       <button
         v-for="a in actions"
         :key="a.key"
-        class="flex flex-col items-center gap-0.5 p-2 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
-        @click="run(a.key)"
+        class="flex flex-col items-center gap-0.5 p-2 rounded-lg border border-default hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
+        @click="() => run(a.key)"
       >
         <span :class="a.icon" class="w-4 h-4 text-blue-500" />
-        <span class="text-xs font-medium text-gray-700">{{ a.label }}</span>
-        <span class="text-[10px] text-gray-400">{{ a.desc }}</span>
+        <span class="text-xs font-medium text-secondary">{{ a.label }}</span>
+        <span class="text-[10px] text-muted">{{ a.desc }}</span>
       </button>
     </div>
 
-    <div v-if="loading" class="flex items-center gap-2 text-xs text-gray-400 justify-center py-4">
+    <div v-if="loading" class="flex items-center gap-2 text-xs text-muted justify-center py-4">
       <span class="i-lucide-loader-2 w-4 h-4 animate-spin" />AI 处理中...
     </div>
 
-    <div v-if="error" class="text-xs text-red-500 bg-red-50 rounded p-2">{{ error }}</div>
+    <div v-if="error" class="text-xs color-danger bg-danger rounded p-2">
+      {{ error }}
+    </div>
 
     <div v-if="result" class="flex-1 flex flex-col min-h-0">
-      <div class="text-xs text-gray-400 mb-1">结果：</div>
+      <div class="text-xs text-muted mb-1">结果：</div>
       <div
-        class="flex-1 overflow-y-auto bg-gray-50 rounded p-2 text-sm text-gray-700 whitespace-pre-wrap"
+        class="flex-1 overflow-y-auto bg-base rounded p-2 text-sm text-secondary whitespace-pre-wrap"
       >
         {{ result }}
       </div>

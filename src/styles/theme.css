@@ -1,0 +1,111 @@
+/* ===== 主题 CSS 变量 ===== */
+
+:root {
+  /* 背景 */
+  --c-bg-base: #f9fafb;
+  --c-bg-surface: #ffffff;
+  --c-bg-hover: #f3f4f6;
+  --c-bg-active: #eff6ff;
+
+  /* 边框 */
+  --c-border: #e5e7eb;
+  --c-border-light: #f3f4f6;
+  --c-border-input: #d1d5db;
+
+  /* 文字 */
+  --c-text-primary: #111827;
+  --c-text-secondary: #4b5563;
+  --c-text-muted: #9ca3af;
+
+  /* 主题色 */
+  --c-accent: #2563eb;
+  --c-accent-hover: #1d4ed8;
+  --c-accent-bg: #eff6ff;
+
+  /* 危险色 */
+  --c-danger: #dc2626;
+  --c-danger-hover: #b91c1c;
+  --c-danger-bg: #fef2f2;
+
+  /* 语义背景（警告/成功） */
+  --c-warning-bg: #fffbeb;
+  --c-success-bg: #f0fdf4;
+
+  /* Tooltip */
+  --c-tooltip-bg: #1f2937;
+  --c-tooltip-text: #ffffff;
+}
+
+html.dark {
+  /* 背景 */
+  --c-bg-base: #0f172a;
+  --c-bg-surface: #1e293b;
+  --c-bg-hover: #334155;
+  --c-bg-active: #1e3a5f;
+
+  /* 边框 */
+  --c-border: #334155;
+  --c-border-light: #263348;
+  --c-border-input: #475569;
+
+  /* 文字 */
+  --c-text-primary: #f1f5f9;
+  --c-text-secondary: #cbd5e1;
+  --c-text-muted: #64748b;
+
+  /* 主题色 */
+  --c-accent: #3b82f6;
+  --c-accent-hover: #2563eb;
+  --c-accent-bg: #1e3a5f;
+
+  /* 危险色 */
+  --c-danger: #ef4444;
+  --c-danger-hover: #dc2626;
+  --c-danger-bg: #3b1a1a;
+
+  /* 语义背景（警告/成功） */
+  --c-warning-bg: #3b2e0a;
+  --c-success-bg: #1a3b1a;
+
+  /* Tooltip */
+  --c-tooltip-bg: #334155;
+  --c-tooltip-text: #f1f5f9;
+}
+
+/* 平滑过渡（主题切换时） */
+html {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+html.transitioning * {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease,
+    border-color 0.3s ease !important;
+}
+
+/* 种子数据中的内联样式图片占位 */
+html.dark [data-image-placeholder] {
+  background: var(--c-bg-hover) !important;
+  border-color: var(--c-border-input) !important;
+  color: var(--c-text-muted) !important;
+}
+
+/* 图片占位基础样式（替代种子文件中的内联 style） */
+[data-image-placeholder] {
+  background: var(--c-bg-hover);
+  border: 2px dashed var(--c-border-input);
+  border-radius: 8px;
+  padding: 20px 24px;
+  text-align: center;
+  color: var(--c-text-muted);
+  margin: 16px 0;
+  font-size: 14px;
+}
+
+[data-image-placeholder] > div:first-child {
+  font-size: 24px;
+  margin-bottom: 6px;
+}

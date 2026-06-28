@@ -9,6 +9,6 @@ const md = new MarkdownIt({
 
 /** 将 Markdown 文本渲染为 HTML */
 export function renderMarkdown(mdText: string): string {
-  if (!mdText) return '<p class="text-gray-400 italic">（暂未编写）</p>'
+  if (!mdText) return '<p class="text-muted italic">（暂未编写）</p>'
   return md.render(mdText)
 }

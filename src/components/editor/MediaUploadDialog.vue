@@ -111,15 +111,15 @@ defineExpose({ open })
   <ModalDialog
     :visible="visible"
     :title="isImage() ? '插入图片' : '插入视频'"
-    :confirmText="uploading ? '上传中...' : '确定'"
+    :confirm-text="uploading ? '上传中...' : '确定'"
     :loading="uploading"
-    widthClass="max-w-md"
+    width-class="max-w-md"
     @confirm="confirm"
     @cancel="cancel"
   >
     <!-- URL 输入 -->
     <div class="mb-3">
-      <label class="block text-xs text-gray-500 mb-1">
+      <label class="block text-xs text-secondary mb-1">
         {{ isImage() ? '图片' : '视频' }}链接
       </label>
       <input
@@ -133,9 +133,9 @@ defineExpose({ open })
     </div>
 
     <!-- 本地上传 -->
-    <div class="border-t border-gray-100 pt-3">
+    <div class="border-t border-light pt-3">
       <div class="flex items-center justify-between">
-        <span class="text-xs text-gray-500">或上传本地文件</span>
+        <span class="text-xs text-secondary">或上传本地文件</span>
         <button class="btn btn-secondary text-xs" :disabled="uploading" @click="triggerUpload">
           <span class="i-lucide-upload w-3 h-3 inline-block align-middle mr-1" />
           选择文件
@@ -148,7 +148,7 @@ defineExpose({ open })
         :accept="isImage() ? 'image/png,image/jpeg,image/gif,image/webp' : 'video/mp4,video/webm'"
         @change="handleUpload"
       />
-      <div v-if="uploadingFile" class="mt-2 text-xs text-gray-400">
+      <div v-if="uploadingFile" class="mt-2 text-xs text-muted">
         上传中: {{ uploadingFile.name }} ({{ uploadingFile.size }})
       </div>
     </div>

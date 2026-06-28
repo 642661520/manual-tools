@@ -302,7 +302,7 @@ onMounted(() => {
 
     <!-- 当前用户 -->
     <div class="card mb-6">
-      <h2 class="text-sm font-semibold text-gray-500 mb-3">个人信息</h2>
+      <h2 class="text-sm font-semibold text-secondary mb-3">个人信息</h2>
       <div class="flex items-start gap-4">
         <UserAvatar
           :avatar-url="feishuBound ? feishuAvatar : null"
@@ -310,10 +310,12 @@ onMounted(() => {
           size="lg"
         />
         <div class="flex-1 min-w-0">
-          <div class="text-lg font-medium truncate">{{ user?.displayName }}</div>
-          <div class="text-sm text-gray-500 mt-0.5">
-            <span class="text-gray-400">用户名：</span>
-            <code class="bg-gray-100 px-1 rounded text-xs">{{ user?.username }}</code>
+          <div class="text-lg font-medium truncate">
+            {{ user?.displayName }}
+          </div>
+          <div class="text-sm text-secondary mt-0.5">
+            <span class="text-muted">用户名：</span>
+            <code class="bg-hover px-1 rounded text-xs">{{ user?.username }}</code>
           </div>
           <div
             v-if="isFeishuAutoUsername && !user?.usernameChanged"
@@ -321,10 +323,10 @@ onMounted(() => {
           >
             该用户名为飞书自动生成，建议修改为易记的用户名
           </div>
-          <div v-if="user?.usernameChanged" class="text-gray-400 text-xs mt-0.5">
+          <div v-if="user?.usernameChanged" class="text-muted text-xs mt-0.5">
             用户名已修改，不可再次更改
           </div>
-          <div class="text-sm text-gray-500 mt-0.5">
+          <div class="text-sm text-secondary mt-0.5">
             {{ roleLabel(user?.role || '') }}
             <span v-if="feishuBound" class="text-green-600 ml-2 text-xs">已绑定飞书</span>
           </div>
@@ -354,8 +356,8 @@ onMounted(() => {
 
     <!-- 通知偏好 -->
     <div class="card mb-6">
-      <h2 class="text-sm font-semibold text-gray-500 mb-3">通知偏好</h2>
-      <p class="text-xs text-gray-400 mb-4">
+      <h2 class="text-sm font-semibold text-secondary mb-3">通知偏好</h2>
+      <p class="text-xs text-muted mb-4">
         绑定飞书后可接收通知。关闭后不再收到对应类型的飞书消息。
       </p>
 
@@ -364,11 +366,11 @@ onMounted(() => {
         <span class="text-sm">接收飞书通知</span>
         <button
           class="relative w-10 h-5.5 rounded-full transition-colors duration-200 flex-shrink-0"
-          :class="notifyEnabled ? 'bg-blue-500' : 'bg-gray-300'"
-          @click="toggleNotifyEnabled()"
+          :class="notifyEnabled ? 'bg-active0' : 'bg-[var(--c-border-input)]'"
+          @click="toggleNotifyEnabled"
         >
           <span
-            class="absolute top-0.5 left-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-transform duration-200"
+            class="absolute top-0.5 left-0.5 w-4.5 h-4.5 rounded-full bg-surface shadow transition-transform duration-200"
             :class="notifyEnabled ? 'translate-x-4.5' : ''"
           />
         </button>
@@ -376,7 +378,7 @@ onMounted(() => {
 
       <!-- 分类开关 -->
       <div
-        class="border-t border-gray-100 mt-3 pt-3 space-y-2"
+        class="border-t border-light mt-3 pt-3 space-y-2"
         :class="{ 'opacity-50 pointer-events-none': !notifyEnabled }"
       >
         <label
@@ -384,14 +386,14 @@ onMounted(() => {
           :key="item.key"
           class="flex items-center justify-between py-1.5 cursor-pointer"
         >
-          <span class="text-sm text-gray-600">{{ item.label }}</span>
+          <span class="text-sm text-secondary">{{ item.label }}</span>
           <button
             class="relative w-10 h-5.5 rounded-full transition-colors duration-200 flex-shrink-0"
-            :class="notifyPrefs[item.key] ? 'bg-blue-500' : 'bg-gray-300'"
-            @click="toggleNotifyPref(item.key)"
+            :class="notifyPrefs[item.key] ? 'bg-active0' : 'bg-[var(--c-border-input)]'"
+            @click="() => toggleNotifyPref(item.key)"
           >
             <span
-              class="absolute top-0.5 left-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-transform duration-200"
+              class="absolute top-0.5 left-0.5 w-4.5 h-4.5 rounded-full bg-surface shadow transition-transform duration-200"
               :class="notifyPrefs[item.key] ? 'translate-x-4.5' : ''"
             />
           </button>
@@ -401,15 +403,17 @@ onMounted(() => {
 
     <!-- 飞书账号绑定 -->
     <div class="card mb-6">
-      <h2 class="text-sm font-semibold text-gray-500 mb-3">飞书账号绑定</h2>
-      <p class="text-xs text-gray-400 mb-3">
+      <h2 class="text-sm font-semibold text-secondary mb-3">飞书账号绑定</h2>
+      <p class="text-xs text-muted mb-3">
         绑定后可在任务指派、提交审核时接收飞书通知，平台将显示飞书头像和昵称
       </p>
 
       <div v-if="feishuBound" class="flex items-center gap-3">
         <img v-if="feishuAvatar" :src="feishuAvatar" class="w-10 h-10 rounded-full" alt="" />
         <div class="flex-1">
-          <div class="font-medium text-sm">{{ feishuName }}</div>
+          <div class="font-medium text-sm">
+            {{ feishuName }}
+          </div>
           <div class="text-xs text-green-600">已绑定</div>
         </div>
         <button class="btn-secondary text-sm" @click="unbindFeishu">解除绑定</button>
@@ -456,10 +460,10 @@ onMounted(() => {
           <p v-if="canChangeUsername" class="text-amber-500 text-xs mt-1">
             当前用户名为飞书自动生成，建议改为易记的名称，以便后续使用用户名+密码登录（仅可修改一次）
           </p>
-          <p v-else-if="user?.usernameChanged" class="text-gray-400 text-xs mt-1">
+          <p v-else-if="user?.usernameChanged" class="text-muted text-xs mt-1">
             用户名已修改，不可再次更改
           </p>
-          <p v-else class="text-gray-400 text-xs mt-1">用户名不可修改</p>
+          <p v-else class="text-muted text-xs mt-1">用户名不可修改</p>
         </FormField>
       </div>
     </ModalDialog>
@@ -477,7 +481,7 @@ onMounted(() => {
       <div class="space-y-4">
         <div
           v-if="!hasPassword"
-          class="text-sm text-blue-500 bg-blue-50 rounded-lg px-3 py-2 space-y-1"
+          class="text-sm color-accent bg-active rounded-lg px-3 py-2 space-y-1"
         >
           <p>
             <span class="i-lucide-lightbulb w-4 h-4 inline-block align-middle mr-1" />

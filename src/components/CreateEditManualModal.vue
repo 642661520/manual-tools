@@ -86,7 +86,7 @@ async function handleSubmit() {
     :loading="saving"
     :error="formError"
     width-class="max-w-md"
-    @close="emit('close')"
+    @close="() => emit('close')"
     @confirm="handleSubmit"
   >
     <div class="flex flex-col gap-4">

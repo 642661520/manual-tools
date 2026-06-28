@@ -5,19 +5,22 @@ import { useAuth } from '@/composables/useAuth'
 import { useProject } from '@/composables/useProject'
 import { useDialog } from '@/composables/useDialog'
 import { toasts } from '@/composables/toast'
+import { useTheme } from '@/composables/useTheme'
 import SelectDropdown from '@/components/SelectDropdown.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import SearchBox from '@/components/SearchBox.vue'
 
 const router = useRouter()
 const route = useRoute()
-const { user, isAdmin, isMember, isGuest, canManageProject, logout } = useAuth()
+const { user, isAdmin, isMember, isGuest, canManageProject, logout, refreshUser } = useAuth()
 const { projects, currentProjectId, loaded, loadProjects, switchProject } = useProject()
 const { confirm } = useDialog()
+const { theme, resolved, setTheme } = useTheme()
 
 const searchBoxRef = ref<InstanceType<typeof SearchBox>>()
 
 const showUserMenu = ref(false)
+const showThemeMenu = ref(false)
 const showMobileNav = ref(false)
 
 const navItems = [
@@ -68,8 +71,24 @@ async function handleLogout() {
   logout()
 }
 
+const themeOptions = [
+  { value: 'light' as const, label: '浅色', icon: 'i-lucide-sun' },
+  { value: 'dark' as const, label: '深色', icon: 'i-lucide-moon' },
+  { value: 'system' as const, label: '跟随系统', icon: 'i-lucide-monitor' },
+]
+
+function toggleThemeMenu() {
+  showThemeMenu.value = !showThemeMenu.value
+  showUserMenu.value = false
+}
+
+function closeThemeMenu() {
+  showThemeMenu.value = false
+}
+
 function toggleUserMenu() {
   showUserMenu.value = !showUserMenu.value
+  showThemeMenu.value = false
 }
 
 function closeUserMenu() {
@@ -104,12 +123,16 @@ function onNavClick(path: string) {
 // 点击外部关闭用户菜单
 function onDocumentClick(e: MouseEvent) {
   const target = e.target as HTMLElement
-  if (!target.closest('.user-menu-area')) {
+  if (!target.closest('.user-menu-area') && !target.closest('.theme-menu-area')) {
     showUserMenu.value = false
+    showThemeMenu.value = false
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  if (!user.value) {
+    await refreshUser()
+  }
   loadProjects()
   document.addEventListener('click', onDocumentClick)
 })
@@ -123,20 +146,20 @@ onUnmounted(() => {
   <div class="h-screen flex flex-col">
     <!-- 顶部导航 -->
     <header
-      class="flex items-center justify-between px-3 sm:px-4 lg:px-6 py-2 bg-white border-b border-gray-200 flex-shrink-0"
+      class="flex items-center justify-between px-3 sm:px-4 lg:px-6 py-2 bg-surface border-b border-default flex-shrink-0"
     >
       <!-- 左侧：Logo + 汉堡 + 标题 + 桌面导航按钮 -->
       <div class="flex items-center gap-1">
         <!-- 移动端汉堡按钮 -->
         <button
-          class="lg:hidden p-1.5 rounded hover:bg-gray-100 flex-shrink-0 flex items-center justify-center w-8 h-8"
+          class="lg:hidden p-1.5 rounded hover:bg-hover flex-shrink-0 flex items-center justify-center w-8 h-8"
           @click="toggleMobileNav"
         >
-          <span class="i-lucide-menu w-5 h-5 text-gray-600" />
+          <span class="i-lucide-menu w-5 h-5 text-secondary" />
         </button>
 
         <img src="/favicon.svg" alt="Logo" class="w-6 h-6 sm:mr-2 flex-shrink-0" />
-        <span class="hidden sm:inline text-sm font-semibold text-gray-400 mr-2 truncate"
+        <span class="hidden sm:inline text-sm font-semibold text-muted mr-2 truncate"
           >操作手册编写平台</span
         >
 
@@ -147,9 +170,9 @@ onUnmounted(() => {
             :key="item.path"
             class="px-3 py-1.5 rounded-md text-sm transition-colors"
             :class="
-              isActive(item.path) ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+              isActive(item.path) ? 'bg-active color-accent' : 'text-secondary hover:bg-hover'
             "
-            @click="router.push(item.path)"
+            @click="() => router.push(item.path)"
           >
             <span :class="item.icon" class="mr-1 w-4 h-4 inline-block align-middle" />{{
               item.label
@@ -157,15 +180,15 @@ onUnmounted(() => {
           </button>
           <!-- 项目设置：仅项目 pm+ 可见 -->
           <template v-if="canManageProject">
-            <span class="text-gray-200 mx-1">|</span>
+            <span class="text-muted mx-1">|</span>
             <button
               class="px-3 py-1.5 rounded-md text-sm transition-colors"
               :class="
                 route.path.startsWith('/settings/project')
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-100'
+                  ? 'bg-active color-accent'
+                  : 'text-secondary hover:bg-hover'
               "
-              @click="router.push('/settings/project')"
+              @click="() => router.push('/settings/project')"
             >
               <span class="i-lucide-settings mr-1 w-4 h-4 inline-block align-middle" />设置
             </button>
@@ -173,17 +196,54 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- 右侧：搜索 + 项目选择器 + 用户菜单 -->
+      <!-- 右侧：主题切换 + 搜索 + 项目选择器 + 用户菜单 -->
       <div class="flex items-center gap-1 sm:gap-2 lg:gap-3">
+        <!-- 主题切换 -->
+        <div class="relative theme-menu-area">
+          <button
+            class="p-1.5 rounded-md text-secondary hover:text-primary hover:bg-hover transition-colors"
+            title="切换主题"
+            @click="toggleThemeMenu"
+          >
+            <span v-if="resolved === 'dark'" class="i-lucide-moon w-4 h-4 block" />
+            <span v-else class="i-lucide-sun w-4 h-4 block" />
+          </button>
+
+          <!-- 主题下拉菜单 -->
+          <div
+            v-if="showThemeMenu"
+            class="absolute right-0 top-full mt-1 bg-surface border border-default rounded-md shadow-lg z-50 min-w-28 py-1"
+            @mousedown.prevent
+          >
+            <button
+              v-for="opt in themeOptions"
+              :key="opt.value"
+              class="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors"
+              :class="
+                theme === opt.value ? 'bg-active color-accent' : 'text-secondary hover:bg-hover'
+              "
+              @click="
+                () => {
+                  setTheme(opt.value)
+                  closeThemeMenu()
+                }
+              "
+            >
+              <span :class="opt.icon" class="w-4 h-4" />
+              {{ opt.label }}
+            </button>
+          </div>
+        </div>
+
         <!-- 搜索按钮 -->
         <button
           v-if="currentProjectId"
-          class="flex items-center gap-1 sm:gap-1.5 text-xs text-gray-400 hover:text-gray-600 bg-gray-50 hover:bg-gray-100 px-2 sm:px-2.5 py-1.5 rounded-md transition-colors"
+          class="flex items-center gap-1 sm:gap-1.5 text-xs text-muted hover:text-secondary bg-hover hover:bg-[var(--c-border)] px-2 sm:px-2.5 py-1.5 rounded-md transition-colors"
           @click="searchBoxRef?.open()"
         >
           <span class="i-lucide-search w-4 h-4" />
           <span class="hidden sm:inline">搜索</span>
-          <kbd class="hidden lg:inline text-xs text-gray-300 ml-0.5">Ctrl+K</kbd>
+          <kbd class="hidden lg:inline text-xs text-muted ml-0.5">Ctrl+K</kbd>
         </button>
 
         <!-- 项目选择器 -->
@@ -199,7 +259,7 @@ onUnmounted(() => {
         <!-- 用户头像下拉 -->
         <div class="relative user-menu-area">
           <button
-            class="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+            class="flex items-center gap-1.5 text-xs text-muted hover:text-secondary transition-colors"
             @click="toggleUserMenu"
           >
             <UserAvatar
@@ -208,7 +268,7 @@ onUnmounted(() => {
               size="sm"
             />
             <span class="hidden sm:inline">{{ user?.feishuName || user?.displayName }}</span>
-            <span class="hidden lg:inline text-gray-300">·</span>
+            <span class="hidden lg:inline text-muted">·</span>
             <span class="hidden lg:inline">{{ roleLabel(user?.role || '') }}</span>
             <span class="i-lucide-chevron-down w-3 h-3 hidden sm:inline" />
           </button>
@@ -216,12 +276,12 @@ onUnmounted(() => {
           <!-- 下拉菜单 -->
           <div
             v-if="showUserMenu"
-            class="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 min-w-32 py-1"
+            class="absolute right-0 top-full mt-1 bg-surface border border-default rounded-md shadow-lg z-50 min-w-32 py-1"
             @mousedown.prevent
           >
             <button
-              class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-              @click="goToProfile()"
+              class="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-hover flex items-center gap-2"
+              @click="goToProfile"
             >
               <span class="i-lucide-user w-4 h-4" />个人中心
             </button>
@@ -229,21 +289,21 @@ onUnmounted(() => {
               v-if="isAdmin"
               href="/docs/api"
               target="_blank"
-              class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 no-underline"
-              @click="closeUserMenu()"
+              class="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-hover flex items-center gap-2 no-underline"
+              @click="closeUserMenu"
             >
               <span class="i-lucide-file-code w-4 h-4" />API 文档
             </a>
             <button
               v-if="isAdmin"
-              class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-              @click="goToSettings()"
+              class="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-hover flex items-center gap-2"
+              @click="goToSettings"
             >
               <span class="i-lucide-shield w-4 h-4" />系统设置
             </button>
-            <div class="border-t border-gray-100 my-1" />
+            <div class="border-t border-light my-1" />
             <button
-              class="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 flex items-center gap-2"
+              class="w-full text-left px-4 py-2 text-sm color-danger hover:bg-danger flex items-center gap-2"
               @click="handleLogout"
             >
               <span class="i-lucide-log-out w-4 h-4" />退出登录
@@ -263,9 +323,9 @@ onUnmounted(() => {
         class="h-full flex items-center justify-center"
       >
         <div class="text-center">
-          <span class="i-lucide-folder-open text-5xl text-gray-300 mb-4 block mx-auto" />
-          <p class="text-gray-500 text-lg font-medium">您尚未加入任何项目</p>
-          <p class="text-gray-400 text-sm mt-1">请联系管理员将您添加到相关项目中</p>
+          <span class="i-lucide-folder-open text-5xl text-muted mb-4 block mx-auto" />
+          <p class="text-secondary text-lg font-medium">您尚未加入任何项目</p>
+          <p class="text-muted text-sm mt-1">请联系管理员将您添加到相关项目中</p>
         </div>
       </div>
       <slot v-else />
@@ -280,15 +340,15 @@ onUnmounted(() => {
         <div class="absolute inset-0 bg-black/40" @click="closeMobileNav" />
         <!-- Drawer 面板 -->
         <aside
-          class="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] bg-white shadow-xl flex flex-col drawer-panel"
+          class="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] bg-surface shadow-xl flex flex-col drawer-panel"
         >
-          <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-            <span class="font-semibold text-sm text-gray-700">菜单</span>
+          <div class="flex items-center justify-between px-4 py-3 border-b border-default">
+            <span class="font-semibold text-sm text-secondary">菜单</span>
             <button
-              class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100"
+              class="w-7 h-7 flex items-center justify-center rounded hover:bg-hover"
               @click="closeMobileNav"
             >
-              <span class="i-lucide-x w-5 h-5 text-gray-500" />
+              <span class="i-lucide-x w-5 h-5 text-secondary" />
             </button>
           </div>
 
@@ -300,10 +360,10 @@ onUnmounted(() => {
               class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors"
               :class="
                 isActive(item.path)
-                  ? 'bg-blue-50 text-blue-700 font-medium'
-                  : 'text-gray-600 hover:bg-gray-50'
+                  ? 'bg-active color-accent font-medium'
+                  : 'text-secondary hover:bg-hover'
               "
-              @click="onNavClick(item.path)"
+              @click="() => onNavClick(item.path)"
             >
               <span :class="item.icon" class="w-5 h-5 flex-shrink-0" />
               {{ item.label }}
@@ -311,20 +371,20 @@ onUnmounted(() => {
 
             <!-- 项目设置入口 -->
             <template v-if="canManageProject">
-              <div class="border-t border-gray-100 my-2" />
+              <div class="border-t border-light my-2" />
               <button
-                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                @click="onNavClick('/settings/project')"
+                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-secondary hover:bg-hover transition-colors"
+                @click="() => onNavClick('/settings/project')"
               >
                 <span class="i-lucide-settings w-5 h-5 flex-shrink-0" />项目设置
               </button>
             </template>
 
             <!-- 系统操作 -->
-            <div class="border-t border-gray-100 my-2" />
+            <div class="border-t border-light my-2" />
             <button
-              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-              @click="goToProfile()"
+              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-secondary hover:bg-hover transition-colors"
+              @click="goToProfile"
             >
               <span class="i-lucide-user w-5 h-5 flex-shrink-0" />个人中心
             </button>
@@ -332,20 +392,20 @@ onUnmounted(() => {
               v-if="isAdmin"
               href="/docs/api"
               target="_blank"
-              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors no-underline"
-              @click="closeMobileNav()"
+              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-secondary hover:bg-hover transition-colors no-underline"
+              @click="closeMobileNav"
             >
               <span class="i-lucide-file-code w-5 h-5 flex-shrink-0" />API 文档
             </a>
             <button
               v-if="isAdmin"
-              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-              @click="goToSettings()"
+              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-secondary hover:bg-hover transition-colors"
+              @click="goToSettings"
             >
               <span class="i-lucide-shield w-5 h-5 flex-shrink-0" />系统设置
             </button>
             <button
-              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-500 hover:bg-red-50 transition-colors"
+              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm color-danger hover:bg-danger transition-colors"
               @click="handleLogout"
             >
               <span class="i-lucide-log-out w-5 h-5 flex-shrink-0" />退出登录
@@ -365,10 +425,12 @@ onUnmounted(() => {
         <div
           v-for="t in toasts"
           :key="t.id"
-          class="flex items-start gap-3 bg-white rounded-lg shadow-lg border border-red-200 border-l-4 border-l-red-500 px-4 py-3 max-w-full sm:max-w-96"
+          class="flex items-start gap-3 bg-surface rounded-lg shadow-lg border border-[var(--c-danger)]/20 border-l-4 border-l-[var(--c-danger)] px-4 py-3 max-w-full sm:max-w-96"
         >
-          <span class="i-lucide-alert-circle w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-          <p class="text-sm text-gray-700 leading-relaxed">{{ t.message }}</p>
+          <span class="i-lucide-alert-circle w-5 h-5 color-danger shrink-0 mt-0.5" />
+          <p class="text-sm text-secondary leading-relaxed">
+            {{ t.message }}
+          </p>
         </div>
       </TransitionGroup>
     </div>

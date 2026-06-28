@@ -154,7 +154,7 @@ function initFeatureSectionSort() {
   featureSectionSortable = Sortable.create(featureSectionSortEl.value, {
     animation: 200,
     handle: '.drag-handle',
-    ghostClass: 'bg-blue-50',
+    ghostClass: 'bg-active',
     onEnd(evt) {
       if (evt.oldIndex !== undefined && evt.newIndex !== undefined) {
         const items = featureForm.value.sections
@@ -200,7 +200,7 @@ function initCategorySort() {
   Sortable.create(categorySortEl.value, {
     animation: 200,
     handle: '.cat-drag-handle',
-    ghostClass: 'bg-blue-50',
+    ghostClass: 'bg-active',
     onEnd: async (evt) => {
       if (evt.oldIndex === undefined || evt.newIndex === undefined) return
       const item = categories.value.splice(evt.oldIndex, 1)[0]
@@ -371,7 +371,7 @@ watch(currentProjectId, loadFeatures)
     <div class="flex-shrink-0 flex items-center justify-between mb-6 px-6 pt-6">
       <div>
         <h1 class="text-2xl font-bold">内容列表</h1>
-        <p class="text-sm text-gray-500 mt-1">内容管理与状态总览</p>
+        <p class="text-sm text-secondary mt-1">内容管理与状态总览</p>
       </div>
       <div class="flex items-center gap-3">
         <button
@@ -391,20 +391,20 @@ watch(currentProjectId, loadFeatures)
       <LoadingState v-if="loading" />
       <template v-else>
         <div v-for="(items, catId) in groupedFeatures" :key="catId" class="mb-8">
-          <h2 class="text-sm font-semibold text-gray-400 uppercase mb-3 flex items-center gap-2">
+          <h2 class="text-sm font-semibold text-muted uppercase mb-3 flex items-center gap-2">
             <span
               v-if="catId !== '__uncategorized__' && categoryInfo.has(catId)"
               class="w-2.5 h-2.5 rounded-full flex-shrink-0"
               :style="{ backgroundColor: categoryInfo.get(catId)!.color }"
             />
-            <span v-if="catId === '__uncategorized__'" class="text-gray-300">未分类</span>
+            <span v-if="catId === '__uncategorized__'" class="text-muted">未分类</span>
             <span v-else>{{ categoryInfo.get(catId)?.name || catId }}</span>
           </h2>
-          <div class="card divide-y divide-gray-100 p-0 overflow-hidden">
+          <div class="card divide-y divide-default p-0 overflow-hidden">
             <template v-for="f in items" :key="f.id">
               <div
-                class="flex items-center gap-3 px-6 py-4 hover:bg-gray-50 transition-colors group"
-                :class="expandedFeatureId === f.id ? 'bg-blue-50/50' : ''"
+                class="flex items-center gap-3 px-6 py-4 hover:bg-hover transition-colors group"
+                :class="expandedFeatureId === f.id ? 'bg-active/50' : ''"
                 :style="
                   catId !== '__uncategorized__'
                     ? { borderLeft: `3px solid ${categoryInfo.get(catId)?.color || 'transparent'}` }
@@ -413,45 +413,47 @@ watch(currentProjectId, loadFeatures)
               >
                 <!-- 展开按钮 -->
                 <button
-                  class="text-gray-300 hover:text-gray-500 flex-shrink-0 w-5 h-5 flex items-center justify-center rounded transition-colors"
-                  @click.stop="toggleExpand(f.id)"
+                  class="text-muted hover:text-secondary flex-shrink-0 w-5 h-5 flex items-center justify-center rounded transition-colors"
+                  @click.stop="() => toggleExpand(f.id)"
                 >
                   <span
                     class="i-lucide-chevron-right w-4 h-4 inline-block align-middle transition-transform duration-200"
                     :class="{ 'rotate-90': expandedFeatureId === f.id }"
                   />
                 </button>
-                <div class="flex-1 min-w-0 cursor-pointer" @click="openEditor(f.id)">
+                <div class="flex-1 min-w-0 cursor-pointer" @click="() => openEditor(f.id)">
                   <div class="flex items-center gap-2">
-                    <span class="font-medium text-gray-900">{{ f.title }}</span>
-                    <span class="text-xs text-gray-400 font-mono">{{ f.id }}</span>
+                    <span class="font-medium text-primary">{{ f.title }}</span>
+                    <span class="text-xs text-muted font-mono">{{ f.id }}</span>
                     <span
                       v-if="f.orphanedCount > 0"
-                      class="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5"
                       v-tooltip="`${f.orphanedCount} 个游离文档`"
+                      class="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5"
                       ><span class="i-lucide-alert-triangle w-3 h-3 inline-block align-middle" />{{
                         f.orphanedCount
                       }}</span
                     >
                   </div>
-                  <p class="text-sm text-gray-500 mt-0.5 truncate">{{ f.description }}</p>
+                  <p class="text-sm text-secondary mt-0.5 truncate">
+                    {{ f.description }}
+                  </p>
                 </div>
                 <div class="flex items-center gap-4 text-sm flex-shrink-0">
-                  <span class="text-xs text-gray-400"
+                  <span class="text-xs text-muted"
                     >{{ f.approvedSections ?? 0 }}/{{ f.totalSections ?? 0 }} 已审核</span
                   >
                   <StatusBadge :status="getOverallStatus(f)" variant="badge" />
                   <button
                     v-if="canManageProject"
-                    class="text-blue-400 hover:text-blue-600 text-sm"
-                    @click.stop="openEditDialog(f.id)"
+                    class="text-blue-400 hover:color-accent text-sm"
+                    @click.stop="() => openEditDialog(f.id)"
                   >
                     设置
                   </button>
                   <button
                     v-if="canManageProject"
-                    class="text-red-400 hover:text-red-600 text-sm"
-                    @click.stop="deleteCustomFeature(f.id)"
+                    class="text-red-400 hover:color-danger text-sm"
+                    @click.stop="() => deleteCustomFeature(f.id)"
                   >
                     <span class="i-lucide-x w-4 h-4 inline-block align-middle" />
                   </button>
@@ -460,30 +462,30 @@ watch(currentProjectId, loadFeatures)
               <!-- 展开的小节列表 -->
               <div
                 v-if="expandedFeatureId === f.id"
-                class="bg-gray-50 px-10 py-3 border-t border-gray-100"
+                class="bg-base px-10 py-3 border-t border-light"
               >
-                <div class="text-xs text-gray-400 mb-2">小节</div>
+                <div class="text-xs text-muted mb-2">小节</div>
                 <div class="space-y-1">
                   <div
                     v-for="sec in parseSections(f.sections)"
                     :key="sec.key"
-                    class="flex items-center gap-3 text-sm py-1.5 px-3 rounded hover:bg-white cursor-pointer transition-colors"
-                    @click="openEditor(f.id)"
+                    class="flex items-center gap-3 text-sm py-1.5 px-3 rounded hover:bg-surface cursor-pointer transition-colors"
+                    @click="() => openEditor(f.id)"
                   >
-                    <span class="text-gray-700">{{ sec.title }}</span>
+                    <span class="text-secondary">{{ sec.title }}</span>
                   </div>
                   <!-- 无显式小节但有默认小节文档 -->
                   <div
                     v-if="parseSections(f.sections).length === 0 && f.totalSections > 0"
-                    class="flex items-center gap-3 text-sm py-1.5 px-3 rounded hover:bg-white cursor-pointer transition-colors"
-                    @click="openEditor(f.id)"
+                    class="flex items-center gap-3 text-sm py-1.5 px-3 rounded hover:bg-surface cursor-pointer transition-colors"
+                    @click="() => openEditor(f.id)"
                   >
-                    <span class="text-gray-700">正文</span>
-                    <span class="text-xs text-gray-400">默认小节</span>
+                    <span class="text-secondary">正文</span>
+                    <span class="text-xs text-muted">默认小节</span>
                   </div>
                   <div
                     v-if="parseSections(f.sections).length === 0 && f.totalSections === 0"
-                    class="text-xs text-gray-400 py-2"
+                    class="text-xs text-muted py-2"
                   >
                     暂无小节
                   </div>
@@ -513,16 +515,16 @@ watch(currentProjectId, loadFeatures)
       class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center"
     >
       <div
-        class="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col"
+        class="bg-surface rounded-xl shadow-xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col"
       >
         <div
-          class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0"
+          class="px-6 py-4 border-b border-default flex items-center justify-between flex-shrink-0"
         >
           <h2 class="text-lg font-semibold">
             {{ featureDialogMode === 'create' ? '新建内容' : '内容设置' }}
           </h2>
           <button
-            class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100"
+            class="w-7 h-7 flex items-center justify-center rounded hover:bg-hover"
             @click="showFeatureDialog = false"
           >
             <span class="i-lucide-x w-4 h-4 inline-block align-middle" />
@@ -561,15 +563,15 @@ watch(currentProjectId, loadFeatures)
                 <div
                   v-for="(s, i) in featureForm.sections"
                   :key="s.key"
-                  class="flex items-center gap-2 text-sm bg-gray-50 px-3 py-1.5 rounded"
+                  class="flex items-center gap-2 text-sm bg-base px-3 py-1.5 rounded"
                 >
-                  <div class="drag-handle cursor-grab text-gray-300 hover:text-gray-500">
+                  <div class="drag-handle cursor-grab text-muted hover:text-secondary">
                     <span class="i-lucide-grip-vertical w-4 h-4 inline-block align-middle" />
                   </div>
-                  <span class="flex-1 text-gray-700">{{ s.title }}</span>
+                  <span class="flex-1 text-secondary">{{ s.title }}</span>
                   <button
-                    class="text-red-400 hover:text-red-600 text-xs p-1"
-                    @click="removeSection(i)"
+                    class="text-red-400 hover:color-danger text-xs p-1"
+                    @click="() => removeSection(i)"
                   >
                     <span class="i-lucide-x w-4 h-4 inline-block align-middle" />
                   </button>
@@ -586,11 +588,11 @@ watch(currentProjectId, loadFeatures)
                   添加
                 </button>
               </div>
-              <p class="text-xs text-gray-400 mt-1">拖拽可调整小节顺序，可留空使用默认小节</p>
+              <p class="text-xs text-muted mt-1">拖拽可调整小节顺序，可留空使用默认小节</p>
             </div>
           </div>
         </div>
-        <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3 flex-shrink-0">
+        <div class="px-6 py-4 border-t border-default flex justify-end gap-3 flex-shrink-0">
           <button class="btn-secondary" @click="showFeatureDialog = false">取消</button>
           <button class="btn-primary" @click="saveFeature">
             {{ featureDialogMode === 'create' ? '创建' : '保存' }}
@@ -604,13 +606,13 @@ watch(currentProjectId, loadFeatures)
       v-if="showCategoryDialog"
       class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center"
     >
-      <div class="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+      <div class="bg-surface rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
         <div
-          class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0"
+          class="px-6 py-4 border-b border-default flex items-center justify-between flex-shrink-0"
         >
           <h2 class="text-lg font-semibold">分类管理</h2>
           <button
-            class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100"
+            class="w-7 h-7 flex items-center justify-center rounded hover:bg-hover"
             @click="showCategoryDialog = false"
           >
             <span class="i-lucide-x w-4 h-4 inline-block align-middle" />
@@ -618,7 +620,7 @@ watch(currentProjectId, loadFeatures)
         </div>
         <div class="p-6 overflow-y-auto">
           <ErrorMessage :message="categoryError" class="mb-4" />
-          <div class="flex items-end gap-2 pb-4 border-b border-gray-100">
+          <div class="flex items-end gap-2 pb-4 border-b border-light">
             <FormField label="分类名称" class="flex-1">
               <input
                 v-model="newCategory.name"
@@ -640,23 +642,23 @@ watch(currentProjectId, loadFeatures)
             <div
               v-for="c in categories"
               :key="c.id"
-              class="flex items-center gap-3 py-2.5 px-2 rounded hover:bg-gray-50 transition-colors"
+              class="flex items-center gap-3 py-2.5 px-2 rounded hover:bg-hover transition-colors"
             >
               <div
-                class="cat-drag-handle cursor-grab text-gray-300 hover:text-gray-500 flex-shrink-0"
+                class="cat-drag-handle cursor-grab text-muted hover:text-secondary flex-shrink-0"
               >
                 <span class="i-lucide-grip-vertical w-4 h-4 inline-block align-middle" />
               </div>
               <span
                 class="w-3.5 h-3.5 rounded-full flex-shrink-0"
                 :style="{ backgroundColor: c.color }"
-              ></span>
+              />
               <div
                 v-if="editingCategory?.id !== c.id"
                 class="flex-1 flex items-center gap-2 min-w-0"
               >
                 <span class="font-medium text-sm truncate">{{ c.name }}</span>
-                <span class="text-xs text-gray-400 flex-shrink-0"
+                <span class="text-xs text-muted flex-shrink-0"
                   >{{ categoryFeatureCount.get(c.id) || 0 }} 个内容</span
                 >
               </div>
@@ -677,7 +679,7 @@ watch(currentProjectId, loadFeatures)
                     保存
                   </button>
                   <button
-                    class="text-gray-400 hover:text-gray-600 text-sm"
+                    class="text-muted hover:text-secondary text-sm"
                     @click="editingCategory = null"
                   >
                     取消
@@ -685,14 +687,14 @@ watch(currentProjectId, loadFeatures)
                 </template>
                 <template v-else>
                   <button
-                    class="text-blue-400 hover:text-blue-600 text-sm"
-                    @click="openEditCategory(c)"
+                    class="text-blue-400 hover:color-accent text-sm"
+                    @click="() => openEditCategory(c)"
                   >
                     编辑
                   </button>
                   <button
-                    class="text-red-400 hover:text-red-600 text-sm"
-                    @click="deleteCategory(c.id)"
+                    class="text-red-400 hover:color-danger text-sm"
+                    @click="() => deleteCategory(c.id)"
                   >
                     <span class="i-lucide-x w-4 h-4 inline-block align-middle" />
                   </button>
@@ -705,13 +707,13 @@ watch(currentProjectId, loadFeatures)
             title="暂无分类"
             description="点击上方添加按钮创建第一个分类"
           />
-          <p v-if="categories.length > 1" class="text-xs text-gray-400 mt-3">
+          <p v-if="categories.length > 1" class="text-xs text-muted mt-3">
             拖拽
             <span class="i-lucide-grip-vertical w-3 h-3 inline-block align-middle" />
             图标可调整分类排序
           </p>
         </div>
-        <div class="px-6 py-4 border-t border-gray-200 flex justify-end flex-shrink-0">
+        <div class="px-6 py-4 border-t border-default flex justify-end flex-shrink-0">
           <button class="btn-secondary" @click="showCategoryDialog = false">关闭</button>
         </div>
       </div>

@@ -4,51 +4,59 @@ import App from './App.vue'
 import { routes } from './router'
 import { getCurrentUser } from '@/api/endpoints/auth'
 import { getStoredUser } from '@/utils/storage'
+import {
+  isTokenValid,
+  setTokenValid,
+  resetTokenValidation,
+  currentUser,
+} from '@/utils/token-validation'
 import { vTooltip } from './directives/tooltip'
 import { ApiRequestError } from '@shared/types'
 import { showErrorToast } from '@/composables/toast'
 import '@unocss/reset/tailwind.css'
 import 'virtual:uno.css'
+import '@/styles/theme.css'
+
+// 主题初始化：在 Vue 挂载前设置 html class，防止页面闪烁
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+const storedTheme = localStorage.getItem('app_theme')
+if (storedTheme === 'light' || storedTheme === 'dark') {
+  document.documentElement.classList.toggle('dark', storedTheme === 'dark')
+} else {
+  // system 或无存储 → 跟随系统偏好
+  document.documentElement.classList.toggle('dark', prefersDark)
+}
 
 const router = createRouter({
   history: createWebHistory(),
   routes,
 })
 
-// Token 验证状态：app 生命周期内只验证一次（仅缓存成功结果）
-let tokenValidated = false
-let tokenValid = false
-
-/** 重置 token 验证缓存，登录成功后调用 */
-export function resetTokenValidation() {
-  tokenValidated = false
-  tokenValid = false
-}
+export { resetTokenValidation }
 
 async function validateToken(): Promise<boolean> {
   // 仅缓存成功结果；失败不缓存，允许在同一会话中重新登录后重试
-  if (tokenValidated && tokenValid) return true
+  if (isTokenValid()) return true
 
   const token = localStorage.getItem('auth_token')
   if (!token) {
     // 无 token 不视为"已验证"，允许后续登录后重试
-    tokenValidated = false
-    tokenValid = false
+    setTokenValid(false)
     return false
   }
 
   try {
     const { user } = await getCurrentUser()
     localStorage.setItem('auth_user', JSON.stringify(user))
-    tokenValidated = true
-    tokenValid = true
+    currentUser.value = user
+    setTokenValid(true)
     return true
   } catch {
     // API 返回 401 → token 无效，清除旧数据但不缓存失败结果
     // 不设 tokenValidated=true，允许用户重新登录后再次验证
     localStorage.removeItem('auth_token')
     localStorage.removeItem('auth_user')
-    tokenValid = false
+    setTokenValid(false)
     return false
   }
 }

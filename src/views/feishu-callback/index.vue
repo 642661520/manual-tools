@@ -81,26 +81,34 @@ async function handleBind(code: string) {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-50">
+  <div class="min-h-screen flex items-center justify-center bg-base">
     <div class="card w-96 text-center py-8">
       <!-- 加载中 -->
-      <div v-if="status === 'loading'" class="text-gray-400">
+      <div v-if="status === 'loading'" class="text-muted">
         <span class="i-lucide-loader-2 w-10 h-10 inline-block animate-spin mb-3" />
-        <p class="text-sm">{{ mode === 'login' ? '正在登录...' : '正在绑定飞书账号...' }}</p>
+        <p class="text-sm">
+          {{ mode === 'login' ? '正在登录...' : '正在绑定飞书账号...' }}
+        </p>
       </div>
 
       <!-- 成功 -->
       <div v-else-if="status === 'success'" class="text-green-600">
         <span class="i-lucide-check-circle w-12 h-12 inline-block mb-3" />
-        <p class="text-lg font-semibold">{{ successMsg }}</p>
+        <p class="text-lg font-semibold">
+          {{ successMsg }}
+        </p>
       </div>
 
       <!-- 失败 -->
       <div v-else class="text-red-500">
         <span class="i-lucide-x-circle w-12 h-12 inline-block mb-3" />
-        <p class="text-lg font-semibold mb-1">{{ mode === 'login' ? '登录失败' : '绑定失败' }}</p>
-        <p class="text-sm text-gray-500">{{ errorMsg }}</p>
-        <p class="text-xs text-gray-400 mt-3">
+        <p class="text-lg font-semibold mb-1">
+          {{ mode === 'login' ? '登录失败' : '绑定失败' }}
+        </p>
+        <p class="text-sm text-secondary">
+          {{ errorMsg }}
+        </p>
+        <p class="text-xs text-muted mt-3">
           {{ mode === 'login' ? '请返回登录页重试' : '请关闭此窗口，从个人中心重新发起绑定' }}
         </p>
       </div>

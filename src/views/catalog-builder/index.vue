@@ -65,7 +65,6 @@ type CatalogResponseNode = CatalogResponseFeature | CatalogResponsePart
 
 interface CatalogResponse {
   title: string
-  targets: string[]
   features: CatalogResponseNode[]
 }
 
@@ -84,9 +83,8 @@ const { canManageProject } = useAuth()
 const { confirm, dangerConfirm } = useDialog()
 const catalogId = computed(() => route.params.id as string)
 
-const catalog = ref<{ title: string; targets: string[]; entries: CatNode[] }>({
+const catalog = ref<{ title: string; entries: CatNode[] }>({
   title: '',
-  targets: [] as string[],
   entries: [] as CatNode[],
 })
 
@@ -263,12 +261,11 @@ async function loadData() {
     }
     catalog.value = {
       title: data.title,
-      targets: data.targets || [],
       entries: (data.features || []).map(parseNode),
     }
   } catch {
     // 无权访问或不存在，清空内容
-    catalog.value = { title: '', targets: [], entries: [] }
+    catalog.value = { title: '', entries: [] }
   }
   dirty.value = false
   await nextTick()
@@ -482,7 +479,6 @@ async function save() {
     }
     const payload = {
       title: catalog.value.title.trim(),
-      targets: catalog.value.targets,
       features: catalog.value.entries.map(serializeNode) as CatalogEntry[],
       cover: {},
       projectId: currentProjectId.value || undefined,
@@ -513,7 +509,7 @@ watch(catalogId, () => {
   })
 })
 
-function handleBeforeUnload(e: BeforeUnloadEvent) {
+function handleBeforeUnload(e: Event) {
   if (dirty.value) {
     e.preventDefault()
   }
@@ -590,7 +586,7 @@ function onPartDragEnter(e: DragEvent) {
   if (!el) return
   const count = Number(el.dataset.dragCount || '0') + 1
   el.dataset.dragCount = String(count)
-  el.classList.add('bg-indigo-50')
+  el.classList.add('bg-indigo-50', 'dark:bg-indigo-900/25')
 }
 
 function onPartDragLeave(e: DragEvent) {
@@ -598,14 +594,14 @@ function onPartDragLeave(e: DragEvent) {
   if (!el) return
   const count = Math.max(0, Number(el.dataset.dragCount || '1') - 1)
   el.dataset.dragCount = String(count)
-  if (count === 0) el.classList.remove('bg-indigo-50')
+  if (count === 0) el.classList.remove('bg-indigo-50', 'dark:bg-indigo-900/25')
 }
 
 function onPartDrop(e: DragEvent) {
   const el = (e.currentTarget as HTMLElement).closest('.part-drop-target') as HTMLElement | null
   if (el) {
     el.dataset.dragCount = '0'
-    el.classList.remove('bg-indigo-50')
+    el.classList.remove('bg-indigo-50', 'dark:bg-indigo-900/25')
   }
   const targetPartId = el?.dataset.partId
   if (!targetPartId) return
@@ -693,7 +689,7 @@ function initSort() {
     animation: 200,
     handle: '.drag-handle',
     filter: '.drop-zone-placeholder',
-    ghostClass: 'bg-blue-50',
+    ghostClass: 'bg-active',
     onEnd(evt) {
       if (evt.oldIndex === undefined || evt.newIndex === undefined) return
       const [moved] = catalog.value.entries.splice(evt.oldIndex, 1)
@@ -714,7 +710,7 @@ function initPartSorts() {
     Sortable.create(container, {
       animation: 200,
       handle: '.part-feat-drag',
-      ghostClass: 'bg-blue-50',
+      ghostClass: 'bg-active',
       onEnd(evt) {
         if (evt.oldIndex === undefined || evt.newIndex === undefined) return
         const node = catalog.value.entries.find((e) => isPart(e) && (e as CatPart).id === partId)
@@ -745,7 +741,7 @@ function initSectionSorts() {
     Sortable.create(area, {
       animation: 200,
       handle: '.section-drag-handle',
-      ghostClass: 'bg-blue-50',
+      ghostClass: 'bg-active',
       onEnd(evt) {
         if (evt.oldIndex === undefined || evt.newIndex === undefined) return
         // 用 featureId 查找 entry（避免索引移位）
@@ -804,20 +800,20 @@ watch(currentProjectId, () => {
     <PageHeader>
       <template #left>
         <button
-          class="text-sm text-gray-400 hover:text-gray-600 transition-colors flex items-center gap-1 flex-shrink-0"
-          @click="router.push('/manuals')"
+          class="text-sm text-muted hover:text-secondary transition-colors flex items-center gap-1 flex-shrink-0"
+          @click="() => router.push('/manuals')"
         >
           <span class="i-lucide-arrow-left w-4 h-4 inline-block align-middle" />
           返回手册列表
         </button>
-        <div class="w-px h-5 bg-gray-200" />
-        <span class="text-base font-semibold text-gray-800">{{
+        <div class="w-px h-5 bg-[var(--c-border)]" />
+        <span class="text-base font-semibold text-primary">{{
           catalog.title || '未命名手册'
         }}</span>
         <button
           v-if="canManageProject"
-          class="text-gray-300 hover:text-blue-500 transition-colors flex-shrink-0"
           v-tooltip="'编辑手册信息'"
+          class="text-muted hover:color-accent transition-colors flex-shrink-0"
           @click="showEditInfoModal = true"
         >
           <span class="i-lucide-pencil w-4 h-4 inline-block align-middle" />
@@ -835,8 +831,8 @@ watch(currentProjectId, () => {
         <ErrorMessage :message="saveError" />
         <span :class="{ invisible: !canManageProject }" class="inline-flex items-center gap-2">
           <button
-            class="btn-secondary text-sm text-red-400 hover:text-red-600"
-            @click="deleteCatalog(catalogId)"
+            class="btn-secondary text-sm text-red-400 hover:color-danger"
+            @click="() => deleteCatalog(catalogId)"
           >
             <span class="i-lucide-trash-2 w-4 h-4 inline-block align-middle" />
           </button>
@@ -851,7 +847,7 @@ watch(currentProjectId, () => {
       <!-- 左侧：可选内容（仅 PM 可编辑） -->
       <aside
         v-if="canManageProject"
-        class="w-72 border-r border-gray-200 bg-white flex-shrink-0 flex-col hidden md:flex"
+        class="w-72 border-r border-default bg-surface flex-shrink-0 flex-col hidden md:flex"
       >
         <div class="p-4 flex-shrink-0">
           <input v-model="searchQuery" class="input text-sm" placeholder="搜索内容..." />
@@ -860,38 +856,38 @@ watch(currentProjectId, () => {
         <div class="flex-1 overflow-y-auto px-4 pb-3">
           <template v-for="(items, catId) in grouped" :key="catId">
             <div
-              class="text-xs font-semibold text-gray-400 uppercase mb-2 mt-3 flex items-center gap-1.5 left-pool-header"
+              class="text-xs font-semibold text-muted uppercase mb-2 mt-3 flex items-center gap-1.5 left-pool-header"
             >
               <span
                 v-if="catId !== '__uncategorized__' && categoryInfo.has(catId)"
                 class="w-2 h-2 rounded-full flex-shrink-0"
                 :style="{ backgroundColor: categoryInfo.get(catId)!.color }"
               />
-              <span v-if="catId === '__uncategorized__'" class="text-gray-300">未分类</span>
+              <span v-if="catId === '__uncategorized__'" class="text-muted">未分类</span>
               <span v-else>{{ categoryInfo.get(catId)?.name || catId }}</span>
             </div>
             <div
               v-for="f in items"
               :key="f.id"
               :data-feature-id="f.id"
-              class="w-full text-left rounded-lg text-sm hover:bg-gray-50 transition-colors mb-1 flex items-center group"
+              class="w-full text-left rounded-lg text-sm hover:bg-hover transition-colors mb-1 flex items-center group"
             >
               <button
                 class="flex-1 flex items-center gap-2 px-3 py-2 cursor-grab"
                 draggable="true"
-                @click="addFeature(f)"
-                @dragstart="onPoolDragStart($event, f)"
+                @click="() => addFeature(f)"
+                @dragstart="(e) => onPoolDragStart(e, f)"
               >
-                <span class="flex-1 text-gray-700 text-left">{{ f.title }}</span>
-                <span v-if="f.totalSections" class="text-xs text-gray-400 flex-shrink-0">
+                <span class="flex-1 text-secondary text-left">{{ f.title }}</span>
+                <span v-if="f.totalSections" class="text-xs text-muted flex-shrink-0">
                   {{ f.approvedSections ?? 0 }}/{{ f.totalSections }}
                 </span>
               </button>
               <div v-if="catalog.entries.some((e) => isPart(e))" class="relative flex-shrink-0">
                 <button
-                  class="text-gray-300 hover:text-indigo-500 px-1 py-2 transition-colors"
                   v-tooltip="'添加到篇'"
-                  @click.stop="openPoolMoveMenu($event, f)"
+                  class="text-muted hover:text-indigo-500 px-1 py-2 transition-colors"
+                  @click.stop="(e) => openPoolMoveMenu(e, f)"
                 >
                   <span class="i-lucide-book-plus w-3.5 h-3.5 inline-block align-middle" />
                 </button>
@@ -909,17 +905,17 @@ watch(currentProjectId, () => {
           <div v-if="showPool && canManageProject" class="fixed inset-0 z-40 md:hidden">
             <div class="absolute inset-0 bg-black/30" @click="closePool" />
             <aside
-              class="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] bg-white shadow-xl flex flex-col"
+              class="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] bg-surface shadow-xl flex flex-col"
             >
               <div
-                class="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0"
+                class="flex items-center justify-between px-4 py-3 border-b border-default flex-shrink-0"
               >
-                <span class="text-sm font-semibold text-gray-700">内容池</span>
+                <span class="text-sm font-semibold text-secondary">内容池</span>
                 <button
-                  class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100"
+                  class="w-7 h-7 flex items-center justify-center rounded hover:bg-hover"
                   @click="closePool"
                 >
-                  <span class="i-lucide-x w-5 h-5 text-gray-500" />
+                  <span class="i-lucide-x w-5 h-5 text-secondary" />
                 </button>
               </div>
               <div class="p-4 flex-shrink-0">
@@ -927,36 +923,38 @@ watch(currentProjectId, () => {
                   v-model="searchQuery"
                   class="input text-sm"
                   placeholder="搜索内容..."
-                  @input="closePool()"
+                  @input="closePool"
                 />
               </div>
               <div class="flex-1 overflow-y-auto px-4 pb-3">
                 <template v-for="(items, catId) in grouped" :key="catId">
                   <div
-                    class="text-xs font-semibold text-gray-400 uppercase mb-2 mt-3 flex items-center gap-1.5"
+                    class="text-xs font-semibold text-muted uppercase mb-2 mt-3 flex items-center gap-1.5"
                   >
                     <span
                       v-if="catId !== '__uncategorized__' && categoryInfo.has(catId)"
                       class="w-2 h-2 rounded-full flex-shrink-0"
                       :style="{ backgroundColor: categoryInfo.get(catId)!.color }"
                     />
-                    <span v-if="catId === '__uncategorized__'" class="text-gray-300">未分类</span>
+                    <span v-if="catId === '__uncategorized__'" class="text-muted">未分类</span>
                     <span v-else>{{ categoryInfo.get(catId)?.name || catId }}</span>
                   </div>
                   <div
                     v-for="f in items"
                     :key="f.id"
-                    class="w-full text-left rounded-lg text-sm hover:bg-gray-50 transition-colors mb-1 flex items-center group"
+                    class="w-full text-left rounded-lg text-sm hover:bg-hover transition-colors mb-1 flex items-center group"
                   >
                     <button
                       class="flex-1 flex items-center gap-2 px-3 py-2"
                       @click="
-                        addFeature(f)
-                        closePool()
+                        () => {
+                          addFeature(f)
+                          closePool()
+                        }
                       "
                     >
-                      <span class="flex-1 text-gray-700 text-left">{{ f.title }}</span>
-                      <span v-if="f.totalSections" class="text-xs text-gray-400 flex-shrink-0">
+                      <span class="flex-1 text-secondary text-left">{{ f.title }}</span>
+                      <span v-if="f.totalSections" class="text-xs text-muted flex-shrink-0">
                         {{ f.approvedSections ?? 0 }}/{{ f.totalSections }}
                       </span>
                     </button>
@@ -970,11 +968,7 @@ watch(currentProjectId, () => {
       </Teleport>
 
       <!-- 右侧：已编排内容 -->
-      <main
-        class="flex-1 overflow-y-auto bg-gray-50 p-3 sm:p-6"
-        @dragover="onDragOver"
-        @drop="onDrop"
-      >
+      <main class="flex-1 overflow-y-auto bg-base p-3 sm:p-6" @dragover="onDragOver" @drop="onDrop">
         <!-- 移动端内容池按钮 -->
         <div v-if="canManageProject" class="mb-3 max-w-3xl flex items-center gap-2">
           <button
@@ -992,7 +986,7 @@ watch(currentProjectId, () => {
           <!-- 空状态 / 拖放目标区 -->
           <div
             v-if="catalog.entries.length === 0"
-            class="drop-zone-placeholder border-2 border-dashed border-gray-300 rounded-xl h-48 flex flex-col items-center justify-center text-gray-400 transition-colors hover:border-blue-400 hover:text-blue-400"
+            class="drop-zone-placeholder border-2 border-dashed border-input rounded-xl h-48 flex flex-col items-center justify-center text-muted transition-colors hover:border-[var(--c-accent)] hover:color-accent"
           >
             <span class="i-lucide-book-open text-3xl mb-3 opacity-40" />
             <span class="text-sm">从左侧拖入或点击内容添加到手册</span>
@@ -1005,18 +999,18 @@ watch(currentProjectId, () => {
             <!-- ====== Part 容器 ====== -->
             <div
               v-if="isPart(node)"
-              class="part-drop-target card !p-0 overflow-hidden border-l-4 border-indigo-300 transition-colors"
+              class="part-drop-target card !p-0 overflow-hidden border-l-4 border-indigo-300 dark:border-indigo-600 transition-colors"
               :data-part-index="ni"
               :data-part-id="node.id"
-              @dragenter.prevent="onPartDragEnter($event)"
-              @dragleave="onPartDragLeave($event)"
+              @dragenter.prevent="(e) => onPartDragEnter(e)"
+              @dragleave="(e) => onPartDragLeave(e)"
               @dragover.prevent
-              @drop.stop.prevent="onPartDrop($event)"
+              @drop.stop.prevent="(e) => onPartDrop(e)"
             >
-              <div class="flex items-center gap-3 px-4 py-3 bg-indigo-50/50">
+              <div class="flex items-center gap-3 px-4 py-3 bg-indigo-50 dark:bg-indigo-900/25">
                 <div
                   v-if="canManageProject"
-                  class="drag-handle cursor-grab text-gray-300 hover:text-gray-500"
+                  class="drag-handle cursor-grab text-muted hover:text-secondary"
                 >
                   <span class="i-lucide-grip-vertical w-4 h-4 inline-block align-middle" />
                 </div>
@@ -1025,18 +1019,16 @@ watch(currentProjectId, () => {
                 />
                 <input
                   v-model="node.title"
-                  class="flex-1 text-sm font-semibold bg-transparent border-none outline-none text-gray-800"
+                  class="flex-1 text-sm font-semibold bg-transparent border-none outline-none text-primary"
                   placeholder="篇名称"
                   @input="dirty = true"
                 />
-                <span class="text-xs text-gray-400 flex-shrink-0"
-                  >{{ node.features.length }} 章</span
-                >
+                <span class="text-xs text-muted flex-shrink-0">{{ node.features.length }} 章</span>
                 <button
                   v-if="canManageProject"
-                  class="text-red-400 hover:text-red-600 text-sm flex-shrink-0"
                   v-tooltip="'删除此篇（内容将提升到顶层）'"
-                  @click="removePart(ni)"
+                  class="text-red-400 hover:color-danger text-sm flex-shrink-0"
+                  @click="() => removePart(ni)"
                 >
                   <span class="i-lucide-trash-2 w-4 h-4 inline-block align-middle" />
                 </button>
@@ -1044,12 +1036,12 @@ watch(currentProjectId, () => {
 
               <!-- Part 内的 features（始终渲染以支持 SortableJS group 空容器拖入） -->
               <div
-                class="part-features-sort border-t border-gray-100"
+                class="part-features-sort border-t border-light"
                 :class="{ 'min-h-[40px]': node.features.length === 0 }"
               >
                 <div
                   v-if="node.features.length === 0"
-                  class="px-4 py-3 text-xs text-gray-400 text-center"
+                  class="px-4 py-3 text-xs text-muted text-center"
                 >
                   拖入左侧内容，或点击左侧内容的
                   <span
@@ -1061,40 +1053,39 @@ watch(currentProjectId, () => {
                   v-for="(fe, fi) in node.features"
                   :key="fe.feature.id"
                   :data-entry-id="fe.feature.id"
-                  class="border-b border-gray-50 last:border-b-0"
+                  class="border-b border-light last:border-b-0"
                   :class="{ 'highlight-new': highlightedId === fe.feature.id }"
                 >
                   <div
-                    class="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-50"
-                    @click="toggleExpand(ni * 10000 + fi)"
+                    class="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-hover"
+                    @click="() => toggleExpand(ni * 10000 + fi)"
                   >
                     <div
                       v-if="canManageProject"
-                      class="part-feat-drag cursor-grab text-gray-300 hover:text-gray-500 flex-shrink-0"
+                      class="part-feat-drag cursor-grab text-muted hover:text-secondary flex-shrink-0"
                     >
                       <span class="i-lucide-grip-vertical w-3.5 h-3.5 inline-block align-middle" />
                     </div>
-                    <span
-                      class="text-xs font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded"
-                      >{{ getGlobalFeatNum(ni, fi) }}</span
-                    >
+                    <span class="text-xs font-mono text-muted bg-hover px-1.5 py-0.5 rounded">{{
+                      getGlobalFeatNum(ni, fi)
+                    }}</span>
                     <span
                       :class="
                         expandedIndex === ni * 10000 + fi
                           ? 'i-lucide-chevron-down'
                           : 'i-lucide-chevron-right'
                       "
-                      class="w-3.5 h-3.5 text-gray-400 inline-block align-middle flex-shrink-0"
+                      class="w-3.5 h-3.5 text-muted inline-block align-middle flex-shrink-0"
                     />
                     <div class="flex-1 min-w-0">
-                      <span class="text-sm text-gray-800">{{ fe.feature.title }}</span>
+                      <span class="text-sm text-primary">{{ fe.feature.title }}</span>
                       <span
                         v-if="fe.feature.totalSections"
                         class="text-xs ml-1.5"
                         :class="
                           (fe.feature.approvedSections ?? 0) === (fe.feature.totalSections ?? 0)
                             ? 'text-green-500'
-                            : 'text-gray-400'
+                            : 'text-muted'
                         "
                       >
                         ✓{{ fe.feature.approvedSections ?? 0 }}/{{ fe.feature.totalSections }}
@@ -1102,9 +1093,9 @@ watch(currentProjectId, () => {
                     </div>
                     <button
                       v-if="canManageProject"
-                      class="text-gray-300 hover:text-red-500 text-xs"
                       v-tooltip="'移出此篇'"
-                      @click.stop="removeFeatureFromPart(ni, fi)"
+                      class="text-muted hover:color-danger text-xs"
+                      @click.stop="() => removeFeatureFromPart(ni, fi)"
                     >
                       <span class="i-lucide-log-out w-3.5 h-3.5 inline-block align-middle" />
                     </button>
@@ -1113,34 +1104,34 @@ watch(currentProjectId, () => {
                   <!-- 展开的 section 排序 -->
                   <div
                     v-if="expandedIndex === ni * 10000 + fi"
-                    class="border-t border-gray-100 bg-gray-50 px-4 py-2"
+                    class="border-t border-light bg-base px-4 py-2"
                   >
-                    <div v-if="canManageProject" class="text-xs text-gray-400 mb-2">
+                    <div v-if="canManageProject" class="text-xs text-muted mb-2">
                       小节排序（拖拽调整，点击 × 移除）
                     </div>
                     <div class="section-sort-area space-y-1" :data-feature-id="fe.feature.id">
                       <div
                         v-for="(sec, si) in getOrderedSections(fe)"
                         :key="sec.key"
-                        class="flex items-center gap-2 text-sm bg-white px-3 py-1.5 rounded border border-gray-100 group"
+                        class="flex items-center gap-2 text-sm bg-surface px-3 py-1.5 rounded border border-light group"
                       >
                         <div
                           v-if="canManageProject"
-                          class="section-drag-handle cursor-grab text-gray-300 hover:text-gray-500"
+                          class="section-drag-handle cursor-grab text-muted hover:text-secondary"
                         >
                           <span
                             class="i-lucide-grip-vertical w-3.5 h-3.5 inline-block align-middle"
                           />
                         </div>
-                        <span class="text-gray-400 font-mono text-xs"
+                        <span class="text-muted font-mono text-xs"
                           >{{ getGlobalFeatNum(ni, fi) }}.{{ si + 1 }}</span
                         >
-                        <span class="text-gray-700 flex-1">{{ sec.title }}</span>
+                        <span class="text-secondary flex-1">{{ sec.title }}</span>
                         <button
                           v-if="canManageProject"
-                          class="text-red-400 hover:text-red-600"
                           v-tooltip="'移除此小节'"
-                          @click.stop="removeSectionInPart(ni, fi, sec.key)"
+                          class="text-red-400 hover:color-danger"
+                          @click.stop="() => removeSectionInPart(ni, fi, sec.key)"
                         >
                           <span class="i-lucide-x w-3.5 h-3.5 inline-block align-middle" />
                         </button>
@@ -1148,19 +1139,19 @@ watch(currentProjectId, () => {
                     </div>
                     <!-- 已移除的小节 -->
                     <div v-if="getRemovedSections(fe).length > 0" class="mt-2">
-                      <div class="text-xs text-gray-400 mb-1">已移除的小节</div>
+                      <div class="text-xs text-muted mb-1">已移除的小节</div>
                       <div class="space-y-1">
                         <div
                           v-for="sec in getRemovedSections(fe)"
                           :key="sec.key"
-                          class="flex items-center gap-2 text-sm bg-gray-100 px-3 py-1.5 rounded border border-dashed border-gray-200"
+                          class="flex items-center gap-2 text-sm bg-hover px-3 py-1.5 rounded border border-dashed border-default"
                         >
-                          <span class="text-gray-300 font-mono text-xs">—</span>
-                          <span class="text-gray-400 flex-1">{{ sec.title }}</span>
+                          <span class="text-muted font-mono text-xs">—</span>
+                          <span class="text-muted flex-1">{{ sec.title }}</span>
                           <button
-                            class="text-green-500 hover:text-green-600"
                             v-tooltip="'恢复此小节'"
-                            @click.stop="restoreSectionInPart(ni, fi, sec.key)"
+                            class="text-green-500 hover:text-green-600"
+                            @click.stop="() => restoreSectionInPart(ni, fi, sec.key)"
                           >
                             <span class="i-lucide-undo-2 w-3.5 h-3.5 inline-block align-middle" />
                           </button>
@@ -1181,23 +1172,23 @@ watch(currentProjectId, () => {
             >
               <div
                 class="flex items-center gap-3 px-4 py-3 cursor-pointer"
-                @click="toggleExpand(ni)"
+                @click="() => toggleExpand(ni)"
               >
                 <div
                   v-if="canManageProject"
-                  class="drag-handle cursor-grab text-gray-300 hover:text-gray-500 flex-shrink-0"
+                  class="drag-handle cursor-grab text-muted hover:text-secondary flex-shrink-0"
                 >
                   <span class="i-lucide-grip-vertical w-4 h-4 inline-block align-middle" />
                 </div>
-                <span class="text-sm font-mono text-gray-400 bg-gray-100 px-2 py-0.5 rounded">{{
+                <span class="text-sm font-mono text-muted bg-hover px-2 py-0.5 rounded">{{
                   getGlobalFeatNum(ni)
                 }}</span>
                 <span
                   :class="expandedIndex === ni ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
-                  class="w-4 h-4 text-gray-400 inline-block align-middle flex-shrink-0"
+                  class="w-4 h-4 text-muted inline-block align-middle flex-shrink-0"
                 />
                 <div class="flex-1 min-w-0">
-                  <div class="font-medium text-gray-900 text-sm flex items-center gap-2">
+                  <div class="font-medium text-primary text-sm flex items-center gap-2">
                     {{ node.feature.title }}
                     <span
                       v-if="node.feature.totalSections"
@@ -1205,7 +1196,7 @@ watch(currentProjectId, () => {
                       :class="
                         (node.feature.approvedSections ?? 0) === (node.feature.totalSections ?? 0)
                           ? 'text-green-500'
-                          : 'text-gray-400'
+                          : 'text-muted'
                       "
                     >
                       ✓{{ node.feature.approvedSections ?? 0 }}/{{ node.feature.totalSections }}
@@ -1227,21 +1218,18 @@ watch(currentProjectId, () => {
                       {{ categoryInfo.get(node.feature.categoryId)!.name }}
                     </span>
                   </div>
-                  <div
-                    v-if="node.feature.description"
-                    class="text-xs text-gray-400 truncate mt-0.5"
-                  >
+                  <div v-if="node.feature.description" class="text-xs text-muted truncate mt-0.5">
                     {{ node.feature.description }}
                   </div>
                 </div>
                 <div
-                  class="relative"
                   v-if="canManageProject && catalog.entries.some((e) => isPart(e))"
+                  class="relative"
                 >
                   <button
-                    class="text-gray-300 hover:text-indigo-500 text-xs px-1.5 py-1 rounded"
                     v-tooltip="'移至篇'"
-                    @click.stop="openMoveMenu($event, node.feature.id)"
+                    class="text-muted hover:text-indigo-500 text-xs px-1.5 py-1 rounded"
+                    @click.stop="(e) => openMoveMenu(e, node.feature.id)"
                   >
                     <span class="i-lucide-log-in w-3.5 h-3.5 inline-block align-middle" />
                   </button>
@@ -1252,17 +1240,17 @@ watch(currentProjectId, () => {
                       @click="movingFeatureId = null"
                     >
                       <div
-                        class="absolute bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[160px]"
+                        class="absolute bg-surface border border-default rounded-lg shadow-lg py-1 min-w-[160px]"
                         :style="{ top: `${moveMenuY}px`, left: `${moveMenuX}px` }"
                         @click.stop
                       >
-                        <div class="text-xs text-gray-400 px-3 py-1">移至篇：</div>
+                        <div class="text-xs text-muted px-3 py-1">移至篇：</div>
                         <button
-                          v-for="(en, eni) in catalog.entries"
-                          :key="isPart(en) ? en.id : ''"
+                          v-for="en in catalog.entries"
                           v-show="isPart(en)"
-                          class="w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 flex items-center gap-2"
-                          @click.stop="handleMoveToPart(node.feature.id, getPartId(en))"
+                          :key="isPart(en) ? en.id : ''"
+                          class="w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/25 flex items-center gap-2"
+                          @click.stop="() => handleMoveToPart(node.feature.id, getPartId(en))"
                         >
                           <span
                             class="i-lucide-book-open w-3.5 h-3.5 inline-block align-middle text-indigo-400"
@@ -1275,42 +1263,39 @@ watch(currentProjectId, () => {
                 </div>
                 <button
                   v-if="canManageProject"
-                  class="text-red-400 hover:text-red-600 text-sm"
-                  @click.stop="removeFeature(ni)"
+                  class="text-red-400 hover:color-danger text-sm"
+                  @click.stop="() => removeFeature(ni)"
                 >
                   <span class="i-lucide-x w-4 h-4 inline-block align-middle" />
                 </button>
               </div>
 
               <!-- 展开的 section 排序 -->
-              <div
-                v-if="expandedIndex === ni"
-                class="border-t border-gray-100 bg-gray-50 px-4 py-2"
-              >
-                <div v-if="canManageProject" class="text-xs text-gray-400 mb-2">
+              <div v-if="expandedIndex === ni" class="border-t border-light bg-base px-4 py-2">
+                <div v-if="canManageProject" class="text-xs text-muted mb-2">
                   小节排序（拖拽调整，点击 × 移除）
                 </div>
                 <div class="section-sort-area space-y-1" :data-feature-id="node.feature.id">
                   <div
                     v-for="(sec, si) in getOrderedSections(node)"
                     :key="sec.key"
-                    class="flex items-center gap-2 text-sm bg-white px-3 py-1.5 rounded border border-gray-100 group"
+                    class="flex items-center gap-2 text-sm bg-surface px-3 py-1.5 rounded border border-light group"
                   >
                     <div
                       v-if="canManageProject"
-                      class="section-drag-handle cursor-grab text-gray-300 hover:text-gray-500"
+                      class="section-drag-handle cursor-grab text-muted hover:text-secondary"
                     >
                       <span class="i-lucide-grip-vertical w-3.5 h-3.5 inline-block align-middle" />
                     </div>
-                    <span class="text-gray-400 font-mono text-xs"
+                    <span class="text-muted font-mono text-xs"
                       >{{ getGlobalFeatNum(ni) }}.{{ si + 1 }}</span
                     >
-                    <span class="text-gray-700 flex-1">{{ sec.title }}</span>
+                    <span class="text-secondary flex-1">{{ sec.title }}</span>
                     <button
                       v-if="canManageProject"
-                      class="text-red-400 hover:text-red-600"
                       v-tooltip="'移除此小节'"
-                      @click.stop="removeSection(ni, sec.key)"
+                      class="text-red-400 hover:color-danger"
+                      @click.stop="() => removeSection(ni, sec.key)"
                     >
                       <span class="i-lucide-x w-3.5 h-3.5 inline-block align-middle" />
                     </button>
@@ -1318,19 +1303,19 @@ watch(currentProjectId, () => {
                 </div>
                 <!-- 已移除的小节 -->
                 <div v-if="getRemovedSections(node).length > 0" class="mt-2">
-                  <div class="text-xs text-gray-400 mb-1">已移除的小节</div>
+                  <div class="text-xs text-muted mb-1">已移除的小节</div>
                   <div class="space-y-1">
                     <div
                       v-for="sec in getRemovedSections(node)"
                       :key="sec.key"
-                      class="flex items-center gap-2 text-sm bg-gray-100 px-3 py-1.5 rounded border border-dashed border-gray-200"
+                      class="flex items-center gap-2 text-sm bg-hover px-3 py-1.5 rounded border border-dashed border-default"
                     >
-                      <span class="text-gray-300 font-mono text-xs">—</span>
-                      <span class="text-gray-400 flex-1">{{ sec.title }}</span>
+                      <span class="text-muted font-mono text-xs">—</span>
+                      <span class="text-muted flex-1">{{ sec.title }}</span>
                       <button
-                        class="text-green-500 hover:text-green-600"
                         v-tooltip="'恢复此小节'"
-                        @click.stop="restoreSection(ni, sec.key)"
+                        class="text-green-500 hover:text-green-600"
+                        @click.stop="() => restoreSection(ni, sec.key)"
                       >
                         <span class="i-lucide-undo-2 w-3.5 h-3.5 inline-block align-middle" />
                       </button>
@@ -1358,17 +1343,17 @@ watch(currentProjectId, () => {
   <Teleport to="body">
     <div v-if="movingPoolFeature" class="fixed inset-0 z-40" @click="movingPoolFeature = null">
       <div
-        class="absolute bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[160px]"
+        class="absolute bg-surface border border-default rounded-lg shadow-lg py-1 min-w-[160px]"
         :style="{ top: `${poolMenuY}px`, left: `${poolMenuX}px` }"
         @click.stop
       >
-        <div class="text-xs text-gray-400 px-3 py-1">添加到篇：</div>
+        <div class="text-xs text-muted px-3 py-1">添加到篇：</div>
         <button
-          v-for="(en, eni) in catalog.entries"
-          :key="isPart(en) ? en.id : ''"
+          v-for="en in catalog.entries"
           v-show="isPart(en)"
-          class="w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 flex items-center gap-2"
-          @click.stop="handleAddToPart(getPartId(en), movingPoolFeature)"
+          :key="isPart(en) ? en.id : ''"
+          class="w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/25 flex items-center gap-2"
+          @click.stop="() => handleAddToPart(getPartId(en), movingPoolFeature)"
         >
           <span class="i-lucide-folder w-3.5 h-3.5 inline-block align-middle text-indigo-400" />
           {{ (en as CatPart).title || '未命名篇' }}
@@ -1399,7 +1384,7 @@ watch(currentProjectId, () => {
 
 @keyframes highlight-fade {
   from {
-    background-color: #eff6ff;
+    background-color: var(--c-accent-bg);
   }
   to {
     background-color: transparent;

@@ -136,9 +136,9 @@ onUnmounted(() => {
   <div class="relative inline-flex">
     <button
       ref="triggerRef"
-      class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
-      :class="{ 'bg-gray-200': isOpen }"
       v-tooltip="'插入表格'"
+      class="w-8 h-8 flex items-center justify-center rounded hover:bg-hover text-sm"
+      :class="{ 'bg-[var(--c-border)]': isOpen }"
       @click="toggle"
       @keydown="onTriggerKeydown"
     >
@@ -150,17 +150,17 @@ onUnmounted(() => {
         <div
           v-if="isOpen"
           ref="popupRef"
-          class="fixed z-[9999] bg-white rounded-xl shadow-lg border border-gray-200 p-3 select-none"
+          class="fixed z-[9999] bg-surface rounded-xl shadow-lg border border-default p-3 select-none"
           :style="popupStyle"
           @keydown="onPopupKeydown"
         >
-          <div class="text-xs text-gray-400 text-center mb-2 leading-none">
-            插入表格：<span class="text-gray-700 font-medium"
+          <div class="text-xs text-muted text-center mb-2 leading-none">
+            插入表格：<span class="text-secondary font-medium"
               >{{ displayRows() }} × {{ displayCols() }}</span
             >
           </div>
           <div
-            class="grid gap-px bg-gray-200 rounded overflow-hidden"
+            class="grid gap-px bg-[var(--c-border)] rounded overflow-hidden"
             :style="{ gridTemplateColumns: `repeat(${MAX_COLS}, 1.25rem)` }"
             @mouseleave="onGridLeave"
           >
@@ -169,9 +169,9 @@ onUnmounted(() => {
                 v-for="c in MAX_COLS"
                 :key="`${r}-${c}`"
                 class="w-5 h-5 cursor-pointer transition-colors duration-75"
-                :class="r <= hoverRow && c <= hoverCol ? 'bg-blue-500' : 'bg-white'"
-                @mouseenter="onHover(r, c)"
-                @click="insert(r, c)"
+                :class="r <= hoverRow && c <= hoverCol ? 'bg-blue-500' : 'bg-surface'"
+                @mouseenter="() => onHover(r, c)"
+                @click="() => insert(r, c)"
               />
             </template>
           </div>

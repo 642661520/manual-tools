@@ -25,7 +25,7 @@ const sizeClasses: Record<string, { outer: string; text: string }> = {
     v-else
     :class="[
       sizeClasses[size || 'md'].outer,
-      'rounded-full bg-blue-100 flex items-center justify-center text-blue-500 font-semibold flex-shrink-0',
+      'rounded-full bg-active flex items-center justify-center color-accent font-semibold flex-shrink-0',
     ]"
     >{{ (name || '?')[0] }}</span
   >

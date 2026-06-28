@@ -54,10 +54,10 @@ async function feishuLogin() {
 
 <template>
   <div
-    class="min-h-screen flex items-center justify-center bg-gradient-to-b from-blue-50/60 via-white to-slate-50 px-4 relative overflow-hidden"
+    class="min-h-screen flex items-center justify-center bg-gradient-to-b from-blue-50/60 via-white to-slate-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 px-4 relative overflow-hidden"
   >
     <!-- 浮动光斑 -->
-    <div class="absolute inset-0 z-0 pointer-events-none" aria-hidden="true">
+    <div class="absolute inset-0 z-0 pointer-events-none hidden dark:hidden" aria-hidden="true">
       <div
         class="absolute w-[600px] h-[600px] rounded-full bg-gradient-to-br from-blue-300/40 via-sky-200/25 to-transparent blur-3xl float-slow"
         style="top: -15%; left: -10%"
@@ -68,21 +68,21 @@ async function feishuLogin() {
       />
     </div>
 
-    <!-- 卡片后方柔光 -->
+    <!-- 卡片后方柔光（暗色模式下隐藏） -->
     <div
-      class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[400px] rounded-full bg-gradient-to-tr from-blue-100/60 via-blue-50/30 to-transparent blur-3xl z-0 pointer-events-none"
+      class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[400px] rounded-full bg-gradient-to-tr from-blue-100/60 via-blue-50/30 to-transparent blur-3xl z-0 pointer-events-none hidden dark:hidden"
     />
 
     <!-- 卡片 -->
     <div class="relative z-10 w-96 max-w-full">
-      <div class="card !border-slate-200/80 !shadow-lg !shadow-slate-200/50 p-8">
+      <div class="card !shadow-lg p-8">
         <div class="text-center mb-6">
           <img src="/favicon.svg" alt="Logo" class="w-14 h-14 mx-auto mb-3" />
-          <h1 class="text-2xl font-bold text-gray-900">操作手册编写平台</h1>
-          <p class="text-sm text-gray-500 mt-1">请登录系统</p>
+          <h1 class="text-2xl font-bold text-primary">操作手册编写平台</h1>
+          <p class="text-sm text-secondary mt-1">请登录系统</p>
         </div>
 
-        <form @submit.prevent="handleLogin" class="space-y-3">
+        <form class="space-y-3" @submit.prevent="handleLogin">
           <ErrorMessage :message="error" />
 
           <FormField label="用户名">
@@ -106,10 +106,10 @@ async function feishuLogin() {
 
         <div class="relative my-3">
           <div class="absolute inset-0 flex items-center">
-            <div class="w-full border-t border-gray-200" />
+            <div class="w-full border-t border-default" />
           </div>
           <div class="relative flex justify-center text-xs">
-            <span class="bg-white px-2 text-gray-400">或</span>
+            <span class="bg-surface px-2 text-muted">或</span>
           </div>
         </div>
 

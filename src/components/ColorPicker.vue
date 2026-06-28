@@ -33,17 +33,16 @@ function onInput(e: Event) {
     />
     <!-- 自定义色块触发器 -->
     <button
-      type="button"
-      class="h-[42px] w-[42px] rounded-lg border-2 border-gray-200 cursor-pointer shadow-sm transition-all hover:scale-105 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 flex-shrink-0 box-border"
-      :style="{ backgroundColor: modelValue }"
       v-tooltip="modelValue"
+      class="h-[42px] w-[42px] rounded-lg border-2 border-default cursor-pointer shadow-sm transition-all hover:scale-105 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[var(--c-accent)] focus:ring-offset-1 flex-shrink-0 box-border"
+      :style="{ backgroundColor: modelValue }"
       @click="openPicker"
     />
     <!-- 十六进制值 -->
     <input
       type="text"
       :value="modelValue"
-      class="w-20 h-[42px] px-3 py-2 text-sm font-mono border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent box-border"
+      class="w-20 h-[42px] px-3 py-2 text-sm font-mono border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--c-accent)] focus:border-transparent box-border bg-surface text-primary placeholder:text-muted"
       maxlength="7"
       placeholder="#6366f1"
       @input="(e: Event) => emit('update:modelValue', (e.target as HTMLInputElement).value)"

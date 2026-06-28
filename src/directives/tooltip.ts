@@ -28,8 +28,8 @@ function createTooltipEl(): HTMLDivElement {
     'position: fixed',
     'z-index: 99999',
     'pointer-events: none',
-    'background: #1f2937',
-    'color: #fff',
+    'background: var(--c-tooltip-bg)',
+    'color: var(--c-tooltip-text)',
     'font-size: 12px',
     'line-height: 1.4',
     'padding: 4px 8px',
@@ -54,8 +54,8 @@ function createArrow(placement: 'top' | 'bottom'): HTMLDivElement {
     'border-left: 6px solid transparent',
     'border-right: 6px solid transparent',
     placement === 'top'
-      ? 'top: 100%; border-top: 6px solid #1f2937'
-      : 'bottom: 100%; border-bottom: 6px solid #1f2937',
+      ? 'top: 100%; border-top: 6px solid var(--c-tooltip-bg)'
+      : 'bottom: 100%; border-bottom: 6px solid var(--c-tooltip-bg)',
   ].join(';')
   return arrow
 }
@@ -70,8 +70,8 @@ function updateArrow(arrow: HTMLDivElement, placement: 'top' | 'bottom'): void {
     'border-left: 6px solid transparent',
     'border-right: 6px solid transparent',
     placement === 'top'
-      ? 'top: 100%; border-top: 6px solid #1f2937'
-      : 'bottom: 100%; border-bottom: 6px solid #1f2937',
+      ? 'top: 100%; border-top: 6px solid var(--c-tooltip-bg)'
+      : 'bottom: 100%; border-bottom: 6px solid var(--c-tooltip-bg)',
   ].join(';')
 }
 

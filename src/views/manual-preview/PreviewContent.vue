@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { getChapter, getVersionChapter } from '@/api/endpoints/catalogs'
-import type { ChapterResponse, CatalogEntry } from '@shared/types'
+import type { ChapterResponse } from '@shared/types'
 import type { SidebarNode, SidebarChapter, SidebarPart } from '@/composables/useSidebarTree'
 import { getTitleHash, getCoverColors } from '@/composables/useCoverColors'
 import { renderMarkdown } from '@/utils/markdown'
@@ -30,7 +30,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  navigate: [chNum: number, anchorId?: string]
+  navigate: [payload: { chNum: number; anchorId?: string }]
 }>()
 
 const loading = ref(false)
@@ -100,7 +100,7 @@ function onContentClick(e: MouseEvent) {
   if (targetCh === props.chNum) return
   e.preventDefault()
   const anchorId = match[2] ? `ch${targetCh}-s${match[2]}` : undefined
-  emit('navigate', targetCh, anchorId)
+  emit('navigate', { chNum: targetCh, anchorId })
 }
 
 function isCoverPart(node: SidebarNode): node is SidebarPart {
@@ -309,23 +309,23 @@ onUnmounted(() => {
         </div>
 
         <!-- 变更记录 -->
-        <div v-if="changelog.length > 0" class="bg-white rounded-xl shadow-sm p-8 mb-6">
+        <div v-if="changelog.length > 0" class="bg-surface rounded-xl shadow-sm p-8 mb-6">
           <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
-            <span class="i-lucide-history w-4 h-4 text-blue-500" />
+            <span class="i-lucide-history w-4 h-4 color-accent" />
             变更记录
           </h2>
           <div class="space-y-1 text-sm">
             <div
               v-for="v in changelog"
               :key="v.id"
-              class="flex items-center gap-2 py-1 cursor-pointer hover:text-blue-600"
-              :class="v.id === selectedVersionId ? 'text-blue-600' : 'text-gray-600'"
-              @click="onSelectVersion(v.id)"
+              class="flex items-center gap-2 py-1 cursor-pointer hover:color-accent"
+              :class="v.id === selectedVersionId ? 'color-accent' : 'text-secondary'"
+              @click="() => onSelectVersion(v.id)"
             >
-              <span class="font-mono text-gray-400 flex-shrink-0"
+              <span class="font-mono text-muted flex-shrink-0"
                 >v{{ v.versionMajor }}.{{ v.versionMinor }}</span
               >
-              <span class="text-gray-300 flex-shrink-0">{{ v.createdAt.slice(0, 10) }}</span>
+              <span class="text-muted flex-shrink-0">{{ v.createdAt.slice(0, 10) }}</span>
               <span>{{ v.changeNotes || '（无变更说明）' }}</span>
               <span
                 v-if="v.publishScope === 'all'"
@@ -338,31 +338,31 @@ onUnmounted(() => {
         </div>
 
         <!-- 目录 -->
-        <div class="bg-white rounded-xl shadow-sm p-8">
+        <div class="bg-surface rounded-xl shadow-sm p-8">
           <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
-            <span class="i-lucide-list-tree w-4 h-4 text-blue-500" />
+            <span class="i-lucide-list-tree w-4 h-4 color-accent" />
             目录
           </h2>
           <div class="text-sm">
             <template v-for="node in tree" :key="isCoverPart(node) ? node.id : node.featureId">
               <template v-if="isCoverPart(node)">
-                <div class="font-semibold text-gray-700 mt-3 mb-1">
+                <div class="font-semibold text-secondary mt-3 mb-1">
                   {{ (node as SidebarPart).title }}
                 </div>
                 <div v-for="ch in (node as SidebarPart).children" :key="ch.featureId" class="pl-4">
                   <div
-                    class="py-0.5 cursor-pointer hover:text-blue-600 text-gray-700"
-                    @click="emit('navigate', ch.chNum)"
+                    class="py-0.5 cursor-pointer hover:color-accent text-secondary"
+                    @click="() => emit('navigate', { chNum: ch.chNum })"
                   >
-                    <span class="font-mono text-gray-400 mr-2">{{ ch.chNum }}</span>
+                    <span class="font-mono text-muted mr-2">{{ ch.chNum }}</span>
                     <span>{{ ch.title }}</span>
                   </div>
                   <template v-if="!ch.isLeaf">
                     <div
                       v-for="(sec, i) in ch.sections"
                       :key="sec.key"
-                      class="pl-8 py-0.5 cursor-pointer hover:text-blue-600 text-gray-500 text-xs"
-                      @click="emit('navigate', ch.chNum, sec.anchorId)"
+                      class="pl-8 py-0.5 cursor-pointer hover:color-accent text-secondary text-xs"
+                      @click="() => emit('navigate', { chNum: ch.chNum, anchorId: sec.anchorId })"
                     >
                       {{ ch.chNum }}.{{ i + 1 }} {{ sec.title }}
                     </div>
@@ -371,10 +371,10 @@ onUnmounted(() => {
               </template>
               <div v-else class="pl-4">
                 <div
-                  class="py-0.5 cursor-pointer hover:text-blue-600 text-gray-700"
-                  @click="emit('navigate', (node as SidebarChapter).chNum)"
+                  class="py-0.5 cursor-pointer hover:color-accent text-secondary"
+                  @click="() => emit('navigate', { chNum: (node as SidebarChapter).chNum })"
                 >
-                  <span class="font-mono text-gray-400 mr-2">{{
+                  <span class="font-mono text-muted mr-2">{{
                     (node as SidebarChapter).chNum
                   }}</span>
                   <span>{{ (node as SidebarChapter).title }}</span>
@@ -383,8 +383,14 @@ onUnmounted(() => {
                   <div
                     v-for="(sec, i) in (node as SidebarChapter).sections"
                     :key="sec.key"
-                    class="pl-8 py-0.5 cursor-pointer hover:text-blue-600 text-gray-500 text-xs"
-                    @click="emit('navigate', (node as SidebarChapter).chNum, sec.anchorId)"
+                    class="pl-8 py-0.5 cursor-pointer hover:color-accent text-secondary text-xs"
+                    @click="
+                      () =>
+                        emit('navigate', {
+                          chNum: (node as SidebarChapter).chNum,
+                          anchorId: sec.anchorId,
+                        })
+                    "
                   >
                     {{ (node as SidebarChapter).chNum }}.{{ i + 1 }} {{ sec.title }}
                   </div>
@@ -398,17 +404,17 @@ onUnmounted(() => {
 
     <!-- Loading -->
     <div v-else-if="loading" class="max-w-3xl mx-auto py-3 sm:py-6 lg:py-8 px-3 sm:px-6">
-      <div class="bg-white rounded-xl shadow-sm p-8 flex items-center justify-center">
+      <div class="bg-surface rounded-xl shadow-sm p-8 flex items-center justify-center">
         <span
           class="i-lucide-loader-2 w-5 h-5 inline-block align-middle animate-spin text-blue-400 mr-2"
         />
-        <span class="text-sm text-gray-400">加载章...</span>
+        <span class="text-sm text-muted">加载章...</span>
       </div>
     </div>
 
     <!-- Error -->
     <div v-else-if="error" class="max-w-3xl mx-auto py-3 sm:py-6 lg:py-8 px-3 sm:px-6">
-      <div class="bg-white rounded-xl shadow-sm p-8 text-center text-red-400 text-sm">
+      <div class="bg-surface rounded-xl shadow-sm p-8 text-center text-red-400 text-sm">
         {{ error }}
       </div>
     </div>
@@ -417,12 +423,14 @@ onUnmounted(() => {
     <template v-else-if="chapter">
       <div class="flex max-w-5xl mx-auto">
         <div class="flex-1 min-w-0 py-3 sm:py-6 lg:py-8 px-3 sm:px-6 max-w-3xl">
-          <div class="bg-white rounded-xl shadow-sm p-8">
+          <div class="bg-surface rounded-xl shadow-sm p-8">
+            <!-- eslint-disable vue/no-v-html -- 手册 Markdown 渲染，核心功能 -->
             <div
               class="manual-content"
-              v-html="renderHtml(chapter.markdown)"
               @click="onContentClick"
+              v-html="renderHtml(chapter.markdown)"
             />
+            <!-- eslint-enable vue/no-v-html -->
           </div>
 
           <!-- 上一章 / 下一章 导航 -->
@@ -431,17 +439,17 @@ onUnmounted(() => {
               class="btn-secondary text-sm flex items-center gap-1"
               :disabled="chNum! <= 1"
               :class="{ 'opacity-40 cursor-not-allowed': chNum! <= 1 }"
-              @click="emit('navigate', chNum! - 1)"
+              @click="() => emit('navigate', { chNum: chNum! - 1 })"
             >
               <span class="i-lucide-chevron-left w-4 h-4 inline-block align-middle" />
               上一章
             </button>
-            <span class="text-xs text-gray-400">{{ chNum }} / {{ totalChapters }}</span>
+            <span class="text-xs text-muted">{{ chNum }} / {{ totalChapters }}</span>
             <button
               class="btn-secondary text-sm flex items-center gap-1"
               :disabled="chNum! >= totalChapters"
               :class="{ 'opacity-40 cursor-not-allowed': chNum! >= totalChapters }"
-              @click="emit('navigate', chNum! + 1)"
+              @click="() => emit('navigate', { chNum: chNum! + 1 })"
             >
               下一章
               <span class="i-lucide-chevron-right w-4 h-4 inline-block align-middle" />
@@ -452,7 +460,7 @@ onUnmounted(() => {
         <!-- 右侧页内目录 -->
         <aside v-if="tocItems.length > 0" class="hidden xl:block w-48 flex-shrink-0 py-8 pr-4">
           <nav class="sticky top-20">
-            <div class="text-xs font-semibold text-gray-400 uppercase mb-3 tracking-wider">
+            <div class="text-xs font-semibold text-muted uppercase mb-3 tracking-wider">
               本页目录
             </div>
             <ul class="space-y-0">
@@ -462,11 +470,11 @@ onUnmounted(() => {
                   :class="[
                     item.level === 2 ? 'pl-3' : 'pl-5',
                     activeTocId === item.id
-                      ? 'text-blue-600 border-blue-500 bg-blue-50'
-                      : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300',
+                      ? 'color-accent border-blue-500 bg-active'
+                      : 'text-secondary border-transparent hover:text-secondary hover:border-input',
                   ]"
                   :title="item.text"
-                  @click="scrollToHeading(item.id)"
+                  @click="() => scrollToHeading(item.id)"
                 >
                   {{ item.text }}
                 </button>
@@ -479,7 +487,7 @@ onUnmounted(() => {
 
     <!-- No chapter selected -->
     <div v-else class="max-w-3xl mx-auto py-3 sm:py-6 lg:py-8 px-3 sm:px-6">
-      <div class="bg-white rounded-xl shadow-sm p-8 text-center text-gray-400 text-sm">
+      <div class="bg-surface rounded-xl shadow-sm p-8 text-center text-muted text-sm">
         请从左侧目录选择章
       </div>
     </div>
@@ -518,7 +526,7 @@ onUnmounted(() => {
   font-size: 1.25rem;
   font-weight: 600;
   margin: 1.25em 0 0.5em;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--c-border);
   padding-bottom: 0.25em;
 }
 .manual-content :deep(h3) {
@@ -536,13 +544,13 @@ onUnmounted(() => {
   line-height: 1.8;
 }
 .manual-content :deep(blockquote) {
-  border-left: 3px solid #d1d5db;
+  border-left: 3px solid var(--c-border-input);
   padding-left: 1em;
-  color: #6b7280;
+  color: var(--c-text-muted);
   margin: 0.5em 0;
 }
 .manual-content :deep(code) {
-  background: #f3f4f6;
+  background: var(--c-bg-hover);
   padding: 0.15em 0.3em;
   border-radius: 0.25em;
   font-size: 0.875em;
@@ -554,7 +562,7 @@ onUnmounted(() => {
 }
 .manual-content :deep(hr) {
   border: none;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--c-border);
   margin: 1.5em 0;
 }
 .manual-content :deep(strong) {
@@ -564,7 +572,7 @@ onUnmounted(() => {
   font-style: italic;
 }
 .manual-content :deep(a) {
-  color: #2563eb;
+  color: var(--c-accent);
   text-decoration: none;
 }
 .manual-content :deep(a:hover) {
@@ -577,20 +585,20 @@ onUnmounted(() => {
   table-layout: fixed;
 }
 .manual-content :deep(th) {
-  background: #f3f4f6;
+  background: var(--c-bg-hover);
   font-weight: 600;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--c-border-input);
   padding: 0.5em 0.75em;
   text-align: left;
 }
 .manual-content :deep(td) {
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--c-border-input);
   padding: 0.5em 0.75em;
   overflow-wrap: break-word;
 }
 .manual-content :deep(.crossref-link) {
-  color: #2563eb;
-  background: #eff6ff;
+  color: var(--c-accent);
+  background: var(--c-accent-bg);
   padding: 0.1em 0.4em;
   border-radius: 0.25em;
   font-size: 0.9em;
@@ -599,6 +607,12 @@ onUnmounted(() => {
 }
 .manual-content :deep(.crossref-link:hover) {
   text-decoration: underline;
-  background: #dbeafe;
+  background: var(--c-accent-bg);
+}
+
+.manual-content :deep(img) {
+  max-width: 100%;
+  border-radius: 0.5em;
+  background: var(--c-bg-hover);
 }
 </style>

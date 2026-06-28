@@ -161,11 +161,10 @@ onUnmounted(() => {
     <!-- 触发器 -->
     <button
       ref="triggerRef"
-      type="button"
-      class="w-full border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between gap-2 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      class="w-full border border-input rounded-lg bg-surface text-left flex items-center justify-between gap-2 transition-colors disabled:bg-hover disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[var(--c-accent)] focus:border-transparent"
       :class="[
         btnClass || 'px-3 py-2 text-sm',
-        { 'ring-2 ring-blue-500 border-transparent': isOpen },
+        { 'ring-2 ring-[var(--c-accent)] border-transparent': isOpen },
       ]"
       :disabled="disabled"
       aria-haspopup="listbox"
@@ -175,7 +174,7 @@ onUnmounted(() => {
     >
       <span
         class="truncate flex items-center gap-2"
-        :class="modelValue === null || modelValue === '' ? 'text-gray-400' : 'text-gray-700'"
+        :class="modelValue === null || modelValue === '' ? 'text-muted' : 'text-secondary'"
       >
         <UserAvatar
           v-if="selectedOption?.avatar || selectedOption?.name"
@@ -186,7 +185,7 @@ onUnmounted(() => {
         <span class="truncate">{{ selectedLabel }}</span>
       </span>
       <span
-        class="i-lucide-chevron-down w-4 h-4 text-gray-400 flex-shrink-0 inline-block align-middle transition-transform duration-200"
+        class="i-lucide-chevron-down w-4 h-4 text-muted flex-shrink-0 inline-block align-middle transition-transform duration-200"
         :class="{ 'rotate-180': isOpen }"
       />
     </button>
@@ -196,7 +195,7 @@ onUnmounted(() => {
       <Transition name="dropdown">
         <div
           v-if="isOpen"
-          class="fixed z-[9999] bg-white rounded-xl shadow-lg border border-gray-200 py-1 overflow-y-auto max-h-60"
+          class="fixed z-[9999] bg-surface rounded-xl shadow-lg border border-default py-1 overflow-y-auto max-h-60"
           :style="dropdownStyle"
           role="listbox"
           @keydown="handlePanelKeydown"
@@ -207,16 +206,16 @@ onUnmounted(() => {
             class="px-3 py-2 text-sm cursor-pointer flex items-center justify-between transition-colors"
             :class="[
               opt.value === modelValue
-                ? 'bg-blue-50 text-blue-700 font-medium'
+                ? 'bg-active color-accent font-medium'
                 : highlightIndex === idx
-                  ? 'bg-gray-100 text-gray-900'
-                  : 'text-gray-700 hover:bg-gray-50',
+                  ? 'bg-hover text-primary'
+                  : 'text-secondary hover:bg-hover',
               opt.disabled ? 'opacity-40 cursor-not-allowed' : '',
             ]"
             :aria-selected="opt.value === modelValue"
             role="option"
-            @click="select(opt)"
-            @mouseenter="highlightIndex = idx"
+            @click="() => select(opt)"
+            @mouseenter="() => (highlightIndex = idx)"
           >
             <span class="truncate flex items-center gap-2">
               <UserAvatar
@@ -229,10 +228,10 @@ onUnmounted(() => {
             </span>
             <span
               v-if="opt.value === modelValue"
-              class="i-lucide-check w-4 h-4 text-blue-600 flex-shrink-0 ml-2 inline-block align-middle"
+              class="i-lucide-check w-4 h-4 color-accent flex-shrink-0 ml-2 inline-block align-middle"
             />
           </div>
-          <div v-if="options.length === 0" class="px-3 py-4 text-sm text-gray-400 text-center">
+          <div v-if="options.length === 0" class="px-3 py-4 text-sm text-muted text-center">
             无可用选项
           </div>
         </div>

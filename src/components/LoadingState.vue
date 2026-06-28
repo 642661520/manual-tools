@@ -5,7 +5,7 @@ defineProps<{
 </script>
 
 <template>
-  <div class="flex items-center justify-center py-12 text-gray-400">
+  <div class="flex items-center justify-center py-12 text-muted">
     {{ message || '加载中...' }}
   </div>
 </template>

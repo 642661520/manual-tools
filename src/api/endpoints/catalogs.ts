@@ -111,6 +111,20 @@ export function updateVersionVisibility(
   })
 }
 
+// ---- 版本状态 ----
+
+export function updateVersionStatus(
+  catalogId: string,
+  versionId: string,
+  status: string,
+): Promise<{ ok: true }> {
+  return api.put<{ ok: true }>(`${BASE}/${catalogId}/versions/${versionId}/status`, { status })
+}
+
+export function deleteVersion(catalogId: string, versionId: string): Promise<{ ok: true }> {
+  return api.delete<{ ok: true }>(`${BASE}/${catalogId}/versions/${versionId}`)
+}
+
 // ---- 导出 ----
 
 export function getMarkdownExportUrl(id: string): string {

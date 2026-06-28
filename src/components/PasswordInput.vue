@@ -20,11 +20,11 @@ const visible = ref(false)
       class="input pr-8"
       :type="visible ? 'text' : 'password'"
       :placeholder="placeholder"
-      @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
+      @input="(e) => emit('update:modelValue', (e.target as HTMLInputElement).value)"
     />
     <button
       type="button"
-      class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+      class="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-secondary"
       @click="visible = !visible"
     >
       <span

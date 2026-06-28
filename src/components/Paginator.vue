@@ -41,29 +41,29 @@ const items = computed(() => {
 <template>
   <div v-if="total > 1" class="flex items-center justify-center gap-1 mt-3 text-xs">
     <button
-      class="px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+      class="px-2 py-1 rounded hover:bg-hover disabled:opacity-30 disabled:cursor-not-allowed"
       :disabled="current <= 1"
-      @click="emit('go', current - 1)"
+      @click="() => emit('go', current - 1)"
     >
       <span class="i-lucide-chevron-left w-4 h-4 inline-block align-middle" />
     </button>
     <template v-for="(item, idx) in items" :key="idx">
-      <span v-if="item === '...'" class="w-7 h-7 flex items-center justify-center text-gray-300"
+      <span v-if="item === '...'" class="w-7 h-7 flex items-center justify-center text-muted"
         >…</span
       >
       <button
         v-else
         class="w-7 h-7 rounded"
-        :class="item === current ? 'bg-blue-500 text-white' : 'hover:bg-gray-100 text-gray-600'"
-        @click="emit('go', item)"
+        :class="item === current ? 'bg-blue-500 text-white' : 'hover:bg-hover text-secondary'"
+        @click="() => emit('go', item)"
       >
         {{ item }}
       </button>
     </template>
     <button
-      class="px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+      class="px-2 py-1 rounded hover:bg-hover disabled:opacity-30 disabled:cursor-not-allowed"
       :disabled="current >= total"
-      @click="emit('go', current + 1)"
+      @click="() => emit('go', current + 1)"
     >
       <span class="i-lucide-chevron-right w-4 h-4 inline-block align-middle" />
     </button>

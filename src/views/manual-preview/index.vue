@@ -12,16 +12,16 @@ import {
   getVersionPreview,
   publishCatalog,
   updateVersionVisibility,
+  updateVersionStatus,
+  deleteVersion,
   getMarkdownExportUrl,
   getPdfExportUrl,
   getVersionPdfExportUrl,
-  getSiteExportUrl,
 } from '@/api/endpoints/catalogs'
 import { api } from '@/api/client'
 import type { CatalogVersionInfo, CatalogEntry } from '@shared/types'
 import SelectDropdown from '@/components/SelectDropdown.vue'
 import ModalDialog from '@/components/ModalDialog.vue'
-import Paginator from '@/components/Paginator.vue'
 import PreviewSidebar from './PreviewSidebar.vue'
 import PreviewContent from './PreviewContent.vue'
 import VersionDiff from '@/components/VersionDiff.vue'
@@ -31,7 +31,7 @@ const route = useRoute()
 const router = useRouter()
 const { currentProjectId } = useProject()
 const { canManageProject } = useAuth()
-const { alert } = useDialog()
+const { alert, dangerConfirm } = useDialog()
 
 // ====== 手册 ID（从路由获取） ======
 const selectedCatalogId = ref<string | null>(null)
@@ -103,7 +103,7 @@ const previewData = ref<{
 const coverInfo = ref<Record<string, unknown>>({})
 
 // 侧边栏树
-const { tree, chapterMap, hasParts, totalChapters } = useSidebarTree(
+const { tree, hasParts, totalChapters } = useSidebarTree(
   computed(() => previewData.value.entries),
   computed(() => previewData.value.features),
 )
@@ -188,6 +188,13 @@ async function loadPreview() {
       }
       coverInfo.value = data.catalog.coverInfo || {}
     }
+    // 未编排内容：弹窗提示并返回手册列表
+    if (previewData.value.entries.length === 0 && previewData.value.features.length === 0) {
+      loading.value = false
+      await alert('此手册尚未编排内容，请先在"编排目录"中添加功能章节后再预览。')
+      router.replace('/manuals')
+      return
+    }
     syncChapterFromHash()
   } catch {
     notFound.value = true
@@ -200,7 +207,6 @@ async function loadPreview() {
 // ====== 操作 ======
 const exportingMd = ref(false)
 const exportingPdf = ref(false)
-const exportingSite = ref(false)
 const publishing = ref(false)
 const publishDialogVisible = ref(false)
 const publishChangeNotes = ref('')
@@ -280,18 +286,80 @@ async function doPublish() {
   }
 }
 
-async function updateVisibility(versionId: string, visibility: string) {
+// ====== 版本设置弹窗 ======
+const versionSettingsVisible = ref(false)
+const settingsVisibility = ref('project_members')
+const settingsStatus = ref('active')
+const settingsError = ref('')
+const settingsSaving = ref(false)
+let settingsTargetVersionId = ''
+
+function openVersionSettings(versionId: string) {
+  const v = versions.value.find((x: CatalogVersionInfo) => x.id === versionId)
+  if (!v) return
+  settingsTargetVersionId = versionId
+  settingsVisibility.value = v.visibility
+  settingsStatus.value = v.status || 'active'
+  settingsError.value = ''
+  versionSettingsVisible.value = true
+}
+
+async function saveVersionSettings() {
+  settingsError.value = ''
+  settingsSaving.value = true
   try {
-    await updateVersionVisibility(selectedCatalogId.value!, versionId, visibility)
+    const v = versions.value.find((x: CatalogVersionInfo) => x.id === settingsTargetVersionId)
+    if (!v) return
+    const tasks: Promise<unknown>[] = []
+    if (settingsVisibility.value !== v.visibility) {
+      tasks.push(
+        updateVersionVisibility(
+          selectedCatalogId.value!,
+          settingsTargetVersionId,
+          settingsVisibility.value,
+        ),
+      )
+    }
+    if (settingsStatus.value !== (v.status || 'active')) {
+      tasks.push(
+        updateVersionStatus(
+          selectedCatalogId.value!,
+          settingsTargetVersionId,
+          settingsStatus.value,
+        ),
+      )
+    }
+    await Promise.all(tasks)
+    versionSettingsVisible.value = false
     await loadVersions()
   } catch (e: unknown) {
-    await alert('切换失败: ' + (e instanceof Error ? e.message : '网络错误'))
+    settingsError.value = e instanceof Error ? e.message : '网络错误'
+  } finally {
+    settingsSaving.value = false
+  }
+}
+
+async function doDeleteFromSettings() {
+  const v = versions.value.find((x: CatalogVersionInfo) => x.id === settingsTargetVersionId)
+  const label = v ? `v${v.versionMajor}.${v.versionMinor}` : settingsTargetVersionId
+  const confirmed = await dangerConfirm(
+    `确认删除版本 ${label} 吗？此操作不可撤销，将同时删除数据库记录和静态站点文件。`,
+  )
+  if (!confirmed) return
+  try {
+    versionSettingsVisible.value = false
+    await deleteVersion(selectedCatalogId.value!, settingsTargetVersionId)
+    if (selectedVersionId.value === settingsTargetVersionId) {
+      selectedVersionId.value = null
+    }
+    await loadVersions()
+  } catch (e: unknown) {
+    await alert('删除失败: ' + (e instanceof Error ? e.message : '网络错误'))
   }
 }
 
 async function exportMarkdown() {
   if (!selectedCatalogId.value) return
-  exportingMd.value = true
   try {
     const url = getMarkdownExportUrl(selectedCatalogId.value)
     await api.download(url)
@@ -321,19 +389,6 @@ async function exportPdf() {
   }
 }
 
-async function exportSite() {
-  if (!selectedCatalogId.value) return
-  exportingSite.value = true
-  try {
-    const url = getSiteExportUrl(selectedCatalogId.value)
-    await api.download(url)
-  } catch (e: unknown) {
-    await alert('导出失败: ' + (e instanceof Error ? e.message : '网络错误'))
-  } finally {
-    exportingSite.value = false
-  }
-}
-
 // ====== 变更记录 ======
 const changelogVersions = computed(() => {
   if (!selectedVersionId.value) return versions.value
@@ -346,15 +401,17 @@ const changelogVersions = computed(() => {
   )
 })
 
-const currentVersionVis = computed(() => {
-  const v = versions.value.find((v: CatalogVersionInfo) => v.id === selectedVersionId.value)
-  return v?.visibility || 'project_members'
-})
+const statusLabels: Record<string, string> = {
+  active: '有效',
+  deprecated: '已废弃',
+  archived: '已归档',
+}
 
-const currentVersionPublishScope = computed(() => {
-  const v = versions.value.find((v: CatalogVersionInfo) => v.id === selectedVersionId.value)
-  return v?.publishScope || 'all'
-})
+const statusOptions = [
+  { value: 'active', label: '有效' },
+  { value: 'deprecated', label: '废弃' },
+  { value: 'archived', label: '归档' },
+]
 
 const docUrl = computed(() => {
   if (!selectedCatalogId.value) return ''
@@ -398,16 +455,16 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col bg-gray-100">
+  <div class="h-full flex flex-col bg-base">
     <!-- 顶部操作栏 -->
     <header
-      class="flex-shrink-0 bg-white border-b border-gray-200 px-2 sm:px-4 lg:px-6 py-1.5 sm:py-2 z-10"
+      class="flex-shrink-0 bg-surface border-b border-default px-2 sm:px-4 lg:px-6 py-1.5 sm:py-2 z-10"
     >
       <div class="flex items-center gap-1 sm:gap-2">
         <!-- 返回按钮 -->
         <button
-          class="h-8 sm:h-auto w-8 sm:w-auto flex items-center justify-center sm:px-3 sm:py-2 rounded hover:bg-gray-100 flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors text-sm"
-          @click="router.push('/manuals')"
+          class="h-8 sm:h-auto w-8 sm:w-auto flex items-center justify-center sm:px-3 sm:py-2 rounded hover:bg-hover flex-shrink-0 text-muted hover:text-secondary transition-colors text-sm"
+          @click="() => router.push('/manuals')"
         >
           <span class="i-lucide-arrow-left w-4 h-4 inline-block align-middle sm:mr-1" />
           <span class="hidden sm:inline">返回手册</span>
@@ -415,41 +472,22 @@ onUnmounted(() => {
 
         <!-- 移动端目录按钮 -->
         <button
-          class="md:hidden h-8 w-8 flex items-center justify-center rounded hover:bg-gray-100 flex-shrink-0 text-gray-500"
           v-tooltip="'目录'"
+          class="md:hidden h-8 w-8 flex items-center justify-center rounded hover:bg-hover flex-shrink-0 text-secondary"
           @click="toggleSidebar"
         >
           <span class="i-lucide-list-tree w-4 h-4 inline-block align-middle" />
         </button>
 
-        <!-- 标题 / 离线站点 -->
-        <template v-if="selectedCatalogId">
-          <button
-            class="h-8 sm:h-auto text-xs sm:text-sm text-gray-500 hover:text-blue-600 border border-dashed border-gray-300 hover:border-blue-400 rounded-lg px-2 sm:px-3 py-0 sm:py-2 bg-white transition-colors flex items-center gap-1 flex-shrink-0"
-            :disabled="exportingSite"
-            v-tooltip="'下载所有公开版本的静态站点 ZIP'"
-            @click="exportSite"
-          >
-            <span
-              v-if="exportingSite"
-              class="i-lucide-loader-2 w-3.5 h-3.5 sm:w-4 sm:h-4 inline-block align-middle animate-spin"
-            />
-            <span
-              v-else
-              class="i-lucide-download w-3.5 h-3.5 sm:w-4 sm:h-4 inline-block align-middle sm:mr-0.5"
-            />
-            <span class="hidden sm:inline">离线站点</span>
-          </button>
-        </template>
         <h1
-          v-else
-          class="text-sm sm:text-lg font-semibold text-gray-800 truncate max-w-[160px] sm:max-w-xs"
+          v-if="!selectedCatalogId"
+          class="text-sm sm:text-lg font-semibold text-primary truncate max-w-[160px] sm:max-w-xs"
         >
           {{ catalogTitle || '手册预览' }}
         </h1>
 
         <!-- 分隔 -->
-        <div class="w-px h-5 sm:h-6 bg-gray-200 hidden sm:block flex-shrink-0" />
+        <div class="w-px h-5 sm:h-6 bg-[var(--c-border)] hidden sm:block flex-shrink-0" />
 
         <!-- 操作区：移动端横向滚动 -->
         <div
@@ -466,7 +504,12 @@ onUnmounted(() => {
                 { value: '', label: '当前最新' },
                 ...versions.map((v) => {
                   const vis = visibilityLabels[v.visibility] || '项目成员'
-                  return { value: v.id, label: `v${v.versionMajor}.${v.versionMinor} · ${vis}` }
+                  const st = v.status !== 'active' ? ` · ${statusLabels[v.status]}` : ''
+                  const sc = v.publishScope === 'all' ? ' ⚠' : ''
+                  return {
+                    value: v.id,
+                    label: `v${v.versionMajor}.${v.versionMinor} · ${vis}${st}${sc}`,
+                  }
                 }),
               ]"
               @update:model-value="selectVersion"
@@ -491,7 +534,7 @@ onUnmounted(() => {
 
           <!-- PM：实时内容 -->
           <template v-if="canManageProject && selectedCatalogId && !selectedVersionId">
-            <div class="w-px h-4 sm:h-5 bg-gray-300 hidden sm:block flex-shrink-0" />
+            <div class="w-px h-4 sm:h-5 bg-[var(--c-border-input)] hidden sm:block flex-shrink-0" />
             <a
               :href="docUrl"
               target="_blank"
@@ -509,10 +552,10 @@ onUnmounted(() => {
               />发布版本
             </button>
             <button
+              v-tooltip="'下载 Markdown'"
               class="h-8 sm:h-auto btn-secondary text-xs sm:text-sm px-2 sm:px-3 py-0 sm:py-2 flex-shrink-0"
               :disabled="exportingMd"
               @click="exportMarkdown"
-              v-tooltip="'下载 Markdown'"
             >
               <span
                 v-if="exportingMd"
@@ -525,10 +568,10 @@ onUnmounted(() => {
               <span class="hidden sm:inline">下载 MD</span>
             </button>
             <button
+              v-tooltip="'下载 PDF'"
               class="h-8 sm:h-auto btn-secondary text-xs sm:text-sm px-2 sm:px-3 py-0 sm:py-2 flex-shrink-0"
               :disabled="exportingPdf"
               @click="exportPdf"
-              v-tooltip="'下载 PDF'"
             >
               <span
                 v-if="exportingPdf"
@@ -551,22 +594,16 @@ onUnmounted(() => {
 
           <!-- PM：历史版本 -->
           <template v-if="canManageProject && selectedCatalogId && selectedVersionId">
-            <div class="w-px h-4 sm:h-5 bg-gray-300 hidden sm:block flex-shrink-0" />
-            <SelectDropdown
-              btn-class="px-2 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm"
-              width-class="w-24 sm:w-28"
-              :model-value="currentVersionVis"
-              :options="visibilityOptions"
-              class="flex-shrink-0"
-              @update:model-value="
-                (val: string | number | null) => updateVisibility(selectedVersionId!, val as string)
-              "
-            />
-            <span
-              v-if="currentVersionPublishScope === 'all'"
-              class="h-8 sm:h-auto inline-flex items-center text-xs sm:text-sm px-1.5 sm:px-2 rounded-full bg-yellow-100 text-yellow-700 flex-shrink-0"
-              >含未审核</span
+            <div class="w-px h-4 sm:h-5 bg-[var(--c-border-input)] hidden sm:block flex-shrink-0" />
+            <button
+              v-tooltip="'版本设置'"
+              class="h-8 sm:h-auto btn-secondary text-xs sm:text-sm px-2 sm:px-3 py-0 sm:py-2 flex-shrink-0"
+              @click="() => openVersionSettings(selectedVersionId!)"
             >
+              <span class="i-lucide-settings w-3.5 h-3.5 sm:w-4 sm:h-4 inline-block align-middle" />
+              <span class="hidden sm:inline ml-0.5">设置</span>
+            </button>
+            <div class="w-px h-4 sm:h-5 bg-[var(--c-border-input)] hidden sm:block flex-shrink-0" />
             <a
               v-if="selectedVersionId"
               :href="docUrl"
@@ -575,10 +612,10 @@ onUnmounted(() => {
               >在线文档</a
             >
             <button
+              v-tooltip="'下载 Markdown'"
               class="h-8 sm:h-auto btn-secondary text-xs sm:text-sm px-2 sm:px-3 py-0 sm:py-2 flex-shrink-0"
               :disabled="exportingMd"
               @click="exportMarkdown"
-              v-tooltip="'下载 Markdown'"
             >
               <span
                 v-if="exportingMd"
@@ -591,10 +628,10 @@ onUnmounted(() => {
               <span class="hidden sm:inline">下载 MD</span>
             </button>
             <button
+              v-tooltip="'下载 PDF'"
               class="h-8 sm:h-auto btn-secondary text-xs sm:text-sm px-2 sm:px-3 py-0 sm:py-2 flex-shrink-0"
               :disabled="exportingPdf"
               @click="exportPdf"
-              v-tooltip="'下载 PDF'"
             >
               <span
                 v-if="exportingPdf"
@@ -610,24 +647,7 @@ onUnmounted(() => {
 
           <!-- 运维 -->
           <template v-if="!canManageProject && selectedCatalogId">
-            <div class="w-px h-4 sm:h-5 bg-gray-300 hidden sm:block flex-shrink-0" />
-            <span
-              v-if="selectedVersionId"
-              class="h-8 sm:h-auto inline-flex items-center text-xs sm:text-sm px-1.5 sm:px-2 rounded-full flex-shrink-0"
-              :class="
-                currentVersionVis === 'public'
-                  ? 'bg-green-100 text-green-700'
-                  : currentVersionVis === 'login_required'
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'bg-gray-100 text-gray-600'
-              "
-              >{{ visibilityLabels[currentVersionVis] || '项目成员' }}</span
-            >
-            <span
-              v-if="selectedVersionId && currentVersionPublishScope === 'all'"
-              class="h-8 sm:h-auto inline-flex items-center text-xs sm:text-sm px-1.5 sm:px-2 rounded-full bg-yellow-100 text-yellow-700 flex-shrink-0"
-              >含未审核</span
-            >
+            <div class="w-px h-4 sm:h-5 bg-[var(--c-border-input)] hidden sm:block flex-shrink-0" />
             <a
               :href="docUrl"
               target="_blank"
@@ -635,10 +655,10 @@ onUnmounted(() => {
               >在线文档</a
             >
             <button
+              v-tooltip="'下载 Markdown'"
               class="h-8 sm:h-auto btn-secondary text-xs sm:text-sm px-2 sm:px-3 py-0 sm:py-2 flex-shrink-0"
               :disabled="exportingMd"
               @click="exportMarkdown"
-              v-tooltip="'下载 Markdown'"
             >
               <span
                 v-if="exportingMd"
@@ -651,10 +671,10 @@ onUnmounted(() => {
               <span class="hidden sm:inline">下载 MD</span>
             </button>
             <button
+              v-tooltip="'下载 PDF'"
               class="h-8 sm:h-auto btn-secondary text-xs sm:text-sm px-2 sm:px-3 py-0 sm:py-2 flex-shrink-0"
               :disabled="exportingPdf"
               @click="exportPdf"
-              v-tooltip="'下载 PDF'"
             >
               <span
                 v-if="exportingPdf"
@@ -676,20 +696,20 @@ onUnmounted(() => {
     <!-- 无项目 -->
     <div v-else-if="!currentProjectId" class="flex-1 flex items-center justify-center">
       <div class="text-center">
-        <span class="i-lucide-folder-open text-4xl text-gray-300 mb-3 block mx-auto" />
-        <p class="text-gray-500 text-sm">请先加入项目</p>
-        <p class="text-gray-400 text-xs mt-1">联系管理员将您添加到项目成员中</p>
+        <span class="i-lucide-folder-open text-4xl text-muted mb-3 block mx-auto" />
+        <p class="text-secondary text-sm">请先加入项目</p>
+        <p class="text-muted text-xs mt-1">联系管理员将您添加到项目成员中</p>
       </div>
     </div>
 
     <!-- 无手册选中 -->
     <div v-else-if="!selectedCatalogId" class="flex-1 flex items-center justify-center">
       <div class="text-center">
-        <span class="i-lucide-book-open text-4xl text-gray-300 mb-3 block mx-auto" />
-        <p class="text-gray-500 text-sm">未选择手册</p>
-        <router-link to="/manuals" class="btn-primary text-sm mt-3 inline-block"
-          >浏览手册</router-link
-        >
+        <span class="i-lucide-book-open text-4xl text-muted mb-3 block mx-auto" />
+        <p class="text-secondary text-sm">未选择手册</p>
+        <router-link to="/manuals" class="btn-primary text-sm mt-3 inline-block">
+          浏览手册
+        </router-link>
       </div>
     </div>
 
@@ -699,14 +719,14 @@ onUnmounted(() => {
       class="flex-1 flex overflow-hidden"
     >
       <!-- 桌面端：固定侧边栏 -->
-      <div class="hidden md:block flex-shrink-0">
+      <div class="hidden md:block flex-shrink-0 h-full">
         <PreviewSidebar
           :tree="tree"
           :active-chapter="activeChapter"
           :has-parts="hasParts"
           @select-chapter="navigateToChapter"
-          @select-section="navigateToChapter"
-          @select-cover="navigateToChapter(0)"
+          @select-section="(p) => navigateToChapter(p.chNum, p.anchorId)"
+          @select-cover="() => navigateToChapter(0)"
         />
       </div>
 
@@ -716,17 +736,17 @@ onUnmounted(() => {
           <div v-if="showSidebar" class="fixed inset-0 z-40 md:hidden">
             <div class="absolute inset-0 bg-black/30" @click="closeSidebar" />
             <div
-              class="absolute left-0 top-0 bottom-0 w-64 max-w-[85vw] bg-white shadow-xl flex flex-col"
+              class="absolute left-0 top-0 bottom-0 w-64 max-w-[85vw] bg-surface shadow-xl flex flex-col"
             >
               <div
-                class="md:hidden flex items-center justify-between px-4 py-3 border-b border-gray-200"
+                class="md:hidden flex items-center justify-between px-4 py-3 border-b border-default"
               >
-                <span class="text-sm font-semibold text-gray-700">目录</span>
+                <span class="text-sm font-semibold text-secondary">目录</span>
                 <button
-                  class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100"
+                  class="w-7 h-7 flex items-center justify-center rounded hover:bg-hover"
                   @click="closeSidebar"
                 >
-                  <span class="i-lucide-x w-5 h-5 text-gray-500" />
+                  <span class="i-lucide-x w-5 h-5 text-secondary" />
                 </button>
               </div>
               <PreviewSidebar
@@ -734,8 +754,8 @@ onUnmounted(() => {
                 :active-chapter="activeChapter"
                 :has-parts="hasParts"
                 @select-chapter="navigateAndClose"
-                @select-section="navigateAndClose"
-                @select-cover="navigateAndClose(0)"
+                @select-section="(p) => navigateAndClose(p.chNum)"
+                @select-cover="() => navigateAndClose(0)"
               />
             </div>
           </div>
@@ -755,9 +775,9 @@ onUnmounted(() => {
         :changelog="changelogVersions"
         :selected-version-id="selectedVersionId"
         :on-select-version="selectVersion"
-        @navigate="navigateToChapter"
+        @navigate="(p) => navigateToChapter(p.chNum, p.anchorId)"
       />
-      <div v-else class="flex-1 flex items-center justify-center text-gray-400 text-sm">
+      <div v-else class="flex-1 flex items-center justify-center text-muted text-sm">
         无法定位章
       </div>
     </div>
@@ -775,7 +795,7 @@ onUnmounted(() => {
     >
       <div class="space-y-4">
         <div>
-          <label class="text-xs text-gray-500 mb-1 block">变更说明</label>
+          <label class="text-xs text-secondary mb-1 block">变更说明</label>
           <input
             v-model="publishChangeNotes"
             class="input text-sm"
@@ -784,7 +804,7 @@ onUnmounted(() => {
           />
         </div>
         <div>
-          <label class="text-xs text-gray-500 mb-1 block">文档可见性</label>
+          <label class="text-xs text-secondary mb-1 block">文档可见性</label>
           <div class="flex gap-2">
             <button
               v-for="opt in visibilityOptions"
@@ -792,10 +812,10 @@ onUnmounted(() => {
               class="px-3 py-1.5 rounded border text-xs transition-colors"
               :class="
                 publishVisibility === opt.value
-                  ? 'bg-blue-100 border-blue-300 text-blue-700'
-                  : 'border-gray-300 hover:bg-gray-100'
+                  ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700/40 color-accent'
+                  : 'border-input hover:bg-hover'
               "
-              @click="publishVisibility = opt.value"
+              @click="() => (publishVisibility = opt.value)"
             >
               {{ opt.label }}
             </button>
@@ -808,19 +828,92 @@ onUnmounted(() => {
             <span
               class="font-medium"
               :class="
-                reviewStats.approved === reviewStats.total ? 'text-green-600' : 'text-yellow-600'
+                reviewStats.approved === reviewStats.total
+                  ? 'text-green-600 dark:text-green-400'
+                  : 'text-yellow-600 dark:text-yellow-400'
               "
             >
               {{ reviewStats.approved }} / {{ reviewStats.total }}
             </span>
-            章已通过
+            小节已通过
           </span>
         </div>
-        <label class="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
-          <input type="checkbox" v-model="publishApprovedOnly" class="rounded" />
-          <span>仅发布已审核内容（未审核的章将不包含在文档中）</span>
+        <label class="flex items-center gap-2 text-xs text-secondary cursor-pointer">
+          <input v-model="publishApprovedOnly" type="checkbox" class="rounded" />
+          <span>仅发布已审核内容（未审核的小节将不包含在文档中）</span>
         </label>
       </div>
+    </ModalDialog>
+
+    <!-- 版本设置弹窗 -->
+    <ModalDialog
+      :visible="versionSettingsVisible"
+      title="版本设置"
+      confirm-text="保存"
+      cancel-text="取消"
+      :error="settingsError"
+      :loading="settingsSaving"
+      @close="versionSettingsVisible = false"
+      @confirm="saveVersionSettings"
+    >
+      <div class="space-y-5 min-w-64">
+        <!-- 可见性 -->
+        <div>
+          <label class="text-xs text-secondary mb-2 block font-medium">文档可见性</label>
+          <div class="flex gap-2">
+            <button
+              v-for="opt in visibilityOptions"
+              :key="opt.value"
+              class="px-3 py-1.5 rounded border text-xs transition-colors"
+              :class="
+                settingsVisibility === opt.value
+                  ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700/40 color-accent font-medium'
+                  : 'border-input hover:bg-hover'
+              "
+              @click="() => (settingsVisibility = opt.value)"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+        </div>
+        <!-- 状态 -->
+        <div>
+          <label class="text-xs text-secondary mb-2 block font-medium">版本状态</label>
+          <div class="flex gap-2">
+            <button
+              v-for="opt in statusOptions"
+              :key="opt.value"
+              class="px-3 py-1.5 rounded border text-xs transition-colors"
+              :class="
+                settingsStatus === opt.value
+                  ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700/40 color-accent font-medium'
+                  : 'border-input hover:bg-hover'
+              "
+              @click="() => (settingsStatus = opt.value)"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+          <p class="text-xs text-muted mt-1.5">
+            <template v-if="settingsStatus === 'deprecated'">
+              废弃版本仍可查看，但会显示提示横幅
+            </template>
+            <template v-else-if="settingsStatus === 'archived'">
+              归档版本将在版本列表中隐藏（仅管理端可见）
+            </template>
+            <template v-else> 正常可用状态 </template>
+          </p>
+        </div>
+      </div>
+      <template #footer-actions>
+        <button
+          class="flex items-center gap-1 px-2.5 py-1.5 rounded border border-red-300 text-xs color-danger hover:bg-danger transition-colors sm:order-first sm:mr-auto"
+          @click="doDeleteFromSettings"
+        >
+          <span class="i-lucide-trash-2 w-3.5 h-3.5 inline-block align-middle" />
+          删除
+        </button>
+      </template>
     </ModalDialog>
   </div>
 

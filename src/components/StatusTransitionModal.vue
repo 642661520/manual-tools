@@ -177,9 +177,9 @@ watch(
 )
 
 const variantSelected: Record<string, string> = {
-  primary: 'border-blue-400 bg-blue-50',
+  primary: 'border-blue-400 bg-active',
   warning: 'border-orange-400 bg-orange-50',
-  danger: 'border-red-400 bg-red-50',
+  danger: 'border-red-400 bg-danger',
 }
 
 const variantRadio: Record<string, string> = {
@@ -210,12 +210,12 @@ const variantRadioFill: Record<string, string> = {
     <div class="space-y-4">
       <!-- 当前状态 -->
       <div class="flex items-center gap-2 text-sm">
-        <span class="text-gray-500">当前状态：</span>
+        <span class="text-secondary">当前状态：</span>
         <StatusBadge :status="currentStatus" />
       </div>
 
       <!-- 无可用操作 -->
-      <div v-if="availableTransitions.length === 0" class="text-sm text-gray-400 text-center py-4">
+      <div v-if="availableTransitions.length === 0" class="text-sm text-muted text-center py-4">
         当前状态下没有可执行的操作
       </div>
 
@@ -229,9 +229,9 @@ const variantRadioFill: Record<string, string> = {
           :class="
             selectedIdx === idx
               ? variantSelected[opt.variant]
-              : 'border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+              : 'border-default hover:bg-hover hover:border-gray-300'
           "
-          @click="selectOption(opt, idx)"
+          @click="() => selectOption(opt, idx)"
         >
           <div class="flex items-start gap-3">
             <!-- 单选圆圈 -->
@@ -248,11 +248,13 @@ const variantRadioFill: Record<string, string> = {
             <div class="flex-1 min-w-0">
               <div
                 class="font-medium text-sm"
-                :class="selectedIdx === idx ? 'text-gray-900' : 'text-gray-700'"
+                :class="selectedIdx === idx ? 'text-primary' : 'text-secondary'"
               >
                 {{ opt.label }}
               </div>
-              <p class="text-xs text-gray-500 mt-0.5">{{ opt.description }}</p>
+              <p class="text-xs text-secondary mt-0.5">
+                {{ opt.description }}
+              </p>
             </div>
           </div>
         </button>
@@ -260,7 +262,7 @@ const variantRadioFill: Record<string, string> = {
 
       <!-- 退回理由输入 -->
       <div v-if="selected?.needNote">
-        <label class="text-sm text-gray-500 mb-1 block">
+        <label class="text-sm text-secondary mb-1 block">
           {{ selected.noteLabel || '说明' }}
           <span class="text-red-400">*</span>
         </label>

@@ -1,6 +1,5 @@
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import type { UserInfo } from '@shared/types'
 import {
   login as apiLogin,
   getCurrentUser,
@@ -9,10 +8,9 @@ import {
   logout as apiLogout,
 } from '@/api/endpoints/auth'
 import { getMembers } from '@/api/endpoints/projects'
-import { getStoredUser } from '@/utils/storage'
+import { resetTokenValidation, currentUser } from '@/utils/token-validation'
 import { useProject } from './useProject'
 
-const currentUser = ref<UserInfo | null>(getStoredUser())
 const token = ref<string | null>(localStorage.getItem('auth_token'))
 const currentProjectRole = ref<'pm' | 'writer' | 'viewer' | null>(null)
 
@@ -68,6 +66,7 @@ export function useAuth() {
     currentUser.value = data.user
     localStorage.setItem('auth_token', data.token)
     localStorage.setItem('auth_user', JSON.stringify(data.user))
+    resetTokenValidation()
   }
 
   async function refreshUser() {
@@ -109,6 +108,7 @@ export function useAuth() {
     currentProjectRole.value = null
     localStorage.removeItem('auth_token')
     localStorage.removeItem('auth_user')
+    resetTokenValidation()
     router.push('/login')
   }
 

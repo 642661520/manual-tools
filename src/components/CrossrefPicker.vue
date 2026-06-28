@@ -2,7 +2,6 @@
 import { ref, computed, watch } from 'vue'
 import { useProject } from '@/composables/useProject'
 import { getFeatures } from '@/api/endpoints/features'
-import type { FeatureSummary } from '@shared/types'
 import ModalDialog from './ModalDialog.vue'
 
 // API 返回的原始特征数据（sections 为 JSON 字符串）
@@ -22,7 +21,7 @@ interface FeatureEntry {
 
 const emit = defineEmits<{
   close: []
-  select: [featureId: string, label: string, sectionKey: string, sectionTitle: string]
+  select: [payload: { featureId: string; label: string; sectionKey: string; sectionTitle: string }]
   remove: []
 }>()
 
@@ -123,11 +122,11 @@ function confirm() {
       (s: { key: string; title: string }) => s.key === selectedSectionKey.value,
     )
     if (sec) {
-      emit('select', f.id, label, sec.key, sec.title)
+      emit('select', { featureId: f.id, label, sectionKey: sec.key, sectionTitle: sec.title })
       return
     }
   }
-  emit('select', f.id, label, '', '')
+  emit('select', { featureId: f.id, label, sectionKey: '', sectionTitle: '' })
 }
 
 watch(selectedLabel, (val) => {
@@ -165,7 +164,7 @@ watch(currentProjectId, () => {
     title="插入交叉引用"
     hide-footer
     width-class="max-w-xl"
-    @close="emit('close')"
+    @close="() => emit('close')"
   >
     <!-- 搜索 -->
     <div class="mb-3">
@@ -179,45 +178,49 @@ watch(currentProjectId, () => {
 
     <!-- 列表 -->
     <div class="max-h-[40vh] overflow-y-auto -mx-6 px-6">
-      <div v-if="loading" class="text-center text-gray-400 py-8 text-sm">加载中...</div>
-      <div v-else-if="error" class="text-center text-red-500 py-8 text-sm">{{ error }}</div>
+      <div v-if="loading" class="text-center text-muted py-8 text-sm">加载中...</div>
+      <div v-else-if="error" class="text-center color-danger py-8 text-sm">
+        {{ error }}
+      </div>
       <div
         v-else-if="Object.keys(moduleGroups).length === 0"
-        class="text-center text-gray-400 py-8 text-sm"
+        class="text-center text-muted py-8 text-sm"
       >
-        <template v-if="searchQuery">无匹配的内容</template>
-        <template v-else>当前项目暂无内容</template>
+        <template v-if="searchQuery"> 无匹配的内容 </template>
+        <template v-else> 当前项目暂无内容 </template>
       </div>
 
       <template v-else>
         <div v-for="(items, mod) in moduleGroups" :key="mod" class="mb-3">
-          <div class="text-xs text-gray-400 font-medium mb-1.5 px-1">{{ mod }}</div>
+          <div class="text-xs text-muted font-medium mb-1.5 px-1">
+            {{ mod }}
+          </div>
 
           <div v-for="f in items" :key="f.id">
             <div
               class="px-3 py-2 rounded-lg cursor-pointer transition-colors border flex items-center gap-2"
               :class="
                 selectedFeatureId === f.id && !selectedSectionKey
-                  ? 'bg-blue-50 border-blue-200 text-blue-700'
-                  : 'border-gray-100 hover:bg-gray-50 text-gray-700'
+                  ? 'bg-active border-[var(--c-accent)]/30 color-accent'
+                  : 'border-light hover:bg-hover text-secondary'
               "
-              @click="toggleFeature(f.id)"
+              @click="() => toggleFeature(f.id)"
             >
               <span
                 v-if="f.sections.length > 0"
-                class="i-lucide-chevron-right w-3.5 h-3.5 inline-block align-middle flex-shrink-0 transition-transform duration-200 text-gray-400"
+                class="i-lucide-chevron-right w-3.5 h-3.5 inline-block align-middle flex-shrink-0 transition-transform duration-200 text-muted"
                 :class="{ 'rotate-90': expandedFeatureId === f.id }"
               />
               <span v-else class="w-3.5 flex-shrink-0" />
               <span class="text-sm font-medium flex-1">{{ f.title }}</span>
-              <span v-if="f.sections.length > 0" class="text-xs text-gray-400">
+              <span v-if="f.sections.length > 0" class="text-xs text-muted">
                 {{ f.sections.length }} 小节
               </span>
             </div>
 
             <div
               v-if="expandedFeatureId === f.id && f.sections.length > 0"
-              class="ml-7 mt-0.5 mb-1 border-l-2 border-gray-100 pl-4"
+              class="ml-7 mt-0.5 mb-1 border-l-2 border-light pl-4"
             >
               <div
                 v-for="sec in f.sections"
@@ -225,10 +228,10 @@ watch(currentProjectId, () => {
                 class="px-2.5 py-1.5 rounded-md cursor-pointer transition-colors text-sm"
                 :class="
                   selectedSectionKey === sec.key
-                    ? 'bg-blue-50 text-blue-700 font-medium'
-                    : 'text-gray-600 hover:bg-gray-50'
+                    ? 'bg-active color-accent font-medium'
+                    : 'text-secondary hover:bg-hover'
                 "
-                @click.stop="selectSection(f.id, sec.key)"
+                @click.stop="() => selectSection(f.id, sec.key)"
               >
                 {{ sec.title }}
               </div>
@@ -239,7 +242,7 @@ watch(currentProjectId, () => {
     </div>
 
     <!-- 底部操作栏 -->
-    <div class="flex items-center justify-between pt-3 mt-3 border-t border-gray-100">
+    <div class="flex items-center justify-between pt-3 mt-3 border-t border-light">
       <button v-if="currentFeatureId" class="btn-danger text-sm" @click="removeRef">
         移除引用
       </button>
@@ -247,15 +250,15 @@ watch(currentProjectId, () => {
 
       <div class="flex items-center gap-3">
         <div class="flex items-center gap-2">
-          <label class="text-xs text-gray-500 whitespace-nowrap">显示名称</label>
+          <label class="text-xs text-secondary whitespace-nowrap">显示名称</label>
           <input
             v-model="customLabel"
             type="text"
-            class="w-36 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            class="w-36 px-2 py-1.5 text-sm border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--c-accent)] focus:border-transparent"
             placeholder="引用显示文字"
           />
         </div>
-        <button class="btn-secondary text-sm" @click="emit('close')">取消</button>
+        <button class="btn-secondary text-sm" @click="() => emit('close')">取消</button>
         <button class="btn-primary text-sm" :disabled="!selectedFeatureId" @click="confirm">
           插入引用
         </button>

@@ -278,12 +278,12 @@ onUnmounted(() => {
 
 <template>
   <div v-if="isAdmin" class="card mb-6">
-    <h2 class="text-sm font-semibold text-gray-500 mb-4">数据管理</h2>
+    <h2 class="text-sm font-semibold text-secondary mb-4">数据管理</h2>
 
     <!-- 项目导出 -->
-    <div class="border-t border-gray-100 pt-4 mb-4">
+    <div class="border-t border-light pt-4 mb-4">
       <h3 class="text-sm font-medium mb-2">项目导出</h3>
-      <div v-if="estimate" class="text-xs text-gray-400 mb-2">
+      <div v-if="estimate" class="text-xs text-muted mb-2">
         预估: {{ estimate.features }} 内容 · {{ estimate.catalogs }} 手册 ·
         {{ estimate.documents }} 文档 · {{ estimate.uploads }} 附件 · 约
         {{ formatSize(estimate.totalSize) }}
@@ -291,11 +291,11 @@ onUnmounted(() => {
       <button class="btn-primary text-sm" :disabled="exporting || !estimate" @click="startExport">
         {{ exporting ? `导出中 ${exportProgress}%...` : '导出此项目' }}
       </button>
-      <span v-if="exportLabel" class="text-xs text-gray-400 ml-2">{{ exportLabel }}</span>
+      <span v-if="exportLabel" class="text-xs text-muted ml-2">{{ exportLabel }}</span>
 
       <!-- 导出历史 -->
       <div v-if="exportHistory.length > 0" class="mt-3">
-        <h4 class="text-xs font-medium text-gray-400 mb-1">导出历史</h4>
+        <h4 class="text-xs font-medium text-muted mb-1">导出历史</h4>
         <div v-for="t in exportHistory" :key="t.id" class="flex items-center gap-2 py-1 text-xs">
           <span
             :class="
@@ -308,24 +308,26 @@ onUnmounted(() => {
           >
             {{ statusLabel(t.status) }}
           </span>
-          <span class="text-gray-400">{{ timeLabel(t.completedAt || t.createdAt) }}</span>
-          <span v-if="t.fileSize" class="text-gray-400">{{ formatSize(t.fileSize) }}</span>
+          <span class="text-muted">{{ timeLabel(t.completedAt || t.createdAt) }}</span>
+          <span v-if="t.fileSize" class="text-muted">{{ formatSize(t.fileSize) }}</span>
           <button
             v-if="t.status === 'completed'"
-            class="text-blue-400 hover:text-blue-600 ml-auto"
-            @click="downloadTaskFile(t.id)"
+            class="text-blue-400 hover:color-accent ml-auto"
+            @click="() => downloadTaskFile(t.id)"
           >
             下载
           </button>
-          <button class="text-red-300 hover:text-red-500 ml-1" @click="removeTask(t.id)">删</button>
+          <button class="text-red-300 hover:color-danger ml-1" @click="() => removeTask(t.id)">
+            删
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 项目导入 -->
-    <div class="border-t border-gray-100 pt-4 mb-4">
+    <div class="border-t border-light pt-4 mb-4">
       <h3 class="text-sm font-medium mb-2">项目导入</h3>
-      <p class="text-xs text-gray-400 mb-2">上传项目导出 ZIP，预览差异后确认导入。</p>
+      <p class="text-xs text-muted mb-2">上传项目导出 ZIP，预览差异后确认导入。</p>
 
       <input
         ref="importFileInput"
@@ -340,7 +342,7 @@ onUnmounted(() => {
       </button>
 
       <!-- 导入差异预览 -->
-      <div v-if="importDiff" class="mt-4 bg-gray-50 rounded-lg p-4">
+      <div v-if="importDiff" class="mt-4 bg-base rounded-lg p-4">
         <h4 class="text-sm font-medium mb-2">
           导入预览 — 来源: {{ importDiff.sourceProject.name }}
         </h4>
@@ -353,15 +355,13 @@ onUnmounted(() => {
             <template v-if="importDiff.categories.conflicted.length > 0">
               · 冲突 {{ importDiff.categories.conflicted.length }}
               <div v-for="c in importDiff.categories.conflicted" :key="c.id" class="ml-4 mt-1">
-                <span class="text-gray-500">{{ c.sourceName }} → {{ c.targetName }}</span>
+                <span class="text-secondary">{{ c.sourceName }} → {{ c.targetName }}</span>
                 <button
                   :class="
-                    strategies.categories[c.id] === 'overwrite'
-                      ? 'text-orange-500'
-                      : 'text-gray-400'
+                    strategies.categories[c.id] === 'overwrite' ? 'text-orange-500' : 'text-muted'
                   "
                   class="ml-2 hover:underline"
-                  @click="toggleStrategy('categories', c.id)"
+                  @click="() => toggleStrategy('categories', c.id)"
                 >
                   {{ strategyLabel(strategies.categories[c.id]) }}
                 </button>
@@ -376,13 +376,13 @@ onUnmounted(() => {
             <template v-if="importDiff.features.conflicted.length > 0">
               · 冲突 {{ importDiff.features.conflicted.length }}
               <div v-for="f in importDiff.features.conflicted" :key="f.id" class="ml-4 mt-1">
-                <span class="text-gray-500">{{ f.sourceTitle }} → {{ f.targetTitle }}</span>
+                <span class="text-secondary">{{ f.sourceTitle }} → {{ f.targetTitle }}</span>
                 <button
                   :class="
-                    strategies.features[f.id] === 'overwrite' ? 'text-orange-500' : 'text-gray-400'
+                    strategies.features[f.id] === 'overwrite' ? 'text-orange-500' : 'text-muted'
                   "
                   class="ml-2 hover:underline"
-                  @click="toggleStrategy('features', f.id)"
+                  @click="() => toggleStrategy('features', f.id)"
                 >
                   {{ strategyLabel(strategies.features[f.id]) }}
                 </button>
@@ -397,13 +397,13 @@ onUnmounted(() => {
             <template v-if="importDiff.catalogs.conflicted.length > 0">
               · 冲突 {{ importDiff.catalogs.conflicted.length }}
               <div v-for="c in importDiff.catalogs.conflicted" :key="c.id" class="ml-4 mt-1">
-                <span class="text-gray-500">{{ c.sourceTitle }} → {{ c.targetTitle }}</span>
+                <span class="text-secondary">{{ c.sourceTitle }} → {{ c.targetTitle }}</span>
                 <button
                   :class="
-                    strategies.catalogs[c.id] === 'overwrite' ? 'text-orange-500' : 'text-gray-400'
+                    strategies.catalogs[c.id] === 'overwrite' ? 'text-orange-500' : 'text-muted'
                   "
                   class="ml-2 hover:underline"
-                  @click="toggleStrategy('catalogs', c.id)"
+                  @click="() => toggleStrategy('catalogs', c.id)"
                 >
                   {{ strategyLabel(strategies.catalogs[c.id]) }}
                 </button>
@@ -435,7 +435,7 @@ onUnmounted(() => {
 
       <!-- 导入历史 -->
       <div v-if="importHistory.length > 0" class="mt-3">
-        <h4 class="text-xs font-medium text-gray-400 mb-1">导入历史</h4>
+        <h4 class="text-xs font-medium text-muted mb-1">导入历史</h4>
         <div v-for="t in importHistory" :key="t.id" class="flex items-center gap-2 py-1 text-xs">
           <span
             :class="
@@ -448,8 +448,8 @@ onUnmounted(() => {
           >
             {{ statusLabel(t.status) }}
           </span>
-          <span class="text-gray-400">{{ timeLabel(t.completedAt || t.createdAt) }}</span>
-          <button class="text-red-300 hover:text-red-500 ml-auto" @click="removeTask(t.id)">
+          <span class="text-muted">{{ timeLabel(t.completedAt || t.createdAt) }}</span>
+          <button class="text-red-300 hover:color-danger ml-auto" @click="() => removeTask(t.id)">
             删
           </button>
         </div>
