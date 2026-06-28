@@ -3,7 +3,7 @@ import { rm } from 'fs/promises'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { getDb } from '../db/index.js'
-import { authMiddleware, requireRole } from '../auth/middleware.js'
+import { authMiddleware, requireRole, ensureProjectWritable } from '../auth/middleware.js'
 import { isProjectMember, hasProjectRole, assertCatalogMember } from '../auth/membership.js'
 import { recordAudit } from '../services/audit.js'
 import { success, created, ok, fail } from '../lib/response.js'
@@ -548,6 +548,7 @@ export async function catalogRoutes(app: FastifyInstance) {
       if (!hasProjectRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
+      if (!ensureProjectWritable(catalogMeta.project_id, reply)) return
 
       // 收集审核状态快照（展平 Part 结构）
       const featuresListRaw: CatalogEntry[] = JSON.parse(catalogMeta.features)
@@ -702,6 +703,7 @@ export async function catalogRoutes(app: FastifyInstance) {
       if (!hasProjectRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
+      if (!ensureProjectWritable(catalogMeta.project_id, reply)) return
 
       db.prepare('UPDATE catalog_versions SET visibility = ? WHERE id = ?').run(
         body.visibility,
@@ -795,6 +797,7 @@ export async function catalogRoutes(app: FastifyInstance) {
       if (!hasProjectRole(req.user!.userId, req.user!.role, projectId, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
+      if (!ensureProjectWritable(projectId, reply)) return
 
       const id = uuid().slice(0, 8)
       const db = getDb()
@@ -832,6 +835,7 @@ export async function catalogRoutes(app: FastifyInstance) {
       if (!hasProjectRole(req.user!.userId, req.user!.role, existing.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
+      if (!ensureProjectWritable(existing.project_id, reply)) return
 
       db.prepare(`
       UPDATE catalogs SET
@@ -866,6 +870,7 @@ export async function catalogRoutes(app: FastifyInstance) {
       if (!hasProjectRole(req.user!.userId, req.user!.role, catalog.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
+      if (!ensureProjectWritable(catalog.project_id, reply)) return
 
       db.prepare('DELETE FROM catalogs WHERE id = ?').run(id)
 

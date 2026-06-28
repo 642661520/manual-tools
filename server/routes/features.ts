@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import { getDb } from '../db/index.js'
-import { authMiddleware, requireRole } from '../auth/middleware.js'
+import { authMiddleware, requireRole, ensureProjectWritable } from '../auth/middleware.js'
 import { isProjectMember, hasProjectRole } from '../auth/membership.js'
 import { success, created, ok, fail } from '../lib/response.js'
 import { v4 as uuid } from 'uuid'
@@ -206,6 +206,7 @@ export async function featureRoutes(app: FastifyInstance) {
       if (!hasProjectRole(userId, role, projectId, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
+      if (!ensureProjectWritable(projectId, reply)) return
 
       const id = `custom:${uuid().slice(0, 8)}`
       const db = getDb()
@@ -247,6 +248,7 @@ export async function featureRoutes(app: FastifyInstance) {
       if (!hasProjectRole(userId, role, feature.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
+      if (!ensureProjectWritable(feature.project_id, reply)) return
 
       db.prepare(`
       UPDATE features SET title = ?, description = ?, sections = ?, category_id = ?, updated_at = datetime('now')
@@ -281,6 +283,7 @@ export async function featureRoutes(app: FastifyInstance) {
       if (!hasProjectRole(userId, role, feature.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
+      if (!ensureProjectWritable(feature.project_id, reply)) return
 
       db.prepare('DELETE FROM features WHERE id = ?').run(id)
       return ok()
@@ -303,6 +306,7 @@ export async function featureRoutes(app: FastifyInstance) {
       if (!projectId) return fail(reply, 404, '章节不存在')
       if (!isProjectMember(userId, userRole, projectId))
         return fail(reply, 403, '你不是该项目的成员')
+      if (!ensureProjectWritable(projectId, reply)) return
 
       const reviewChain = getEffectiveReviewChain(projectId)
       const docId = `${featureId}/${sectionKey}`
@@ -352,10 +356,10 @@ export async function featureRoutes(app: FastifyInstance) {
       }
 
       // 3) 事务：纯 DB 写入（不再含 fail() 调用）
-      const dbUser = db.prepare('SELECT display_name FROM users WHERE id = ?').get(userId) as
-        | { display_name: string }
+      const dbUser = db.prepare('SELECT display_name, username FROM users WHERE id = ?').get(userId) as
+        | { display_name: string; username: string }
         | undefined
-      const operatorName = dbUser?.display_name || req.user?.displayName || '未知用户'
+      const operatorName = dbUser?.display_name || dbUser?.username || '未知用户'
 
       interface NotificationJob {
         (): Promise<void>
@@ -579,6 +583,7 @@ export async function featureRoutes(app: FastifyInstance) {
       if (projectId && !hasProjectRole(userId, role, projectId, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
+      if (projectId && !ensureProjectWritable(projectId, reply)) return
 
       const docId = `${featureId}/${sectionKey}`
       db.prepare('DELETE FROM documents WHERE id = ?').run(docId)
@@ -607,6 +612,7 @@ export async function featureRoutes(app: FastifyInstance) {
       if (!hasProjectRole(userId, userRole, feature.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
+      if (!ensureProjectWritable(feature.project_id, reply)) return
 
       db.prepare("UPDATE features SET sections = ?, updated_at = datetime('now') WHERE id = ?").run(
         JSON.stringify(sections),

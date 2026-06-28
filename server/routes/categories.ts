@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import { getDb } from '../db/index.js'
-import { authMiddleware, requireRole } from '../auth/middleware.js'
+import { authMiddleware, requireRole, ensureProjectWritable } from '../auth/middleware.js'
 import { hasProjectRole } from '../auth/membership.js'
 import { success, ok, fail } from '../lib/response.js'
 import { v4 as uuid } from 'uuid'
@@ -36,6 +36,7 @@ export async function categoryRoutes(app: FastifyInstance) {
       if (!hasProjectRole(req.user!.userId, req.user!.role, projectId, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
+      if (!ensureProjectWritable(projectId, reply)) return
 
       const db = getDb()
       const id = uuid().slice(0, 8)
@@ -76,6 +77,7 @@ export async function categoryRoutes(app: FastifyInstance) {
       if (!hasProjectRole(req.user!.userId, req.user!.role, existing.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
+      if (!ensureProjectWritable(existing.project_id, reply)) return
 
       db.prepare(`
       UPDATE categories SET name = ?, color = ?, sort_order = ?, updated_at = datetime('now')
@@ -103,6 +105,7 @@ export async function categoryRoutes(app: FastifyInstance) {
       if (!hasProjectRole(req.user!.userId, req.user!.role, existing.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
+      if (!ensureProjectWritable(existing.project_id, reply)) return
 
       // ON DELETE SET NULL 自动将关联章节的 category_id 置空
       db.prepare('DELETE FROM categories WHERE id = ?').run(id)

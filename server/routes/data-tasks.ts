@@ -4,9 +4,10 @@
 
 import { FastifyInstance } from 'fastify'
 import { getDb } from '../db/index.js'
-import { authMiddleware, requireRole } from '../auth/middleware.js'
+import { authMiddleware, requireRole, ensureProjectWritable } from '../auth/middleware.js'
 import { config } from '../config.js'
 import { success, ok, fail } from '../lib/response.js'
+import { parsePagination } from '../lib/pagination.js'
 import { v4 as uuid } from 'uuid'
 import fs from 'fs'
 import path from 'path'
@@ -54,6 +55,7 @@ export async function dataTaskRoutes(app: FastifyInstance) {
       // 验证项目存在
       const project = db.prepare('SELECT id FROM projects WHERE id = ?').get(id)
       if (!project) return fail(reply, 404, '项目不存在')
+      if (!ensureProjectWritable(id, reply)) return
 
       const taskId = uuid().slice(0, 12)
       const scope = `project:${id}`
@@ -104,6 +106,7 @@ export async function dataTaskRoutes(app: FastifyInstance) {
 
       const project = db.prepare('SELECT id FROM projects WHERE id = ?').get(id)
       if (!project) return fail(reply, 404, '项目不存在')
+      if (!ensureProjectWritable(id, reply)) return
 
       const file = await req.file()
       if (!file) return fail(reply, 400, '请选择 ZIP 文件')
@@ -359,6 +362,7 @@ export async function dataTaskRoutes(app: FastifyInstance) {
       }
 
       const targetProjectId = task.scope.replace(/^project:/, '')
+      if (!ensureProjectWritable(targetProjectId, reply)) return
 
       try {
         db.prepare("UPDATE data_tasks SET status = 'applying' WHERE id = ?").run(id)
@@ -465,8 +469,9 @@ export async function dataTaskRoutes(app: FastifyInstance) {
     {
       preHandler: [authMiddleware, requireRole('admin')],
     },
-    async () => {
-      const result = getUploadsList()
+    async (req) => {
+      const { limit, offset } = parsePagination(req.query as Record<string, string>, { limit: 50 })
+      const result = getUploadsList({ limit, offset })
       return success(result)
     },
   )

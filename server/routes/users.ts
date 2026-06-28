@@ -8,17 +8,20 @@ import { validatePassword } from '../lib/password.js'
 import { notifyRoleChange } from '../services/notifications.js'
 import { recordAudit } from '../services/audit.js'
 import { success, ok, created, fail } from '../lib/response.js'
+import { parsePagination, paginatedQuery } from '../lib/pagination.js'
 
 export async function userRoutes(app: FastifyInstance) {
-  // 用户列表
-  app.get('/api/v1/auth/users', { preHandler: authMiddleware }, async () => {
+  // 用户列表（分页）
+  app.get('/api/v1/auth/users', { preHandler: authMiddleware }, async (req) => {
     const db = getDb()
-    const rows = db
-      .prepare(
-        'SELECT id, username, display_name, role, feishu_open_id, feishu_name, feishu_avatar_url, created_at FROM users ORDER BY created_at',
-      )
-      .all()
-    return success(rows)
+    const { limit, offset } = parsePagination(req.query as Record<string, string>, { limit: 50 })
+    const baseSql =
+      'SELECT id, username, display_name, role, feishu_open_id, feishu_name, feishu_avatar_url, created_at FROM users ORDER BY created_at'
+    const result = paginatedQuery(db, baseSql, 'SELECT COUNT(*) as cnt FROM users', [], {
+      limit,
+      offset,
+    })
+    return success(result)
   })
 
   // 创建用户
@@ -52,10 +55,26 @@ export async function userRoutes(app: FastifyInstance) {
   app.delete(
     '/api/v1/auth/users/:id',
     { preHandler: [authMiddleware, requireRole('admin')] },
-    async (req) => {
+    async (req, reply) => {
       const { id } = req.params as { id: string }
+      if (id === req.user!.userId) return fail(reply, 403, '不能删除自己的账号')
+      if (id === 'seed-admin-001') return fail(reply, 403, '内置管理员账号不可删除')
       const db = getDb()
+      const existing = db.prepare('SELECT id, username FROM users WHERE id = ?').get(id) as
+        | { id: string; username: string }
+        | undefined
+      if (!existing) return fail(reply, 404, '用户不存在')
       db.prepare('DELETE FROM users WHERE id = ?').run(id)
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'user.delete',
+        targetType: 'user',
+        targetId: id,
+        detail: { deletedUser: existing.username },
+      })
+
       return ok()
     },
   )
@@ -91,9 +110,9 @@ export async function userRoutes(app: FastifyInstance) {
       })
 
       const operator = db
-        .prepare('SELECT display_name FROM users WHERE id = ?')
-        .get(req.user!.userId) as { display_name: string } | undefined
-      notifyRoleChange(id, oldRole, role, operator?.display_name || '系统管理员').catch(
+        .prepare('SELECT display_name, username FROM users WHERE id = ?')
+        .get(req.user!.userId) as { display_name: string; username: string } | undefined
+      notifyRoleChange(id, oldRole, role, operator?.display_name || operator?.username || '未知用户').catch(
         (e: unknown) =>
           app.log.error(`飞书通知失败(角色变更): ${e instanceof Error ? e.message : e}`),
       )

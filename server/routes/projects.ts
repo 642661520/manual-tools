@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { rm } from 'fs/promises'
 import { join } from 'path'
 import { getDb } from '../db/index.js'
-import { authMiddleware, requireRole } from '../auth/middleware.js'
+import { authMiddleware, requireRole, ensureProjectWritable } from '../auth/middleware.js'
 import { success, ok, fail } from '../lib/response.js'
 import { isProjectMember, hasProjectRole } from '../auth/membership.js'
 import {
@@ -123,6 +123,7 @@ export async function projectRoutes(app: FastifyInstance) {
       const db = getDb()
       const existing = db.prepare('SELECT id FROM projects WHERE id = ?').get(id)
       if (!existing) return fail(reply, 404, '项目不存在')
+      if (!ensureProjectWritable(id, reply)) return
 
       db.prepare(
         "UPDATE projects SET name = ?, description = ?, updated_at = datetime('now') WHERE id = ?",
@@ -168,6 +169,7 @@ export async function projectRoutes(app: FastifyInstance) {
       const db = getDb()
       const existing = db.prepare('SELECT id FROM projects WHERE id = ?').get(id)
       if (!existing) return fail(reply, 404, '项目不存在')
+      if (!ensureProjectWritable(id, reply)) return
 
       // FK ON DELETE CASCADE 自动清理 features、catalogs、project_members
       // 先查询所有 catalog ID，用于后续清理文档站点文件
@@ -275,10 +277,10 @@ export async function projectRoutes(app: FastifyInstance) {
       const project = db.prepare('SELECT name FROM projects WHERE id = ?').get(id) as
         | { name: string }
         | undefined
-      const operator = db.prepare('SELECT display_name FROM users WHERE id = ?').get(userId) as
-        | { display_name: string }
+      const operator = db.prepare('SELECT display_name, username FROM users WHERE id = ?').get(userId) as
+        | { display_name: string; username: string }
         | undefined
-      const operatorName = operator?.display_name || '系统管理员'
+      const operatorName = operator?.display_name || operator?.username || '未知用户'
       const projectName = project?.name || id
 
       if (isExistingMember) {
@@ -328,8 +330,8 @@ export async function projectRoutes(app: FastifyInstance) {
       const project = db.prepare('SELECT name FROM projects WHERE id = ?').get(id) as
         | { name: string }
         | undefined
-      const operator = db.prepare('SELECT display_name FROM users WHERE id = ?').get(operatorId) as
-        | { display_name: string }
+      const operator = db.prepare('SELECT display_name, username FROM users WHERE id = ?').get(operatorId) as
+        | { display_name: string; username: string }
         | undefined
 
       db.prepare('DELETE FROM project_members WHERE project_id = ? AND user_id = ?').run(
@@ -364,7 +366,7 @@ export async function projectRoutes(app: FastifyInstance) {
       notifyLeaveProject(
         project?.name || id,
         targetUserId,
-        operator?.display_name || '系统管理员',
+        operator?.display_name || operator?.username || '未知用户',
       ).catch((e) => app.log.error(`飞书通知失败(移出项目) ${e instanceof Error ? e.message : e}`))
 
       return ok()
@@ -427,6 +429,7 @@ export async function projectRoutes(app: FastifyInstance) {
       if (!hasProjectRole(userId, role, id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
+      if (!ensureProjectWritable(id, reply)) return
 
       const { reviewChain } = req.body as { reviewChain: string[] }
       if (!Array.isArray(reviewChain)) {

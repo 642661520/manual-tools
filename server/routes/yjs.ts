@@ -8,9 +8,10 @@ import {
   encodeAwarenessUpdate,
   applyAwarenessUpdate,
 } from 'y-protocols/awareness'
-import { authMiddleware } from '../auth/middleware.js'
+import { authMiddleware, ensureProjectWritable } from '../auth/middleware.js'
+import { config } from '../config.js'
 import { verifyToken } from '../auth/jwt.js'
-import { isProjectMember } from '../auth/membership.js'
+import { isProjectMember, hasProjectRole } from '../auth/membership.js'
 import { getDb } from '../db/index.js'
 import { ok, fail } from '../lib/response.js'
 import {
@@ -81,6 +82,8 @@ export async function yjsRoutes(app: FastifyInstance) {
 
     // 首条消息认证：连接建立后客户端必须先发 { type: 'auth', token } JSON 帧
     let authenticated = false
+    // 只读模式：defaultProjectReadonly 时允许连接和读取，仅拦截写入
+    let readOnly = false
 
     const state = getOrCreateDoc(docId)
     cancelEviction(docId)
@@ -109,6 +112,16 @@ export async function yjsRoutes(app: FastifyInstance) {
             if (!feature || !isProjectMember(payload.userId, payload.role, feature.project_id)) {
               socket.close(4003, '无权访问此文档')
               return
+            }
+            // Viewer 角色只读：无权编辑文档内容
+            if (!hasProjectRole(payload.userId, payload.role, feature.project_id, 'writer')) {
+              readOnly = true
+              socket.send(JSON.stringify({ type: 'readonly', value: true, reason: '您的角色为 Viewer，文档内容仅供查阅' }))
+            }
+            if (feature.project_id === 'default' && config.defaultProjectReadonly) {
+              readOnly = true
+              // 通知客户端进入只读模式
+              socket.send(JSON.stringify({ type: 'readonly', value: true, reason: '默认项目已锁定，仅供查阅' }))
             }
 
             authenticated = true
@@ -166,6 +179,7 @@ export async function yjsRoutes(app: FastifyInstance) {
 
         // update: client sends content changes
         if (syncType === 2) {
+          if (readOnly) return // 只读模式，忽略写入
           const update = decoding.readVarUint8Array(decoder)
           applyUpdate(docId, update)
         }
@@ -235,6 +249,7 @@ export async function yjsRoutes(app: FastifyInstance) {
     if (!feature || !isProjectMember(req.user!.userId, req.user!.role, feature.project_id)) {
       return fail(reply, 403, '无权访问此项目')
     }
+    if (!ensureProjectWritable(feature.project_id, reply)) return
     ensureDocument(docId, featureId, sectionKey)
     return ok()
   })
