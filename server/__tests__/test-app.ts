@@ -12,6 +12,16 @@ import { featureRoutes } from '../routes/features.js'
 import { catalogRoutes } from '../routes/catalogs.js'
 import { categoryRoutes } from '../routes/categories.js'
 import { uploadRoutes } from '../routes/upload.js'
+import { searchRoutes } from '../routes/search.js'
+import { todoRoutes } from '../routes/todos.js'
+import { profileRoutes } from '../routes/profile.js'
+import { diffRoutes } from '../routes/diff.js'
+import { auditRoutes } from '../routes/audit.js'
+import { logRoutes } from '../routes/log.js'
+import { aiRoutes } from '../routes/ai.js'
+import { dataTaskRoutes } from '../routes/data-tasks.js'
+import { feishuRoutes } from '../routes/feishu.js'
+import { cacheRoutes } from '../routes/cache.js'
 import { getDb } from '../db/index.js'
 
 /** 构建测试用 Fastify 实例（不监听端口） */
@@ -29,6 +39,16 @@ export async function buildTestApp() {
   await app.register(catalogRoutes)
   await app.register(categoryRoutes)
   await app.register(uploadRoutes)
+  await app.register(searchRoutes)
+  await app.register(todoRoutes)
+  await app.register(profileRoutes)
+  await app.register(diffRoutes)
+  await app.register(auditRoutes)
+  await app.register(logRoutes)
+  await app.register(aiRoutes)
+  await app.register(dataTaskRoutes)
+  await app.register(feishuRoutes)
+  await app.register(cacheRoutes)
 
   await app.ready()
   return app

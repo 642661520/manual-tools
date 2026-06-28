@@ -37,4 +37,15 @@ describe('toCamelCase', () => {
   it('空对象返回空对象', () => {
     expect(toCamelCase({})).toEqual({})
   })
+
+  it('undefined 原样返回', () => {
+    expect(toCamelCase(undefined)).toBeUndefined()
+  })
+
+  it('Date 对象原样返回不转换', () => {
+    const date = new Date('2024-01-01')
+    const result = toCamelCase(date)
+    expect(result).toBeInstanceOf(Date)
+    expect(result.toISOString()).toBe(date.toISOString())
+  })
 })
