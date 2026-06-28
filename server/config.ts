@@ -76,7 +76,7 @@ export const config = {
   feishuHost: env('FEISHU_HOST', 'https://open.feishu.cn'),
   feishuAppId: env('FEISHU_APP_ID', ''),
   feishuAppSecret: env('FEISHU_APP_SECRET', ''),
-  adminOpenIds: env('ADMIN_OPEN_IDS', env('PM_OPEN_IDS', '')),
+  adminOpenIds: env('ADMIN_OPEN_IDS', ''),
 
   // PDF 导出
   pdfFontRegular: env('PDF_FONT_REGULAR', ''),

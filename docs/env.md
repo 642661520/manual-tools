@@ -106,7 +106,7 @@ OpenAI 兼容接口，支持 OpenAI / DeepSeek / Ollama / 通义千问 等。
 
 ### PDF 导出
 
-基于 Puppeteer 将 Markdown 渲染为 PDF。
+基于 Puppeteer 将 Markdown 渲染为 PDF。`PUPPETEER_SKIP_DOWNLOAD` 由 Puppeteer 库直接读取，不经过 `server/config.ts`。
 
 | 变量                        | 默认值 | 说明                                                                                |
 | --------------------------- | ------ | ----------------------------------------------------------------------------------- |
