@@ -272,10 +272,6 @@ const charCount = computed(() => {
   return editor.value?.storage?.characterCount?.characters?.() ?? 0
 })
 
-const wordCount = computed(() => {
-  return editor.value?.storage?.characterCount?.words?.() ?? 0
-})
-
 const currentFormat = computed(() => {
   const ed = editor.value
   if (!ed) return ''
@@ -530,10 +526,10 @@ defineExpose({ connected, synced, initialSyncDone, editor })
   >
     <div
       v-if="editable && !readOnly"
-      class="flex items-center gap-1 px-4 py-2 border-b border-gray-200 bg-white flex-wrap"
+      class="flex items-center gap-0.5 sm:gap-1 px-2 sm:px-4 py-1.5 sm:py-2 border-b border-gray-200 bg-white flex-nowrap sm:flex-wrap overflow-x-auto sm:overflow-visible scrollbar-none"
     >
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('bold') }"
         v-tooltip="'加粗'"
         @click="editor.chain().focus().toggleBold().run()"
@@ -541,7 +537,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span class="i-lucide-bold w-4 h-4 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('italic') }"
         v-tooltip="'斜体'"
         @click="editor.chain().focus().toggleItalic().run()"
@@ -549,7 +545,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span class="i-lucide-italic w-4 h-4 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('strike') }"
         v-tooltip="'删除线'"
         @click="editor.chain().focus().toggleStrike().run()"
@@ -557,7 +553,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span class="i-lucide-strikethrough w-4 h-4 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('underline') }"
         v-tooltip="'下划线'"
         @click="editor.chain().focus().toggleUnderline().run()"
@@ -565,7 +561,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span class="i-lucide-underline w-4 h-4 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('subscript') }"
         v-tooltip="'下标'"
         @click="editor.chain().focus().toggleSubscript().run()"
@@ -573,7 +569,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span class="i-lucide-subscript w-4 h-4 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('superscript') }"
         v-tooltip="'上标'"
         @click="editor.chain().focus().toggleSuperscript().run()"
@@ -581,7 +577,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span class="i-lucide-superscript w-4 h-4 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('code') }"
         v-tooltip="'行内代码'"
         @click="editor.chain().focus().toggleCode().run()"
@@ -604,9 +600,9 @@ defineExpose({ connected, synced, initialSyncDone, editor })
       >
         <span class="i-lucide-highlighter w-4 h-4 inline-block align-middle" />
       </button>
-      <div class="w-px h-5 bg-gray-300 mx-1" />
+      <div class="w-px h-4 sm:h-5 bg-gray-300 mx-0.5 sm:mx-1 hidden sm:block" />
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('link') }"
         v-tooltip="'链接'"
         @click="handleLink"
@@ -614,16 +610,16 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span class="i-lucide-link w-4 h-4 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('crossref') }"
         v-tooltip="'交叉引用'"
         @click="openCrossrefPicker"
       >
         <span class="i-lucide-bookmark w-4 h-4 inline-block align-middle" />
       </button>
-      <div class="w-px h-5 bg-gray-300 mx-1" />
+      <div class="w-px h-4 sm:h-5 bg-gray-300 mx-0.5 sm:mx-1 hidden sm:block" />
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('heading', { level: 1 }) }"
         v-tooltip="'标题1'"
         @click="editor.chain().focus().toggleHeading({ level: 1 }).run()"
@@ -631,7 +627,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span class="i-lucide-heading-1 w-5 h-5 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('heading', { level: 2 }) }"
         v-tooltip="'标题2'"
         @click="editor.chain().focus().toggleHeading({ level: 2 }).run()"
@@ -639,7 +635,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span class="i-lucide-heading-2 w-5 h-5 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('heading', { level: 3 }) }"
         v-tooltip="'标题3'"
         @click="editor.chain().focus().toggleHeading({ level: 3 }).run()"
@@ -647,7 +643,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span class="i-lucide-heading-3 w-5 h-5 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('heading', { level: 4 }) }"
         v-tooltip="'标题4'"
         @click="editor.chain().focus().toggleHeading({ level: 4 }).run()"
@@ -655,7 +651,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span class="i-lucide-heading-4 w-5 h-5 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('heading', { level: 5 }) }"
         v-tooltip="'标题5'"
         @click="editor.chain().focus().toggleHeading({ level: 5 }).run()"
@@ -663,16 +659,16 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span class="i-lucide-heading-5 w-5 h-5 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('heading', { level: 6 }) }"
         v-tooltip="'标题6'"
         @click="editor.chain().focus().toggleHeading({ level: 6 }).run()"
       >
         <span class="i-lucide-heading-6 w-5 h-5 inline-block align-middle" />
       </button>
-      <div class="w-px h-5 bg-gray-300 mx-1" />
+      <div class="w-px h-4 sm:h-5 bg-gray-300 mx-0.5 sm:mx-1 hidden sm:block" />
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive({ textAlign: 'left' }) }"
         v-tooltip="'左对齐'"
         @click="editor.chain().focus().setTextAlign('left').run()"
@@ -680,7 +676,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span class="i-lucide-align-left w-4 h-4 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive({ textAlign: 'center' }) }"
         v-tooltip="'居中'"
         @click="editor.chain().focus().setTextAlign('center').run()"
@@ -688,7 +684,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span class="i-lucide-align-center w-4 h-4 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive({ textAlign: 'right' }) }"
         v-tooltip="'右对齐'"
         @click="editor.chain().focus().setTextAlign('right').run()"
@@ -696,16 +692,16 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span class="i-lucide-align-right w-4 h-4 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive({ textAlign: 'justify' }) }"
         v-tooltip="'两端对齐'"
         @click="editor.chain().focus().setTextAlign('justify').run()"
       >
         <span class="i-lucide-align-justify w-4 h-4 inline-block align-middle" />
       </button>
-      <div class="w-px h-5 bg-gray-300 mx-1" />
+      <div class="w-px h-4 sm:h-5 bg-gray-300 mx-0.5 sm:mx-1 hidden sm:block" />
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('bulletList') }"
         v-tooltip="'无序列表'"
         @click="editor.chain().focus().toggleBulletList().run()"
@@ -713,7 +709,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span class="i-lucide-list w-4 h-4 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('orderedList') }"
         v-tooltip="'有序列表'"
         @click="editor.chain().focus().toggleOrderedList().run()"
@@ -721,7 +717,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         1.
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('taskList') }"
         v-tooltip="'待办清单'"
         @click="editor.chain().focus().toggleTaskList().run()"
@@ -729,7 +725,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span class="i-lucide-check-square w-4 h-4 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('blockquote') }"
         v-tooltip="'引用'"
         @click="editor.chain().focus().toggleBlockquote().run()"
@@ -737,7 +733,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span class="i-lucide-quote w-4 h-4 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': editor.isActive('codeBlock') }"
         v-tooltip="'代码块'"
         @click="editor.chain().focus().toggleCodeBlock().run()"
@@ -745,31 +741,31 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span class="i-lucide-code-xml w-4 h-4 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         v-tooltip="'分隔线'"
         @click="editor.chain().focus().setHorizontalRule().run()"
       >
         <span class="i-lucide-minus w-4 h-4 inline-block align-middle" />
       </button>
-      <div class="w-px h-5 bg-gray-300 mx-1" />
+      <div class="w-px h-4 sm:h-5 bg-gray-300 mx-0.5 sm:mx-1 hidden sm:block" />
       <TableGridPicker :editor="editor" :editable="editable ?? true" />
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         v-tooltip="'插入图片'"
         @click="openImageDialog"
       >
         <span class="i-lucide-image w-4 h-4 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         v-tooltip="'插入视频'"
         @click="openVideoDialog"
       >
         <span class="i-lucide-film w-4 h-4 inline-block align-middle" />
       </button>
-      <div class="w-px h-5 bg-gray-300 mx-1" />
+      <div class="w-px h-4 sm:h-5 bg-gray-300 mx-0.5 sm:mx-1 hidden sm:block" />
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': isFullscreen }"
         v-tooltip="'全屏写作'"
         @click="toggleFullscreen"
@@ -777,7 +773,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span class="i-lucide-maximize w-4 h-4 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         :class="{ 'bg-gray-200': searchVisible }"
         v-tooltip="'查找替换'"
         @click="toggleSearch"
@@ -786,22 +782,22 @@ defineExpose({ connected, synced, initialSyncDone, editor })
       </button>
 
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         v-tooltip="'撤销'"
         @click="editor.chain().focus().undo().run()"
       >
         <span class="i-lucide-undo-2 w-4 h-4 inline-block align-middle" />
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         v-tooltip="'重做'"
         @click="editor.chain().focus().redo().run()"
       >
         <span class="i-lucide-redo-2 w-4 h-4 inline-block align-middle" />
       </button>
-      <div class="w-px h-5 bg-gray-300 mx-1" />
+      <div class="w-px h-4 sm:h-5 bg-gray-300 mx-0.5 sm:mx-1 hidden sm:block" />
       <button
-        class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+        class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded hover:bg-gray-100 text-sm"
         v-tooltip="'清除格式'"
         @click="editor.chain().focus().clearNodes().unsetAllMarks().run()"
       >
@@ -923,7 +919,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
     </div>
 
     <TableBubbleMenu :editor="editor" />
-    <AiBubbleMenu v-if="editor" :editor="editor" />
+    <AiBubbleMenu v-if="editor" :editor="editor" :editable="editable" />
 
     <CrossrefPicker
       :visible="crossrefPickerVisible"
@@ -996,14 +992,17 @@ defineExpose({ connected, synced, initialSyncDone, editor })
           <p class="text-sm">正在加载文档...</p>
         </div>
       </div>
-      <EditorContent :editor="editor" class="prose max-w-none p-8 min-h-full focus:outline-none" />
+      <EditorContent
+        :editor="editor"
+        class="prose max-w-none p-3 sm:p-5 lg:p-8 min-h-full focus:outline-none"
+      />
     </div>
 
     <!-- 底部状态栏 -->
     <div
-      class="flex items-center justify-between px-4 py-1 border-t border-gray-200 bg-gray-50 text-xs text-gray-400 select-none"
+      class="flex items-center justify-between px-2 sm:px-4 py-1 border-t border-gray-200 bg-gray-50 text-xs text-gray-400 select-none"
     >
-      <span>{{ wordCount }} 词 / {{ charCount }} 字符</span>
+      <span>{{ charCount }} 字符</span>
       <div class="flex items-center gap-1.5">
         <!-- 只读标记 -->
         <span
@@ -1015,11 +1014,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
           只读
         </span>
         <!-- 在线用户头像 -->
-        <div
-          v-if="onlineUsers.length > 0"
-          class="flex items-center gap-1 mr-3"
-          v-tooltip="'当前在线'"
-        >
+        <div v-if="onlineUsers.length > 0" class="flex items-center gap-1 mr-3">
           <template v-for="(u, i) in onlineUsers" :key="i">
             <div
               v-if="u.avatar"

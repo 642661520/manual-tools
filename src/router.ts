@@ -22,28 +22,32 @@ export const routes: RouteRecordRaw[] = [
     component: () => import('@/views/feature-editor/index.vue'),
     meta: { requiresAuth: true },
   },
+  // ====== 手册 ======
   {
-    path: '/catalogs/:id',
-    name: 'catalog-builder',
+    path: '/manuals',
+    name: 'manual-list',
+    component: () => import('@/views/catalog-list/index.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/manuals/:id/edit',
+    name: 'manual-builder',
     component: () => import('@/views/catalog-builder/index.vue'),
     meta: { requiresAuth: true },
   },
   {
-    path: '/preview',
-    name: 'preview-index',
-    component: () => import('@/views/manual-preview/index.vue'),
-    meta: { requiresAuth: true },
-  },
-  {
-    path: '/preview/:id',
+    path: '/manuals/:id',
     name: 'manual-preview',
     component: () => import('@/views/manual-preview/index.vue'),
     meta: { requiresAuth: true },
   },
-  {
-    path: '/catalogs/:id/preview',
-    redirect: (to) => `/preview/${to.params.id as string}`,
-  },
+  // 旧路径兼容
+  { path: '/catalogs', redirect: '/manuals' },
+  { path: '/catalogs/:id', redirect: (to) => `/manuals/${to.params.id as string}` },
+  { path: '/catalogs/:id/preview', redirect: (to) => `/manuals/${to.params.id as string}` },
+  { path: '/preview', redirect: '/manuals' },
+  { path: '/preview/:id', redirect: (to) => `/manuals/${to.params.id as string}` },
+  // ====== 设置 ======
   {
     path: '/settings',
     name: 'settings',

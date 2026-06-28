@@ -29,8 +29,8 @@ export function getAuditLogs(params?: {
   if (params?.userId) query.set('userId', params.userId)
   if (params?.action) query.set('action', params.action)
   if (params?.targetType) query.set('targetType', params.targetType)
-  if (params?.limit) query.set('limit', String(params.limit))
-  if (params?.offset) query.set('offset', String(params.offset))
+  if (params?.limit != null) query.set('limit', String(params.limit))
+  if (params?.offset != null) query.set('offset', String(params.offset))
   const qs = query.toString()
   return api.get<AuditLogPage>(`${BASE}${qs ? '?' + qs : ''}`)
 }

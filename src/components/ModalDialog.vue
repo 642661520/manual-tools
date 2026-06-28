@@ -22,10 +22,15 @@ const emit = defineEmits<{
 
 <template>
   <div v-if="visible" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
-    <div class="bg-white rounded-xl shadow-xl w-full" :class="widthClass || 'max-w-md'">
+    <div
+      class="bg-white rounded-xl shadow-xl w-full mx-3 sm:mx-auto max-w-[calc(100vw-1.5rem)] sm:max-w-md max-h-[90vh] flex flex-col"
+      :class="widthClass || ''"
+    >
       <!-- Header -->
-      <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-        <h2 class="text-lg font-semibold">{{ title }}</h2>
+      <div
+        class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0"
+      >
+        <h2 class="text-base sm:text-lg font-semibold truncate pr-2">{{ title }}</h2>
         <button
           class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100"
           @click="emit('close')"
@@ -35,17 +40,20 @@ const emit = defineEmits<{
       </div>
 
       <!-- Body -->
-      <div class="p-6">
+      <div class="p-4 sm:p-6 overflow-y-auto">
         <slot />
       </div>
 
       <!-- Footer -->
-      <div v-if="!hideFooter" class="px-6 py-4 border-t border-gray-200 flex flex-col gap-3">
+      <div
+        v-if="!hideFooter"
+        class="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 flex flex-col gap-3 flex-shrink-0"
+      >
         <ErrorMessage :message="error || ''" />
-        <div class="flex justify-end gap-3">
+        <div class="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3">
           <button
             v-if="cancelText"
-            class="btn-secondary"
+            class="btn-secondary w-full sm:w-auto justify-center"
             :disabled="loading"
             @click="emit('close')"
           >
@@ -53,7 +61,7 @@ const emit = defineEmits<{
           </button>
           <button
             v-if="confirmText"
-            class="btn-primary"
+            class="btn-primary w-full sm:w-auto justify-center"
             :class="confirmVariant === 'danger' ? '!bg-red-600 hover:!bg-red-700' : ''"
             :disabled="loading || confirmDisabled"
             @click="emit('confirm')"

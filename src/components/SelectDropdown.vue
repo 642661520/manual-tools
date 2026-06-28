@@ -17,11 +17,13 @@ const props = withDefaults(
     placeholder?: string
     disabled?: boolean
     widthClass?: string
+    btnClass?: string
   }>(),
   {
     placeholder: '请选择',
     disabled: false,
     widthClass: 'w-full',
+    btnClass: '',
   },
 )
 
@@ -160,8 +162,11 @@ onUnmounted(() => {
     <button
       ref="triggerRef"
       type="button"
-      class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm text-left flex items-center justify-between gap-2 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-      :class="{ 'ring-2 ring-blue-500 border-transparent': isOpen }"
+      class="w-full border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between gap-2 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      :class="[
+        btnClass || 'px-3 py-2 text-sm',
+        { 'ring-2 ring-blue-500 border-transparent': isOpen },
+      ]"
       :disabled="disabled"
       aria-haspopup="listbox"
       :aria-expanded="isOpen"

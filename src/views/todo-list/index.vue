@@ -121,6 +121,12 @@ watch(currentProjectId, loadTodos)
         </div>
       </template>
 
+      <div v-else-if="!currentProjectId" class="text-center py-16">
+        <span class="i-lucide-folder-open text-4xl text-gray-200 mb-3 block mx-auto" />
+        <p class="text-gray-400 text-sm">请先加入项目</p>
+        <p class="text-gray-400 text-xs mt-1">联系管理员将您添加到项目成员中</p>
+      </div>
+
       <div v-else class="text-center py-16">
         <span class="i-lucide-check-circle text-4xl text-gray-200 mb-3 block mx-auto" />
         <p class="text-gray-400 text-sm">没有待办任务</p>

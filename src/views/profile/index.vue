@@ -148,7 +148,7 @@ async function unbindFeishu() {
 }
 
 function roleLabel(role: string): string {
-  const labels: Record<string, string> = { admin: '系统管理员', member: '成员', guest: '游客' }
+  const labels: Record<string, string> = { admin: '系统管理员', member: '普通用户', guest: '游客' }
   return labels[role] || role
 }
 
@@ -287,7 +287,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="p-6 max-w-2xl mx-auto h-full overflow-y-auto">
+  <div class="p-4 sm:p-6 max-w-2xl mx-auto h-full overflow-y-auto">
     <h1 class="text-2xl font-bold mb-6">个人中心</h1>
 
     <!-- 游客权限提示 -->
@@ -329,10 +329,25 @@ onMounted(() => {
             <span v-if="feishuBound" class="text-green-600 ml-2 text-xs">已绑定飞书</span>
           </div>
         </div>
-        <div class="flex items-center gap-2 flex-shrink-0">
-          <button class="btn-secondary text-sm" @click="openEditProfile">编辑资料</button>
-          <button class="btn-secondary text-sm" @click="openChangePassword">修改密码</button>
-          <button class="btn-secondary text-sm" @click="handleLogout">退出登录</button>
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-shrink-0">
+          <button
+            class="btn-secondary text-sm w-full sm:w-auto justify-center"
+            @click="openEditProfile"
+          >
+            编辑资料
+          </button>
+          <button
+            class="btn-secondary text-sm w-full sm:w-auto justify-center"
+            @click="openChangePassword"
+          >
+            修改密码
+          </button>
+          <button
+            class="btn-secondary text-sm w-full sm:w-auto justify-center"
+            @click="handleLogout"
+          >
+            退出登录
+          </button>
         </div>
       </div>
     </div>

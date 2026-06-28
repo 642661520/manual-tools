@@ -130,3 +130,7 @@ export function getVersionPdfExportUrl(
   const m = mode ? `?mode=${mode}` : ''
   return `${BASE}/${catalogId}/versions/${versionId}/export/pdf${m}`
 }
+
+export function getSiteExportUrl(catalogId: string): string {
+  return `${BASE}/${catalogId}/export/site`
+}

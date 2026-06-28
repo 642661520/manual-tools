@@ -217,8 +217,8 @@ async function confirmImport() {
       strategies: strategies.value,
     })
     const msg = [
-      `功能: 新增${result.features.inserted} 更新${result.features.updated} 跳过${result.features.skipped}`,
-      `目录: 新增${result.catalogs.inserted} 更新${result.catalogs.updated}`,
+      `内容: 新增${result.features.inserted} 更新${result.features.updated} 跳过${result.features.skipped}`,
+      `手册: 新增${result.catalogs.inserted} 更新${result.catalogs.updated}`,
       `文档: 新增${result.documents.inserted} 更新${result.documents.updated}`,
       `文件: 复制${result.uploads.copied} 跳过${result.uploads.skipped}`,
     ].join('\n')
@@ -284,7 +284,7 @@ onUnmounted(() => {
     <div class="border-t border-gray-100 pt-4 mb-4">
       <h3 class="text-sm font-medium mb-2">项目导出</h3>
       <div v-if="estimate" class="text-xs text-gray-400 mb-2">
-        预估: {{ estimate.features }} 功能 · {{ estimate.catalogs }} 目录 ·
+        预估: {{ estimate.features }} 内容 · {{ estimate.catalogs }} 手册 ·
         {{ estimate.documents }} 文档 · {{ estimate.uploads }} 附件 · 约
         {{ formatSize(estimate.totalSize) }}
       </div>
@@ -369,9 +369,9 @@ onUnmounted(() => {
             </template>
           </div>
 
-          <!-- 功能 -->
+          <!-- 内容 -->
           <div>
-            <span class="font-medium">功能:</span>
+            <span class="font-medium">内容:</span>
             新增 {{ importDiff.features.added.length }}
             <template v-if="importDiff.features.conflicted.length > 0">
               · 冲突 {{ importDiff.features.conflicted.length }}
@@ -390,9 +390,9 @@ onUnmounted(() => {
             </template>
           </div>
 
-          <!-- 目录 -->
+          <!-- 手册 -->
           <div>
-            <span class="font-medium">目录:</span>
+            <span class="font-medium">手册:</span>
             新增 {{ importDiff.catalogs.added.length }}
             <template v-if="importDiff.catalogs.conflicted.length > 0">
               · 冲突 {{ importDiff.catalogs.conflicted.length }}

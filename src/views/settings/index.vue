@@ -8,7 +8,7 @@ import * as authApi from '@/api/endpoints/auth'
 import * as projectApi from '@/api/endpoints/projects'
 import * as dataApi from '@/api/endpoints/data-tasks'
 import * as cacheApi from '@/api/endpoints/cache'
-import type { UserDetail, OrphanFile, UploadFileInfo } from '@shared/types'
+import type { UserDetail, UploadFileInfo } from '@shared/types'
 import ModalDialog from '@/components/ModalDialog.vue'
 import FormField from '@/components/FormField.vue'
 import SelectDropdown from '@/components/SelectDropdown.vue'
@@ -21,12 +21,12 @@ import AuditLog from './AuditLog.vue'
 
 const route = useRoute()
 const router = useRouter()
-const { isAdmin } = useAuth()
+const { isAdmin, user: currentUser } = useAuth()
 const { projects, loadProjects } = useProject()
 const { confirm, dangerConfirm } = useDialog()
 
-type Tab = 'projects' | 'users' | 'backup' | 'storage' | 'audit'
-const validTabs: Tab[] = ['projects', 'users', 'backup', 'storage', 'audit']
+type Tab = 'projects' | 'users' | 'storage' | 'audit'
+const validTabs: Tab[] = ['projects', 'users', 'storage', 'audit']
 const activeTab = ref<Tab>(
   validTabs.includes(route.query.tab as Tab) ? (route.query.tab as Tab) : 'projects',
 )
@@ -34,8 +34,7 @@ const activeTab = ref<Tab>(
 const settingsTabs = [
   { key: 'projects', label: '项目管理', icon: 'i-lucide-folder' },
   { key: 'users', label: '账号管理', icon: 'i-lucide-users' },
-  { key: 'backup', label: '备份恢复', icon: 'i-lucide-database' },
-  { key: 'storage', label: '存储与缓存', icon: 'i-lucide-hard-drive' },
+  { key: 'storage', label: '存储管理', icon: 'i-lucide-hard-drive' },
   { key: 'audit', label: '操作日志', icon: 'i-lucide-scroll-text' },
 ]
 
@@ -126,13 +125,13 @@ async function changeUserRole(userId: string, newRole: string) {
 }
 
 function roleLabel(role: string): string {
-  const labels: Record<string, string> = { admin: '系统管理员', member: '成员', guest: '游客' }
+  const labels: Record<string, string> = { admin: '系统管理员', member: '普通用户', guest: '游客' }
   return labels[role] || role
 }
 
 const roleOptions = [
   { value: 'guest', label: '游客' },
-  { value: 'member', label: '成员' },
+  { value: 'member', label: '普通用户' },
   { value: 'admin', label: '系统管理员' },
 ]
 
@@ -180,84 +179,13 @@ async function saveEditProject() {
 }
 
 async function deleteProject(id: string) {
-  if (!(await dangerConfirm('确定删除此项目？项目下所有章节和目录将被一并删除。'))) return
+  if (!(await dangerConfirm('确定删除此项目？项目下所有内容和手册将被一并删除。'))) return
   try {
     await projectApi.deleteProject(id)
     await loadProjects()
     await nextTick()
   } catch {
     /* ignore */
-  }
-}
-
-// ===== 系统备份 =====
-const backupTaskId = ref('')
-const backupRunning = ref(false)
-const backupLink = ref('')
-
-async function startSystemBackup() {
-  backupRunning.value = true
-  try {
-    const { taskId } = await dataApi.startSystemExport()
-    backupTaskId.value = taskId
-    let attempts = 0
-    while (attempts < 30) {
-      await new Promise((r) => setTimeout(r, 1000))
-      const tasks = await dataApi.listTasks()
-      const task = tasks.find((t) => t.id === taskId)
-      if (task?.status === 'completed') {
-        backupLink.value = `/api/v1/data-tasks/${taskId}/download`
-        return
-      }
-      if (task?.status === 'failed') {
-        backupError.value = '备份失败'
-        return
-      }
-      attempts++
-    }
-    backupError.value = '备份超时'
-  } catch (e: unknown) {
-    backupError.value = e instanceof Error ? e.message : '备份出错'
-  } finally {
-    backupRunning.value = false
-  }
-}
-
-const backupError = ref('')
-
-// ===== 存储清理 =====
-const orphans = ref<OrphanFile[]>([])
-const orphansTotalSize = ref(0)
-const orphansLoading = ref(false)
-const orphansError = ref('')
-const cleanResult = ref<{ deleted: number } | null>(null)
-
-async function loadOrphans() {
-  orphansLoading.value = true
-  orphansError.value = ''
-  try {
-    const data = await dataApi.getOrphans()
-    orphans.value = data.orphans
-    orphansTotalSize.value = data.totalSize
-  } catch (e: unknown) {
-    orphansError.value = e instanceof Error ? e.message : '加载失败'
-  } finally {
-    orphansLoading.value = false
-  }
-}
-
-async function handleCleanOrphans() {
-  if (
-    !(await dangerConfirm(
-      `确定清理 ${orphans.value.length} 个孤立文件（${formatSize(orphansTotalSize.value)}）？此操作不可撤销。`,
-    ))
-  )
-    return
-  try {
-    cleanResult.value = await dataApi.deleteOrphans()
-    await loadOrphans()
-  } catch (e: unknown) {
-    orphansError.value = e instanceof Error ? e.message : '清理失败'
   }
 }
 
@@ -337,7 +265,6 @@ async function handleDeleteUploadFile(file: UploadFileInfo) {
     await dataApi.deleteUpload(file.path)
     uploadFilesResult.value = `已删除: ${file.path}`
     await loadUploadFiles()
-    await loadOrphans()
   } catch (e: unknown) {
     uploadFilesError.value = e instanceof Error ? e.message : '删除失败'
   }
@@ -351,7 +278,6 @@ async function handleCleanAllOrphans() {
     const result = await dataApi.deleteOrphans()
     uploadFilesResult.value = `已清理 ${result.deleted} 个文件，释放 ${formatSize(result.freedBytes)}`
     await loadUploadFiles()
-    await loadOrphans()
   } catch (e: unknown) {
     uploadFilesError.value = e instanceof Error ? e.message : '清理失败'
   }
@@ -675,20 +601,24 @@ onBeforeUnmount(() => {
 <template>
   <div v-if="!isAdmin" class="p-8 text-center text-gray-500">你没有系统管理员权限</div>
 
-  <div v-else class="flex h-full">
+  <div v-else class="flex flex-col md:flex-row h-full">
     <SettingsSidebar title="系统设置" :tabs="settingsTabs" v-model="activeTab" />
 
-    <main class="flex-1 overflow-auto p-6">
+    <main class="flex-1 overflow-auto p-3 sm:p-6">
       <!-- 项目管理 -->
       <div v-if="activeTab === 'projects'">
-        <div class="flex items-center justify-between mb-4">
+        <div class="mb-4">
           <h2 class="text-lg font-semibold">项目管理</h2>
-          <button class="btn-primary text-sm" @click="showAddProject = true">
-            <span class="i-lucide-plus w-4 h-4 inline-block align-middle mr-1" />新建项目
-          </button>
+          <p class="text-xs text-gray-400 mt-0.5">创建和管理项目，每个项目独立维护内容和手册。</p>
         </div>
 
         <div class="card">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-gray-500">项目列表</h3>
+            <button class="btn-primary text-sm" @click="showAddProject = true">
+              <span class="i-lucide-plus w-4 h-4 inline-block align-middle mr-1" />新建项目
+            </button>
+          </div>
           <div v-if="projects.length === 0" class="text-sm text-gray-400 py-4 text-center">
             暂无项目
           </div>
@@ -731,14 +661,18 @@ onBeforeUnmount(() => {
 
       <!-- 账号管理 -->
       <div v-if="activeTab === 'users'">
-        <div class="flex items-center justify-between mb-4">
+        <div class="mb-4">
           <h2 class="text-lg font-semibold">账号管理</h2>
-          <button class="btn-primary text-sm" @click="showAddUser = true">
-            <span class="i-lucide-plus w-4 h-4 inline-block align-middle mr-1" />添加账号
-          </button>
+          <p class="text-xs text-gray-400 mt-0.5">管理系统登录账号和角色权限。</p>
         </div>
 
         <div class="card">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-gray-500">账号列表</h3>
+            <button class="btn-primary text-sm" @click="showAddUser = true">
+              <span class="i-lucide-plus w-4 h-4 inline-block align-middle mr-1" />添加账号
+            </button>
+          </div>
           <div v-if="localUsers.length === 0" class="text-sm text-gray-400 py-4 text-center">
             暂无账号
           </div>
@@ -766,79 +700,31 @@ onBeforeUnmount(() => {
                 (val: string | number | null) => changeUserRole(u.id, val as string)
               "
             />
-            <button
-              class="text-red-400 hover:text-red-600 text-sm flex-shrink-0"
-              @click="deleteUser(u.id)"
-            >
-              删除
-            </button>
+            <span v-tooltip="u.id === currentUser?.id ? '不能删除本人账号' : '删除'">
+              <button
+                class="text-sm flex-shrink-0"
+                :class="
+                  u.id === currentUser?.id
+                    ? 'text-gray-300 cursor-not-allowed'
+                    : 'text-red-400 hover:text-red-600'
+                "
+                :disabled="u.id === currentUser?.id"
+                @click="deleteUser(u.id)"
+              >
+                删除
+              </button>
+            </span>
           </div>
         </div>
 
         <Paginator :current="usersPage" :total="usersTotalPages" @go="usersGoPage" />
       </div>
 
-      <!-- 备份恢复 -->
-      <div v-if="activeTab === 'backup'">
-        <div class="mb-4">
-          <h2 class="text-lg font-semibold">备份恢复</h2>
-          <p class="text-xs text-gray-400 mt-0.5">导出完整数据库文件，用于系统迁移或灾难恢复。</p>
-        </div>
-
-        <div class="card">
-          <ErrorMessage :message="backupError" />
-          <div class="flex items-center gap-3">
-            <button
-              class="btn-primary text-sm"
-              :disabled="backupRunning"
-              @click="startSystemBackup"
-            >
-              <span class="i-lucide-database w-4 h-4 inline-block align-middle mr-1" />{{
-                backupRunning ? '备份中...' : '完整备份'
-              }}
-            </button>
-            <a v-if="backupLink" :href="backupLink" class="text-blue-500 hover:underline text-sm"
-              >下载备份</a
-            >
-          </div>
-        </div>
-      </div>
-
-      <!-- 存储与缓存 -->
+      <!-- 存储管理 -->
       <div v-if="activeTab === 'storage'">
         <div class="mb-4">
-          <h2 class="text-lg font-semibold">存储与缓存</h2>
+          <h2 class="text-lg font-semibold">存储管理</h2>
           <p class="text-xs text-gray-400 mt-0.5">管理孤立文件和导出缓存，释放磁盘空间。</p>
-        </div>
-
-        <!-- 存储清理 -->
-        <div class="card mb-6">
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-semibold text-gray-500">存储清理</h3>
-            <div class="flex gap-2">
-              <button class="btn-secondary text-sm" :disabled="orphansLoading" @click="loadOrphans">
-                {{ orphansLoading ? '扫描中...' : '扫描孤立文件' }}
-              </button>
-              <button
-                v-if="orphans.length > 0"
-                class="btn-danger text-sm"
-                @click="handleCleanOrphans"
-              >
-                清理 {{ orphans.length }} 个文件 ({{ formatSize(orphansTotalSize) }})
-              </button>
-            </div>
-          </div>
-          <p class="text-xs text-gray-400 mb-3">扫描并清理未被任何文档引用的上传文件。</p>
-          <ErrorMessage :message="orphansError" />
-          <div v-if="cleanResult" class="text-xs text-green-600">
-            已删除 {{ cleanResult.deleted }} 个文件
-          </div>
-          <div
-            v-if="orphans.length > 0"
-            class="text-xs text-gray-400 max-h-32 overflow-y-auto space-y-0.5"
-          >
-            <div v-for="f in orphans" :key="f.path">{{ f.path }} ({{ formatSize(f.size) }})</div>
-          </div>
         </div>
 
         <!-- 上传资源 -->
@@ -1058,7 +944,7 @@ onBeforeUnmount(() => {
                 <tr class="text-left text-gray-400 border-b border-gray-100">
                   <th class="py-1.5 pr-2 font-medium w-6"></th>
                   <th class="py-1.5 pr-2 font-medium">文件名</th>
-                  <th class="py-1.5 pr-2 font-medium">章节</th>
+                  <th class="py-1.5 pr-2 font-medium">内容</th>
                   <th class="py-1.5 pr-2 font-medium w-14">类型</th>
                   <th class="py-1.5 pr-2 font-medium w-16 text-right">大小</th>
                   <th class="py-1.5 pr-2 font-medium w-36">时间</th>
@@ -1222,12 +1108,14 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 操作日志 -->
-      <div v-if="activeTab === 'audit'" class="card">
+      <div v-if="activeTab === 'audit'">
         <div class="mb-4">
           <h2 class="text-lg font-semibold">操作日志</h2>
           <p class="text-xs text-gray-400 mt-0.5">记录系统中敏感操作的审计信息，仅管理员可见。</p>
         </div>
-        <AuditLog />
+        <div class="card">
+          <AuditLog />
+        </div>
       </div>
     </main>
   </div>

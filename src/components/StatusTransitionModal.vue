@@ -43,13 +43,18 @@ const availableTransitions = computed<TransitionOption[]>(() => {
   const s = props.currentStatus
   const result: TransitionOption[] = []
 
+  // viewer：无任何操作权限
+  if (!props.canManageProject && !props.canWriteContent) {
+    return result
+  }
+
   if (!props.canManageProject) {
-    // 编写者
+    // 编辑者
     if (s === 'draft' || s === 'in_progress') {
       result.push({
         target: 'pending_review',
         label: '提交审核',
-        description: '提交给项目管理员进行审核',
+        description: '提交给项目负责人进行审核',
         needNote: false,
         variant: 'primary',
       })
@@ -58,7 +63,7 @@ const availableTransitions = computed<TransitionOption[]>(() => {
       result.push({
         target: 'pending_review',
         label: '重新提交审核',
-        description: '修改完成后重新提交项目管理员审核',
+        description: '修改完成后重新提交项目负责人审核',
         needNote: false,
         variant: 'primary',
       })
@@ -78,7 +83,7 @@ const availableTransitions = computed<TransitionOption[]>(() => {
     result.push({
       target: 'rejected',
       label: '退回修改',
-      description: '指出问题，退回给编写者修改',
+      description: '指出问题，退回给编辑者修改',
       needNote: true,
       noteLabel: '退回理由',
       variant: 'warning',

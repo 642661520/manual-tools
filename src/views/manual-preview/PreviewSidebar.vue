@@ -109,7 +109,7 @@ const totalChapters = computed(() => {
             />
             <span class="truncate">{{ (node as SidebarPart).title }}</span>
           </button>
-          <ul v-show="expandedParts.has((node as SidebarPart).id)" class="ml-3 mt-0.5 space-y-0.5">
+          <ul v-show="expandedParts.has((node as SidebarPart).id)" class="ml-4 mt-0.5 space-y-0.5">
             <li v-for="ch in (node as SidebarPart).children" :key="ch.featureId">
               <!-- Leaf chapter：无展开，点击直接跳转 -->
               <button
@@ -259,7 +259,7 @@ const totalChapters = computed(() => {
       </template>
 
       <div v-if="tree.length === 0" class="text-xs text-gray-400 text-center py-4">
-        暂无可预览的章节
+        暂无可预览的章
       </div>
     </nav>
   </aside>

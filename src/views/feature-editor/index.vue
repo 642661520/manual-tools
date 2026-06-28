@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useDialog } from '@/composables/useDialog'
+import { useResponsiveSidebar } from '@/composables/useResponsiveSidebar'
 import {
   getFeature,
   updateSectionStatus,
@@ -56,7 +57,7 @@ type ComponentStatus =
   | 'pending_review'
   | 'rejected'
   | 'approved'
-const { canManageProject, isGuest, canWriteContent } = useAuth()
+const { canManageProject, canWriteContent } = useAuth()
 
 const { confirm, dangerConfirm, prompt } = useDialog()
 const featureId = computed(() => route.params.id as string)
@@ -88,9 +89,9 @@ const docId = computed(() => {
   return `${featureId.value}/${currentSection.value}`
 })
 
-// 当前小节是否可编辑：游客不可编辑，pending_review/approved 时锁定
+// 当前小节是否可编辑：无写入权限或 pending_review/approved 时锁定
 const editable = computed(() => {
-  if (isGuest.value) return false
+  if (!canWriteContent.value) return false
   const s = currentSectionData.value?.status || 'draft'
   return s !== 'pending_review' && s !== 'approved'
 })
@@ -331,8 +332,19 @@ onUnmounted(() => {
 
 // 状态更新
 const showStatusModal = ref(false)
+const {
+  sidebarOpen: showSections,
+  toggleSidebar: toggleSections,
+  closeSidebar: closeSections,
+} = useResponsiveSidebar()
+
+function selectSection(key: string) {
+  currentSection.value = key
+  closeSections()
+}
 
 const hasStatusTransitions = computed(() => {
+  if (!canWriteContent.value) return false // viewer 无任何状态操作
   const s = currentSectionData.value?.status || 'draft'
   if (!canManageProject.value) return s === 'draft' || s === 'in_progress' || s === 'rejected'
   return true // PM 始终有可用操作
@@ -378,27 +390,38 @@ async function deleteOrphaned(sectionKey: string) {
   <!-- 错误 -->
   <div v-else-if="loadError || !feature" class="h-full flex items-center justify-center">
     <div class="text-center">
-      <p class="text-red-500 mb-4">{{ loadError || '章节不存在' }}</p>
+      <p class="text-red-500 mb-4">{{ loadError || '内容不存在' }}</p>
       <router-link to="/features" class="btn-secondary text-sm">返回列表</router-link>
     </div>
   </div>
 
   <!-- 正常编辑器 -->
   <div v-else class="h-full flex flex-col">
-    <header class="flex items-center justify-between px-6 py-3 bg-white border-b border-gray-200">
+    <header
+      class="flex items-center justify-between px-3 sm:px-6 py-3 bg-white border-b border-gray-200"
+    >
       <div class="flex items-center gap-4">
         <router-link to="/features" class="text-gray-400 hover:text-gray-600">
           <span class="i-lucide-arrow-left w-4 h-4 inline-block align-middle mr-1" />返回
         </router-link>
-        <h1 class="text-lg font-semibold">{{ feature.title }}</h1>
+        <h1 class="text-lg font-semibold truncate">{{ feature.title }}</h1>
       </div>
+      <!-- 移动端大纲按钮 -->
+      <button
+        class="md:hidden flex items-center gap-1 text-xs text-blue-600 px-2 py-1.5 rounded hover:bg-blue-50 flex-shrink-0 ml-2"
+        @click="toggleSections"
+      >
+        <span class="i-lucide-list w-4 h-4" />大纲
+      </button>
     </header>
 
     <div class="flex-1 flex overflow-hidden">
-      <!-- 左侧：章节骨架 -->
-      <aside class="w-72 border-r border-gray-200 bg-white overflow-y-auto flex-shrink-0">
+      <!-- 左侧：内容骨架 -->
+      <aside
+        class="w-72 border-r border-gray-200 bg-white overflow-y-auto flex-shrink-0 hidden md:block"
+      >
         <div class="p-4 border-b border-gray-100">
-          <div class="text-xs font-semibold text-gray-400 uppercase mb-2">章节概述</div>
+          <div class="text-xs font-semibold text-gray-400 uppercase mb-2">内容概述</div>
           <p class="text-sm text-gray-600">{{ feature.description }}</p>
         </div>
 
@@ -424,7 +447,7 @@ async function deleteOrphaned(sectionKey: string) {
                   ? 'bg-blue-50 text-blue-700 font-medium'
                   : 'text-gray-600 hover:bg-gray-50'
               "
-              @click="currentSection = section.key"
+              @click="selectSection(section.key)"
             >
               <span
                 :class="statusIcon(section.status || 'draft')"
@@ -460,7 +483,7 @@ async function deleteOrphaned(sectionKey: string) {
                   ? 'bg-orange-50 text-orange-700'
                   : 'text-gray-400 hover:bg-gray-50 line-through'
               "
-              @click="currentSection = o.key"
+              @click="selectSection(o.key)"
             >
               <span class="flex-1 truncate">{{ o.key }}</span>
               <button
@@ -514,7 +537,7 @@ async function deleteOrphaned(sectionKey: string) {
 
           <!-- 指派操作人 -->
           <div class="mt-3">
-            <div class="text-xs font-semibold text-gray-400 uppercase mb-1">指派编写人</div>
+            <div class="text-xs font-semibold text-gray-400 uppercase mb-1">指派编辑者</div>
             <p v-if="assigneeError" class="text-xs text-red-500 mb-2">{{ assigneeError }}</p>
             <!-- PM：tag 模式多选 -->
             <div v-if="canManageProject">
@@ -534,9 +557,9 @@ async function deleteOrphaned(sectionKey: string) {
               <SelectDropdown
                 v-if="availableUsers().length > 0"
                 v-model="newAssigneeId"
-                placeholder="添加编写人..."
+                placeholder="添加编辑者..."
                 :options="[
-                  { value: null, label: '添加编写人...' },
+                  { value: null, label: '添加编辑者...' },
                   ...availableUsers().map((u) => {
                     const name = u.feishuName || u.displayName
                     return {
@@ -624,6 +647,97 @@ async function deleteOrphaned(sectionKey: string) {
         </div>
       </aside>
 
+      <!-- 移动端大纲抽屉 -->
+      <Teleport to="body">
+        <Transition name="slide-left">
+          <div v-if="showSections" class="fixed inset-0 z-40 md:hidden">
+            <div class="absolute inset-0 bg-black/30" @click="closeSections" />
+            <aside
+              class="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] bg-white shadow-xl overflow-y-auto"
+            >
+              <div
+                class="sticky top-0 bg-white border-b border-gray-200 flex items-center justify-between px-4 py-3 z-10"
+              >
+                <span class="text-sm font-semibold text-gray-700">大纲</span>
+                <button
+                  class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100"
+                  @click="closeSections"
+                >
+                  <span class="i-lucide-x w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+              <div class="p-4 border-b border-gray-100">
+                <div class="text-xs font-semibold text-gray-400 uppercase mb-2">内容概述</div>
+                <p class="text-sm text-gray-600">{{ feature.description }}</p>
+              </div>
+              <div class="p-4">
+                <span class="text-xs font-semibold text-gray-400 uppercase">编写进度</span>
+                <nav class="space-y-1 mt-3">
+                  <template v-if="feature.sections.length === 0">
+                    <div
+                      class="w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 bg-blue-50 text-blue-700 font-medium"
+                    >
+                      <span
+                        class="i-lucide-file-text w-4 h-4 inline-block flex-shrink-0 text-blue-400"
+                      />
+                      <span class="flex-1 truncate">正文</span>
+                      <span class="text-xs text-blue-400">默认</span>
+                    </div>
+                  </template>
+                  <button
+                    v-for="section in feature.sections"
+                    :key="section.key"
+                    class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2"
+                    :class="
+                      currentSection === section.key
+                        ? 'bg-blue-50 text-blue-700 font-medium'
+                        : 'text-gray-600 hover:bg-gray-50'
+                    "
+                    @click="selectSection(section.key)"
+                  >
+                    <span
+                      :class="statusIcon(section.status || 'draft')"
+                      class="w-4 h-4 inline-block flex-shrink-0"
+                    />
+                    <span class="flex-1 truncate">{{ section.title }}</span>
+                    <StatusBadge
+                      :status="(section.status || 'draft') as ComponentStatus"
+                      variant="text"
+                    />
+                  </button>
+                </nav>
+              </div>
+              <!-- 游离文档 -->
+              <div
+                v-if="feature.orphaned && feature.orphaned.length > 0"
+                class="px-4 pb-4 border-t border-gray-100 pt-3"
+              >
+                <span class="text-xs font-semibold text-gray-400 uppercase flex items-center gap-1"
+                  ><span
+                    class="i-lucide-alert-triangle w-3.5 h-3.5 text-orange-400 inline-block align-middle"
+                  />游离文档</span
+                >
+                <nav class="space-y-1 mt-2">
+                  <button
+                    v-for="o in feature.orphaned"
+                    :key="o.key"
+                    class="w-full text-left px-3 py-1.5 rounded text-sm transition-colors flex items-center gap-2"
+                    :class="
+                      currentSection === o.key
+                        ? 'bg-orange-50 text-orange-700'
+                        : 'text-gray-400 hover:bg-gray-50 line-through'
+                    "
+                    @click="selectSection(o.key)"
+                  >
+                    <span class="flex-1 truncate">{{ o.key }}</span>
+                  </button>
+                </nav>
+              </div>
+            </aside>
+          </div>
+        </Transition>
+      </Teleport>
+
       <!-- 右侧：编辑器 -->
       <main class="flex-1 flex flex-col overflow-hidden bg-gray-50">
         <TiptapEditor
@@ -641,6 +755,24 @@ async function deleteOrphaned(sectionKey: string) {
 </template>
 
 <style scoped>
+/* 侧边栏抽屉过渡 */
+.slide-left-enter-active,
+.slide-left-leave-active {
+  transition: opacity 0.25s ease;
+}
+.slide-left-enter-from,
+.slide-left-leave-to {
+  opacity: 0;
+}
+.slide-left-enter-active aside,
+.slide-left-leave-active aside {
+  transition: transform 0.25s ease;
+}
+.slide-left-enter-from aside,
+.slide-left-leave-to aside {
+  transform: translateX(-100%);
+}
+
 @media print {
   header {
     display: none !important;

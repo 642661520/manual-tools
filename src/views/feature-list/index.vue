@@ -109,7 +109,7 @@ function addSection() {
 
 async function removeSection(index: number) {
   if (featureDialogMode.value === 'edit' && featureForm.value.sections.length <= 1) {
-    if (!(await confirm('删除最后一个小节将导致章节无法保存，确定删除？'))) return
+    if (!(await confirm('删除最后一个小节将导致内容无法保存，确定删除？'))) return
   }
   featureForm.value.sections.splice(index, 1)
 }
@@ -117,7 +117,7 @@ async function removeSection(index: number) {
 async function saveFeature() {
   featureFormError.value = ''
   if (!featureForm.value.title.trim()) {
-    featureFormError.value = '请输入章节名称'
+    featureFormError.value = '请输入内容名称'
     return
   }
   try {
@@ -275,7 +275,7 @@ async function saveEditCategory() {
 async function deleteCategory(id: string) {
   const count = categoryFeatureCount.value.get(id) || 0
   const msg =
-    count > 0 ? `确定删除此分类？该分类下有 ${count} 个章节将变为"未分类"。` : '确定删除此分类？'
+    count > 0 ? `确定删除此分类？该分类下有 ${count} 个内容将变为"未分类"。` : '确定删除此分类？'
   if (!(await dangerConfirm(msg))) return
   await apiDeleteCategory(id)
   await loadCategories()
@@ -352,7 +352,7 @@ async function deleteCustomFeature(id: string) {
   const f = features.value.find((f) => f.id === id)
   const msg = f
     ? `确定删除「${f.title}」？\n${f.totalSections} 个小节文档将被一并删除，不可恢复。`
-    : '确定删除此章节？'
+    : '确定删除此内容？'
   if (!(await dangerConfirm(msg))) return
   await deleteFeature(id)
   await loadFeatures()
@@ -370,8 +370,8 @@ watch(currentProjectId, loadFeatures)
   <div class="h-full flex flex-col max-w-6xl mx-auto">
     <div class="flex-shrink-0 flex items-center justify-between mb-6 px-6 pt-6">
       <div>
-        <h1 class="text-2xl font-bold">章节列表</h1>
-        <p class="text-sm text-gray-500 mt-1">章节骨架管理与状态总览</p>
+        <h1 class="text-2xl font-bold">内容列表</h1>
+        <p class="text-sm text-gray-500 mt-1">内容管理与状态总览</p>
       </div>
       <div class="flex items-center gap-3">
         <button
@@ -382,7 +382,7 @@ watch(currentProjectId, loadFeatures)
           <span class="i-lucide-tag w-4 h-4 inline-block align-middle mr-1" />分类管理
         </button>
         <button v-if="canManageProject" class="btn-secondary text-sm" @click="openCreateDialog">
-          <span class="i-lucide-plus w-4 h-4 inline-block align-middle mr-1" />自定义章节
+          <span class="i-lucide-plus w-4 h-4 inline-block align-middle mr-1" />新建内容
         </button>
       </div>
     </div>
@@ -495,13 +495,19 @@ watch(currentProjectId, loadFeatures)
         <EmptyState
           v-if="features.length === 0"
           icon="i-lucide-clipboard-list"
-          title="暂无章节骨架"
-          description="点击「自定义章节」创建第一个章节"
+          :title="currentProjectId ? '暂无内容' : '未选择项目'"
+          :description="
+            currentProjectId
+              ? canManageProject
+                ? '点击「新建内容」创建第一个内容'
+                : '当前项目暂无内容'
+              : '请先加入项目，或联系管理员'
+          "
         />
       </template>
     </div>
 
-    <!-- 新建/编辑章节 -->
+    <!-- 新建/编辑内容 -->
     <div
       v-if="showFeatureDialog"
       class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center"
@@ -513,7 +519,7 @@ watch(currentProjectId, loadFeatures)
           class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0"
         >
           <h2 class="text-lg font-semibold">
-            {{ featureDialogMode === 'create' ? '新建自定义章节' : '章节设置' }}
+            {{ featureDialogMode === 'create' ? '新建内容' : '内容设置' }}
           </h2>
           <button
             class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100"
@@ -525,7 +531,7 @@ watch(currentProjectId, loadFeatures)
         <div class="p-6 overflow-y-auto flex-1">
           <ErrorMessage :message="featureFormError" class="mb-4" />
           <div class="space-y-4">
-            <FormField label="章节名称" :required="true">
+            <FormField label="内容名称" :required="true">
               <input v-model="featureForm.title" class="input" placeholder="如：常见问题" />
             </FormField>
             <FormField label="所属分类">
@@ -537,12 +543,12 @@ watch(currentProjectId, loadFeatures)
                 ]"
               />
             </FormField>
-            <FormField label="章节描述">
+            <FormField label="内容描述">
               <textarea
                 v-model="featureForm.description"
                 class="textarea"
                 rows="2"
-                placeholder="简要描述章节用途"
+                placeholder="简要描述内容用途"
               />
             </FormField>
             <div>
@@ -598,8 +604,10 @@ watch(currentProjectId, loadFeatures)
       v-if="showCategoryDialog"
       class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center"
     >
-      <div class="bg-white rounded-xl shadow-xl w-full max-w-lg">
-        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+        <div
+          class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0"
+        >
           <h2 class="text-lg font-semibold">分类管理</h2>
           <button
             class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100"
@@ -608,7 +616,7 @@ watch(currentProjectId, loadFeatures)
             <span class="i-lucide-x w-4 h-4 inline-block align-middle" />
           </button>
         </div>
-        <div class="p-6">
+        <div class="p-6 overflow-y-auto">
           <ErrorMessage :message="categoryError" class="mb-4" />
           <div class="flex items-end gap-2 pb-4 border-b border-gray-100">
             <FormField label="分类名称" class="flex-1">
@@ -649,7 +657,7 @@ watch(currentProjectId, loadFeatures)
               >
                 <span class="font-medium text-sm truncate">{{ c.name }}</span>
                 <span class="text-xs text-gray-400 flex-shrink-0"
-                  >{{ categoryFeatureCount.get(c.id) || 0 }} 个章节</span
+                  >{{ categoryFeatureCount.get(c.id) || 0 }} 个内容</span
                 >
               </div>
               <div v-else class="flex-1 flex items-center gap-2">
@@ -703,7 +711,7 @@ watch(currentProjectId, loadFeatures)
             图标可调整分类排序
           </p>
         </div>
-        <div class="px-6 py-4 border-t border-gray-200 flex justify-end">
+        <div class="px-6 py-4 border-t border-gray-200 flex justify-end flex-shrink-0">
           <button class="btn-secondary" @click="showCategoryDialog = false">关闭</button>
         </div>
       </div>

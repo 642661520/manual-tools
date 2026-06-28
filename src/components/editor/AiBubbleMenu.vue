@@ -7,7 +7,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import type { Editor } from '@tiptap/vue-3'
 import AiPopover from './AiPopover.vue'
 
-const props = defineProps<{ editor: Editor }>()
+const props = defineProps<{ editor: Editor; editable?: boolean }>()
 
 const showToolbar = ref(false)
 const showPopover = ref(false)
@@ -19,6 +19,10 @@ const selectedText = computed(() => {
 })
 
 function updatePosition() {
+  if (props.editable === false) {
+    showToolbar.value = false
+    return
+  }
   const { from, to } = props.editor.state.selection
   if (from === to) {
     showToolbar.value = false

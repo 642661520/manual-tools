@@ -5,19 +5,18 @@ import Sortable from 'sortablejs'
 import { useProject } from '@/composables/useProject'
 import { useAuth } from '@/composables/useAuth'
 import { useDialog } from '@/composables/useDialog'
+import { useResponsiveSidebar } from '@/composables/useResponsiveSidebar'
 import { getFeatures } from '@/api/endpoints/features'
 import {
-  getCatalogs,
   getCatalog,
-  createCatalog,
   updateCatalog,
   deleteCatalog as apiDeleteCatalog,
 } from '@/api/endpoints/catalogs'
 import { getCategories } from '@/api/endpoints/categories'
-import type { FeatureSummary, CategoryInfo, CatalogInfo, CatalogEntry } from '@shared/types'
+import type { FeatureSummary, CategoryInfo, CatalogEntry } from '@shared/types'
 import { parseSections } from '@shared/utils/sections'
 
-// 本地类型：目录中引用的功能
+// 本地类型：手册中引用的内容
 interface CatFeature {
   id: string
   title: string
@@ -76,7 +75,7 @@ interface SortableElement extends HTMLElement {
 import PageHeader from '@/components/PageHeader.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import EmptyState from '@/components/EmptyState.vue'
-import SelectDropdown from '@/components/SelectDropdown.vue'
+import CreateEditManualModal from '@/components/CreateEditManualModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -84,7 +83,6 @@ const { currentProjectId } = useProject()
 const { canManageProject } = useAuth()
 const { confirm, dangerConfirm } = useDialog()
 const catalogId = computed(() => route.params.id as string)
-const isNew = computed(() => catalogId.value === 'new')
 
 const catalog = ref<{ title: string; targets: string[]; entries: CatNode[] }>({
   title: '',
@@ -93,7 +91,6 @@ const catalog = ref<{ title: string; targets: string[]; entries: CatNode[] }>({
 })
 
 const allFeatures = ref<FeatureSummary[]>([])
-const catalogList = ref<CatalogInfo[]>([])
 const categories = ref<CategoryInfo[]>([])
 const searchQuery = ref('')
 const saving = ref(false)
@@ -103,6 +100,12 @@ const highlightedId = ref<string | null>(null)
 const dirty = ref(false)
 const loading = ref(false)
 const saveSuccess = ref(false)
+const showEditInfoModal = ref(false)
+const {
+  sidebarOpen: showPool,
+  toggleSidebar: togglePool,
+  closeSidebar: closePool,
+} = useResponsiveSidebar()
 const movingFeatureId = ref<string | null>(null)
 const movingPoolFeature = ref<FeatureSummary | null>(null)
 const moveMenuX = ref(0)
@@ -179,7 +182,7 @@ const selectedFeatureIds = computed(() => {
   return ids
 })
 
-// 过滤可选章节
+// 过滤可选内容
 const filteredFeatures = computed(() => {
   const q = searchQuery.value.toLowerCase()
   return allFeatures.value.filter((f: FeatureSummary) => {
@@ -218,59 +221,53 @@ async function loadData() {
   const catalogIdVal = catalogId.value
   const pid = currentProjectId.value
 
-  const [featuresRes, listRes, categoriesRes] = await Promise.all([
+  const [featuresRes, categoriesRes] = await Promise.all([
     getFeatures(pid || undefined),
-    getCatalogs(pid || undefined),
     getCategories(pid || undefined),
   ])
   allFeatures.value = featuresRes
-  catalogList.value = listRes
   categories.value = categoriesRes
 
-  if (!isNew.value) {
-    try {
-      const data = (await getCatalog(catalogIdVal)) as unknown as CatalogResponse
-      function parseNode(node: CatalogResponseNode): CatNode {
-        if ((node as CatalogResponsePart).type === 'part') {
-          const p = node as CatalogResponsePart
-          return {
-            type: 'part',
-            id: p.id,
-            title: p.title,
-            features: (p.features || []).map((f: CatalogResponseFeature) => ({
-              feature: {
-                id: f.id,
-                title: f.title,
-                description: f.description,
-                sections: JSON.stringify(f.sections || []),
-                categoryId: f.categoryId,
-              },
-              sectionOrder: f.sectionOrder,
-            })),
-          }
-        }
-        const f = node as CatalogResponseFeature
+  try {
+    const data = (await getCatalog(catalogIdVal)) as unknown as CatalogResponse
+    function parseNode(node: CatalogResponseNode): CatNode {
+      if ((node as CatalogResponsePart).type === 'part') {
+        const p = node as CatalogResponsePart
         return {
-          feature: {
-            id: f.id,
-            title: f.title,
-            description: f.description,
-            sections: JSON.stringify(f.sections || []),
-            categoryId: f.categoryId,
-          },
-          sectionOrder: f.sectionOrder,
+          type: 'part',
+          id: p.id,
+          title: p.title,
+          features: (p.features || []).map((f: CatalogResponseFeature) => ({
+            feature: {
+              id: f.id,
+              title: f.title,
+              description: f.description,
+              sections: JSON.stringify(f.sections || []),
+              categoryId: f.categoryId,
+            },
+            sectionOrder: f.sectionOrder,
+          })),
         }
       }
-      catalog.value = {
-        title: data.title,
-        targets: data.targets || [],
-        entries: (data.features || []).map(parseNode),
+      const f = node as CatalogResponseFeature
+      return {
+        feature: {
+          id: f.id,
+          title: f.title,
+          description: f.description,
+          sections: JSON.stringify(f.sections || []),
+          categoryId: f.categoryId,
+        },
+        sectionOrder: f.sectionOrder,
       }
-    } catch {
-      // 无权访问或不存在，清空内容
-      catalog.value = { title: '', targets: [], entries: [] }
     }
-  } else {
+    catalog.value = {
+      title: data.title,
+      targets: data.targets || [],
+      entries: (data.features || []).map(parseNode),
+    }
+  } catch {
+    // 无权访问或不存在，清空内容
     catalog.value = { title: '', targets: [], entries: [] }
   }
   dirty.value = false
@@ -371,13 +368,10 @@ function removeFeature(entryIndex: number) {
 }
 
 async function deleteCatalog(id: string) {
-  if (!(await dangerConfirm('确定删除此目录？\n导出版本历史也将被删除，不可恢复。'))) return
+  if (!(await dangerConfirm('确定删除此手册？\n导出版本历史也将被删除，不可恢复。'))) return
   await apiDeleteCatalog(id)
-  catalogList.value = catalogList.value.filter((c: CatalogInfo) => c.id !== id)
-  // 如果删除的是当前目录，跳转到新建
-  if (catalogId.value === id) {
-    router.push('/catalogs/new')
-  }
+  // 删除后返回列表页
+  router.push('/manuals')
 }
 
 function toggleExpand(index: number) {
@@ -416,7 +410,7 @@ async function removeSection(entryIndex: number, sectionKey: string) {
   const current = getOrderedSections(entry).map((s) => s.key)
   if (
     current.length <= 1 &&
-    !(await confirm('这是最后一个小节，确定移除？\n移除后该章节在目录中将没有可见内容。'))
+    !(await confirm('这是最后一个小节，确定移除？\n移除后该章在手册中将没有可见内容。'))
   )
     return
   const filtered = current.filter((k) => k !== sectionKey)
@@ -441,7 +435,7 @@ async function removeSectionInPart(partIndex: number, featIndex: number, section
   const current = getOrderedSections(entry).map((s) => s.key)
   if (
     current.length <= 1 &&
-    !(await confirm('这是最后一个小节，确定移除？\n移除后该章节在目录中将没有可见内容。'))
+    !(await confirm('这是最后一个小节，确定移除？\n移除后该章在手册中将没有可见内容。'))
   )
     return
   const filtered = current.filter((k) => k !== sectionKey)
@@ -462,7 +456,7 @@ function restoreSectionInPart(partIndex: number, featIndex: number, sectionKey: 
 async function save() {
   saveError.value = ''
   if (!catalog.value.title.trim()) {
-    saveError.value = '请输入目录名称'
+    saveError.value = '请输入手册名称'
     saving.value = true
     saving.value = false
     return
@@ -494,21 +488,15 @@ async function save() {
       projectId: currentProjectId.value || undefined,
     }
 
-    if (isNew.value) {
-      const res = await createCatalog(payload)
-      dirty.value = false
-      router.replace(`/catalogs/${res.id}`)
-    } else {
-      await updateCatalog(catalogId.value, payload)
-      dirty.value = false
-      saveSuccess.value = true
-      setTimeout(() => {
-        saveSuccess.value = false
-      }, 2000)
-      await loadData()
-      await nextTick()
-      initAllSorts()
-    }
+    await updateCatalog(catalogId.value, payload)
+    dirty.value = false
+    saveSuccess.value = true
+    setTimeout(() => {
+      saveSuccess.value = false
+    }, 2000)
+    await loadData()
+    await nextTick()
+    initAllSorts()
   } catch (e: unknown) {
     saveError.value = e instanceof Error ? e.message : '网络错误，保存失败'
   } finally {
@@ -525,24 +513,11 @@ watch(catalogId, () => {
   })
 })
 
-async function switchCatalog(id: string | number | null) {
-  if (!id || id === catalogId.value) return
-  if (dirty.value && !(await confirm('有未保存的更改，确定切换？'))) return
-  router.push(`/catalogs/${id}`)
-}
-
 function handleBeforeUnload(e: BeforeUnloadEvent) {
   if (dirty.value) {
     e.preventDefault()
   }
 }
-
-watch(
-  () => catalog.value.title,
-  () => {
-    if (!loading.value) dirty.value = true
-  },
-)
 
 onBeforeRouteLeave(async () => {
   if (dirty.value && !(await confirm('有未保存的更改，确定离开？'))) return false
@@ -805,7 +780,7 @@ onMounted(async () => {
   initAllSorts()
 })
 
-// 目录内容变化时重建拖拽
+// 手册内容变化时重建拖拽
 watch(
   () => catalog.value.entries.length,
   async () => {
@@ -816,9 +791,6 @@ watch(
 
 watch(currentProjectId, () => {
   loadData().then(() => {
-    if (!isNew.value && !catalogList.value.some((c: CatalogInfo) => c.id === catalogId.value)) {
-      router.replace('/catalogs/new')
-    }
     nextTick(() => {
       initAllSorts()
     })
@@ -831,66 +803,58 @@ watch(currentProjectId, () => {
     <!-- 头部 -->
     <PageHeader>
       <template #left>
-        <SelectDropdown
-          v-if="catalogList.length > 0"
-          width-class="w-48"
-          :model-value="isNew ? '' : catalogId"
-          :options="catalogList.map((c) => ({ value: c.id, label: c.title }))"
-          placeholder="选择目录"
-          @update:model-value="switchCatalog"
-        />
-        <span class="text-xs text-gray-400 flex-shrink-0">{{ catalogList.length }} 个目录</span>
         <button
-          v-if="canManageProject && !isNew"
-          class="btn-secondary text-sm px-2 py-1.5"
-          v-tooltip="'新建目录'"
-          @click="router.push('/catalogs/new')"
+          class="text-sm text-gray-400 hover:text-gray-600 transition-colors flex items-center gap-1 flex-shrink-0"
+          @click="router.push('/manuals')"
         >
-          <span class="i-lucide-plus w-4 h-4 inline-block align-middle" />
-        </button>
-        <button
-          v-if="canManageProject && !isNew"
-          class="btn-secondary text-sm px-2 py-1.5 text-red-400 hover:text-red-600"
-          v-tooltip="'删除目录'"
-          @click="deleteCatalog(catalogId)"
-        >
-          <span class="i-lucide-trash-2 w-4 h-4 inline-block align-middle" />
+          <span class="i-lucide-arrow-left w-4 h-4 inline-block align-middle" />
+          返回手册列表
         </button>
         <div class="w-px h-5 bg-gray-200" />
-        <input
-          v-model="catalog.title"
-          class="text-lg font-semibold bg-transparent border-none outline-none min-w-0"
-          placeholder="目录名称"
-          :readonly="!canManageProject"
-        />
+        <span class="text-base font-semibold text-gray-800">{{
+          catalog.title || '未命名手册'
+        }}</span>
+        <button
+          v-if="canManageProject"
+          class="text-gray-300 hover:text-blue-500 transition-colors flex-shrink-0"
+          v-tooltip="'编辑手册信息'"
+          @click="showEditInfoModal = true"
+        >
+          <span class="i-lucide-pencil w-4 h-4 inline-block align-middle" />
+        </button>
       </template>
       <template #right>
-        <span v-if="dirty" class="text-xs text-amber-500 flex items-center gap-1"
-          ><span class="w-1.5 h-1.5 rounded-full bg-amber-400" />未保存</span
-        >
+        <span class="inline-flex items-center gap-1 flex-shrink-0 min-w-[56px]">
+          <span v-if="dirty" class="text-xs text-amber-500 flex items-center gap-1"
+            ><span class="w-1.5 h-1.5 rounded-full bg-amber-400" />未保存</span
+          >
+          <span v-if="saveSuccess" class="text-xs text-green-600 flex items-center gap-1"
+            ><span class="i-lucide-check w-3.5 h-3.5 inline-block align-middle" />已保存</span
+          >
+        </span>
         <ErrorMessage :message="saveError" />
-        <span v-if="saveSuccess" class="text-xs text-green-600 flex items-center gap-1"
-          ><span class="i-lucide-check w-3.5 h-3.5 inline-block align-middle" />已保存</span
-        >
-        <button
-          class="btn-primary text-sm"
-          v-if="canManageProject"
-          :disabled="saving"
-          @click="save"
-        >
-          {{ saving ? '保存中...' : '保存' }}
-        </button>
+        <span :class="{ invisible: !canManageProject }" class="inline-flex items-center gap-2">
+          <button
+            class="btn-secondary text-sm text-red-400 hover:text-red-600"
+            @click="deleteCatalog(catalogId)"
+          >
+            <span class="i-lucide-trash-2 w-4 h-4 inline-block align-middle" />
+          </button>
+          <button class="btn-primary text-sm" :disabled="saving" @click="save">
+            {{ saving ? '保存中...' : '保存' }}
+          </button>
+        </span>
       </template>
     </PageHeader>
 
     <div class="flex-1 flex overflow-hidden">
-      <!-- 左侧：可选章节（仅 PM 可编辑） -->
+      <!-- 左侧：可选内容（仅 PM 可编辑） -->
       <aside
         v-if="canManageProject"
-        class="w-72 border-r border-gray-200 bg-white flex-shrink-0 flex flex-col"
+        class="w-72 border-r border-gray-200 bg-white flex-shrink-0 flex-col hidden md:flex"
       >
         <div class="p-4 flex-shrink-0">
-          <input v-model="searchQuery" class="input text-sm" placeholder="搜索章节..." />
+          <input v-model="searchQuery" class="input text-sm" placeholder="搜索内容..." />
         </div>
 
         <div class="flex-1 overflow-y-auto px-4 pb-3">
@@ -935,14 +899,90 @@ watch(currentProjectId, () => {
             </div>
           </template>
 
-          <EmptyState v-if="Object.keys(grouped).length === 0" title="暂无可用章节" />
+          <EmptyState v-if="Object.keys(grouped).length === 0" title="暂无可用内容" />
         </div>
       </aside>
 
+      <!-- 移动端内容池抽屉 -->
+      <Teleport to="body">
+        <Transition name="slide-left">
+          <div v-if="showPool && canManageProject" class="fixed inset-0 z-40 md:hidden">
+            <div class="absolute inset-0 bg-black/30" @click="closePool" />
+            <aside
+              class="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] bg-white shadow-xl flex flex-col"
+            >
+              <div
+                class="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0"
+              >
+                <span class="text-sm font-semibold text-gray-700">内容池</span>
+                <button
+                  class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100"
+                  @click="closePool"
+                >
+                  <span class="i-lucide-x w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+              <div class="p-4 flex-shrink-0">
+                <input
+                  v-model="searchQuery"
+                  class="input text-sm"
+                  placeholder="搜索内容..."
+                  @input="closePool()"
+                />
+              </div>
+              <div class="flex-1 overflow-y-auto px-4 pb-3">
+                <template v-for="(items, catId) in grouped" :key="catId">
+                  <div
+                    class="text-xs font-semibold text-gray-400 uppercase mb-2 mt-3 flex items-center gap-1.5"
+                  >
+                    <span
+                      v-if="catId !== '__uncategorized__' && categoryInfo.has(catId)"
+                      class="w-2 h-2 rounded-full flex-shrink-0"
+                      :style="{ backgroundColor: categoryInfo.get(catId)!.color }"
+                    />
+                    <span v-if="catId === '__uncategorized__'" class="text-gray-300">未分类</span>
+                    <span v-else>{{ categoryInfo.get(catId)?.name || catId }}</span>
+                  </div>
+                  <div
+                    v-for="f in items"
+                    :key="f.id"
+                    class="w-full text-left rounded-lg text-sm hover:bg-gray-50 transition-colors mb-1 flex items-center group"
+                  >
+                    <button
+                      class="flex-1 flex items-center gap-2 px-3 py-2"
+                      @click="
+                        addFeature(f)
+                        closePool()
+                      "
+                    >
+                      <span class="flex-1 text-gray-700 text-left">{{ f.title }}</span>
+                      <span v-if="f.totalSections" class="text-xs text-gray-400 flex-shrink-0">
+                        {{ f.approvedSections ?? 0 }}/{{ f.totalSections }}
+                      </span>
+                    </button>
+                  </div>
+                </template>
+                <EmptyState v-if="Object.keys(grouped).length === 0" title="暂无可用内容" />
+              </div>
+            </aside>
+          </div>
+        </Transition>
+      </Teleport>
+
       <!-- 右侧：已编排内容 -->
-      <main class="flex-1 overflow-y-auto bg-gray-50 p-6" @dragover="onDragOver" @drop="onDrop">
-        <!-- 添加部分按钮 -->
-        <div v-if="canManageProject" class="mb-3 max-w-3xl">
+      <main
+        class="flex-1 overflow-y-auto bg-gray-50 p-3 sm:p-6"
+        @dragover="onDragOver"
+        @drop="onDrop"
+      >
+        <!-- 移动端内容池按钮 -->
+        <div v-if="canManageProject" class="mb-3 max-w-3xl flex items-center gap-2">
+          <button
+            class="md:hidden btn-secondary text-sm flex items-center gap-1"
+            @click="togglePool"
+          >
+            <span class="i-lucide-library w-4 h-4 inline-block align-middle" />内容池
+          </button>
           <button class="btn-secondary text-sm" @click="addPart">
             <span class="i-lucide-book-plus w-4 h-4 inline-block align-middle" /> 添加篇
           </button>
@@ -955,7 +995,7 @@ watch(currentProjectId, () => {
             class="drop-zone-placeholder border-2 border-dashed border-gray-300 rounded-xl h-48 flex flex-col items-center justify-center text-gray-400 transition-colors hover:border-blue-400 hover:text-blue-400"
           >
             <span class="i-lucide-book-open text-3xl mb-3 opacity-40" />
-            <span class="text-sm">从左侧拖入或点击章节添加到目录</span>
+            <span class="text-sm">从左侧拖入或点击内容添加到手册</span>
           </div>
 
           <template
@@ -990,12 +1030,12 @@ watch(currentProjectId, () => {
                   @input="dirty = true"
                 />
                 <span class="text-xs text-gray-400 flex-shrink-0"
-                  >{{ node.features.length }} 个章节</span
+                  >{{ node.features.length }} 章</span
                 >
                 <button
                   v-if="canManageProject"
                   class="text-red-400 hover:text-red-600 text-sm flex-shrink-0"
-                  v-tooltip="'删除此篇（章节将提升到顶层）'"
+                  v-tooltip="'删除此篇（内容将提升到顶层）'"
                   @click="removePart(ni)"
                 >
                   <span class="i-lucide-trash-2 w-4 h-4 inline-block align-middle" />
@@ -1011,7 +1051,7 @@ watch(currentProjectId, () => {
                   v-if="node.features.length === 0"
                   class="px-4 py-3 text-xs text-gray-400 text-center"
                 >
-                  拖入左侧章节，或点击左侧章节的
+                  拖入左侧内容，或点击左侧内容的
                   <span
                     class="i-lucide-book-plus w-3 h-3 inline-block align-middle text-indigo-400"
                   />
@@ -1305,6 +1345,15 @@ watch(currentProjectId, () => {
     </div>
   </div>
 
+  <!-- 编辑手册信息弹窗 -->
+  <CreateEditManualModal
+    :visible="showEditInfoModal"
+    mode="edit"
+    :catalog="{ id: catalogId, title: catalog.title, coverInfo: {} } as any"
+    @close="showEditInfoModal = false"
+    @saved="loadData().then(() => nextTick(() => initAllSorts()))"
+  />
+
   <!-- 左侧池 "添加到部分" 下拉菜单 -->
   <Teleport to="body">
     <div v-if="movingPoolFeature" class="fixed inset-0 z-40" @click="movingPoolFeature = null">
@@ -1330,6 +1379,24 @@ watch(currentProjectId, () => {
 </template>
 
 <style scoped>
+/* 侧边栏抽屉过渡 */
+.slide-left-enter-active,
+.slide-left-leave-active {
+  transition: opacity 0.25s ease;
+}
+.slide-left-enter-from,
+.slide-left-leave-to {
+  opacity: 0;
+}
+.slide-left-enter-active aside,
+.slide-left-leave-active aside {
+  transition: transform 0.25s ease;
+}
+.slide-left-enter-from aside,
+.slide-left-leave-to aside {
+  transform: translateX(-100%);
+}
+
 @keyframes highlight-fade {
   from {
     background-color: #eff6ff;
