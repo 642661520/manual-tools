@@ -16,7 +16,7 @@ const featureA = {
 
 describe('buildCoverContentHtml', () => {
   it('无 Part 时生成封面 HTML', () => {
-    const html = buildCoverContentHtml([featureA], [], false, '测试手册')
+    const html = buildCoverContentHtml([featureA], [], false, '测试手册', '')
     expect(html).toContain('测试手册')
     expect(html).toContain('功能 A')
     expect(html).toContain('ch01.html')
@@ -26,13 +26,13 @@ describe('buildCoverContentHtml', () => {
 
   it('有 Part 时生成分组目录', () => {
     const parts = [{ title: '第一组', idx: 1, featureIds: ['feat-a'] }]
-    const html = buildCoverContentHtml([featureA], parts, true, '测试')
+    const html = buildCoverContentHtml([featureA], parts, true, '测试', 'v1.0')
     expect(html).toContain('第一组')
     expect(html).toContain('vp-toc-part')
   })
 
   it('空 features 生成最简封面', () => {
-    const html = buildCoverContentHtml([], [], false, '空手册')
+    const html = buildCoverContentHtml([], [], false, '空手册', '')
     expect(html).toContain('空手册')
     expect(html).toContain('vp-cover')
   })

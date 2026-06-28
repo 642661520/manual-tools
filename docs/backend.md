@@ -4,26 +4,26 @@
 
 每个文件导出一个 `async function xxxRoutes(app)`，注册为 Fastify plugin。
 
-| 文件            | 路径前缀                    | 用途                                                                                                                                  |
-| --------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `projects.ts`   | `/api/v1/projects`          | 项目 CRUD（PM only，default 不可删除，级联清理 features + catalogs）                                                                  |
-| `categories.ts` | `/api/v1/categories`        | 分类 CRUD，按项目隔离                                                                                                                 |
-| `features.ts`   | `/api/v1/features`          | 功能列表 `?projectId=` 过滤，创建自定义功能，`/import` + `/import/apply` JSON 骨架导入差异检测和合并                                  |
-| `catalogs.ts`   | `/api/v1/catalogs`          | 目录 CRUD + `/preview`（返回 Markdown）+ `/publish`（发布静态站点版本）                                                               |
-| `yjs.ts`        | `/ws/doc/:docId`            | WebSocket Y.js sync protocol + awareness，使用 `WsSocket` (from 'ws')                                                                 |
-| `auth.ts`       | `/api/v1/auth`              | 登录 + JWT 签发 + 本地用户注册 + 飞书登录                                                                                             |
-| `users.ts`      | `/api/v1/users`             | 用户管理 CRUD（PM only）                                                                                                              |
-| `profile.ts`    | `/api/v1/profile`           | 当前用户资料查询/更新、飞书账号绑定、通知开关                                                                                         |
-| `todos.ts`      | `/api/v1/todos`             | 当前用户待办汇总（指派给自己的文档）                                                                                                  |
-| `upload.ts`     | `/api/v1/upload`            | 图片/视频上传到 `data/uploads/`（图片最大 10MB，视频最大 100MB）                                                                      |
-| `data-tasks.ts` | `/api/v1/data`              | 项目级导出/导入（ZIP，异步任务 + 进度轮询 + 流式下载）、系统级数据库备份、孤儿文件清理。`data_tasks` 表管理任务生命周期，24h 自动过期 |
-| `feishu.ts`     | `/api/v1/auth/feishu`       | 飞书 OAuth 绑定回调                                                                                                                   |
-| `ai.ts`         | `/api/v1/ai`                | AI 辅助写作（润色/总结/修复/扩充/自定义），POST `/chat`                                                                               |
-| `search.ts`     | `/api/v1/search`            | 全文搜索（FTS5），`GET /` 搜索 + `POST /rebuild` 重建索引（admin）                                                                    |
-| `audit.ts`      | `/api/v1/audit-logs`        | 审计日志查询（admin only），按 userId/action/targetType 过滤分页                                                                      |
-| `diff.ts`       | `/api/v1/catalogs/:id/diff` | 两个发布版本的 Markdown 逐行 diff（`?v1=old&v2=new`）                                                                                 |
-| `cache.ts`      | `/api/v1/cache`             | 缓存管理（admin）：统计、清理过期、按 catalog 失效、列出/预览/删除/下载缓存条目                                                       |
-| `log.ts`        | `/api/v1/log/frontend`      | 前端错误上报                                                                                                                          |
+| 文件            | 路径前缀                    | 用途                                                                                                                |
+| --------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `projects.ts`   | `/api/v1/projects`          | 项目 CRUD（PM only，default 不可删除，级联清理 features + catalogs）                                                |
+| `categories.ts` | `/api/v1/categories`        | 分类 CRUD，按项目隔离                                                                                               |
+| `features.ts`   | `/api/v1/features`          | 功能列表 `?projectId=` 过滤，创建自定义功能，`/import` + `/import/apply` JSON 骨架导入差异检测和合并                |
+| `catalogs.ts`   | `/api/v1/catalogs`          | 目录 CRUD + `/preview`（返回 Markdown）+ `/publish`（发布静态站点版本）                                             |
+| `yjs.ts`        | `/ws/doc/:docId`            | WebSocket Y.js sync protocol + awareness，使用 `WsSocket` (from 'ws')                                               |
+| `auth.ts`       | `/api/v1/auth`              | 登录 + JWT 签发 + 本地用户注册 + 飞书登录                                                                           |
+| `users.ts`      | `/api/v1/users`             | 用户管理 CRUD（PM only）                                                                                            |
+| `profile.ts`    | `/api/v1/profile`           | 当前用户资料查询/更新、飞书账号绑定、通知开关                                                                       |
+| `todos.ts`      | `/api/v1/todos`             | 当前用户待办汇总（指派给自己的文档）                                                                                |
+| `upload.ts`     | `/api/v1/upload`            | 图片/视频上传到 `data/uploads/`（图片最大 10MB，视频最大 100MB）                                                    |
+| `data-tasks.ts` | `/api/v1/data`              | 项目级导出/导入（ZIP，异步任务 + 进度轮询 + 流式下载）、孤儿文件清理。`data_tasks` 表管理任务生命周期，24h 自动过期 |
+| `feishu.ts`     | `/api/v1/auth/feishu`       | 飞书 OAuth 绑定回调                                                                                                 |
+| `ai.ts`         | `/api/v1/ai`                | AI 辅助写作（润色/总结/修复/扩充/自定义），POST `/chat`                                                             |
+| `search.ts`     | `/api/v1/search`            | 全文搜索（FTS5），`GET /` 搜索 + `POST /rebuild` 重建索引（admin）                                                  |
+| `audit.ts`      | `/api/v1/audit-logs`        | 审计日志查询（admin only），按 userId/action/targetType 过滤分页                                                    |
+| `diff.ts`       | `/api/v1/catalogs/:id/diff` | 两个发布版本的 Markdown 逐行 diff（`?v1=old&v2=new`）                                                               |
+| `cache.ts`      | `/api/v1/cache`             | 缓存管理（admin）：统计、清理过期、按 catalog 失效、列出/预览/删除/下载缓存条目                                     |
+| `log.ts`        | `/api/v1/log/frontend`      | 前端错误上报                                                                                                        |
 
 ## 服务层 (server/services/) — 15 个
 

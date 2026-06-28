@@ -267,6 +267,9 @@ watch(currentProjectId, () => {
               >
                 {{ getSubtitle(cat) }}
               </p>
+
+              <!-- 底部弹性分隔（保持封面内容居中） -->
+              <span class="mt-auto mb-0" />
             </div>
 
             <!-- 悬停遮罩提示 -->

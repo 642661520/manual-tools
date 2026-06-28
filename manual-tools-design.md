@@ -565,7 +565,6 @@ manual-tools/
 ├── docker-compose.yml
 ├── .env.example
 ├── scripts/
-│   ├── backup.sh
 │   └── example-features.json
 ├── data/                          # 持久化数据（volume 挂载）
 │   ├── manual.db                  # SQLite
@@ -648,7 +647,6 @@ manual-tools/
 │   │   ├── profile.ts             # 个人资料
 │   │   ├── todos.ts               # 待办汇总
 │   │   ├── upload.ts              # 图片/视频上传
-│   │   ├── backup.ts              # 备份导出
 │   │   └── feishu.ts              # 飞书绑定回调
 │   ├── services/
 │   │   ├── yjs-doc.ts             # Y.js 文档持久化
@@ -746,7 +744,6 @@ manual-tools/
 | 创建/编辑/删除 catalog   | ❌   | ✅  | ❌   |
 | 审核通过/驳回（改状态）  | ❌   | ✅  | ❌   |
 | 导出 PDF / 发布站点      | ❌   | ✅  | ❌   |
-| 导出备份                 | ❌   | ✅  | ❌   |
 | 查看已发布站点           | ✅   | ✅  | ✅   |
 
 ---
@@ -757,7 +754,7 @@ manual-tools/
 
 - **审核通知**：section 提交审核时发送消息给审核链中的 PM
 - **指派通知**：运维被指派 section 时收到通知
-- **驳回通知**：section 被驳回时通知编写者
+- **驳回通知**：section 被驳回时通知编辑者
 - **版本发布通知**：catalog 新版本发布时通知项目成员
 
 通知内容包含文档标题、状态变更、操作人等信息，通过飞书自定义机器人 Webhook 发送。
@@ -827,64 +824,10 @@ docker compose build
 docker compose up -d --force-recreate
 ```
 
----
-
-## 十四、数据备份
-
-### 两层机制
-
-| 方式     | 触发               | 存储位置                       | 用途               |
-| -------- | ------------------ | ------------------------------ | ------------------ |
-| 定时自动 | Host cron 每天凌晨 | 服务器本地 + 异地（rsync NAS） | 灾难恢复           |
-| 网页手动 | PM 点击"导出备份"  | PM 浏览器下载 .zip             | 临时导出、本地留档 |
-
-### 自动备份
-
-```bash
-#!/bin/bash
-# scripts/backup.sh
-BACKUP_DIR=/app/data/backups
-DB_PATH=/app/data/manual.db
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-
-mkdir -p "$BACKUP_DIR"
-
-# SQLite 在线安全备份
-sqlite3 "$DB_PATH" ".backup $BACKUP_DIR/manual-$TIMESTAMP.db"
-
-# 上传文件打包
-tar -czf "$BACKUP_DIR/uploads-$TIMESTAMP.tar.gz" -C /app/data uploads/
-
-# 清理 30 天前备份
-find "$BACKUP_DIR" -mtime +30 -delete
-
-# 同步到远程（可选）
-# rsync -av "$BACKUP_DIR/" /mnt/nas/manual-tools-backups/
-```
-
-Host cron：
-
-```bash
-0 2 * * * docker exec manual-tools /app/scripts/backup.sh >> /var/log/manual-backup.log 2>&1
-```
-
-### 网页手动导出
-
-`GET /api/v1/backup/download` → 在线 `.backup` + uploads 打包为 `.zip` → 浏览器下载。
-
 ### 上传限制
 
 - 图片：单文件上限 10MB（环境变量 `UPLOAD_MAX_SIZE` 可配），支持 PNG、JPG、GIF、WebP
 - 视频：单文件上限 100MB（环境变量 `VIDEO_MAX_SIZE` 可配），支持 MP4、WebM
-
-### 恢复流程
-
-```bash
-docker compose stop
-cp /app/data/backups/manual-20260622_020000.db /app/data/manual.db
-tar -xzf /app/data/backups/uploads-20260622_020000.tar.gz -C /app/data/
-docker compose up -d
-```
 
 ---
 
@@ -902,9 +845,8 @@ docker compose up -d
 | 8    | 飞书 OAuth 登录 + 角色判定 + 本地账号降级                                                                                | ✅ 完成 |
 | 9    | 多项目支持                                                                                                               | ✅ 完成 |
 | 10   | Y.js 快照合并策略实现                                                                                                    | ✅ 完成 |
-| 11   | 备份系统（定时 + 手动）                                                                                                  | ✅ 完成 |
-| 12   | Docker 部署脚本                                                                                                          | ✅ 完成 |
-| 13   | 前端组件提取（16 个通用组件）                                                                                            | ✅ 完成 |
+| 11   | Docker 部署脚本                                                                                                          | ✅ 完成 |
+| 12   | 前端组件提取（16 个通用组件）                                                                                            | ✅ 完成 |
 | 14   | TypeScript 严格模式 + ESLint（零 any）                                                                                   | ✅ 完成 |
 | 15   | 分类系统（categories 替代 module）                                                                                       | ✅ 完成 |
 | 16   | 审核链 + 状态流转（pending_review, rejected）                                                                            | ✅ 完成 |

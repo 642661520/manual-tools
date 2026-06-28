@@ -84,7 +84,7 @@
 
 | 组件              | 用途                                                         |
 | ----------------- | ------------------------------------------------------------ |
-| `SettingsSidebar` | 设置页侧边栏（项目设置/用户管理/审计日志/数据管理 tab 切换） |
+| `SettingsSidebar` | 设置页侧边栏（项目管理/账号管理/存储管理/操作日志 tab 切换） |
 | `Paginator`       | 分页器，props: `current/total`，emit: `go(page)`             |
 
 ### 数据展示组件
@@ -127,7 +127,7 @@
 | `feature-editor/`  | `index.vue`                                                              | 运维编写：左侧功能导航树 + 右侧 TipTap 编辑器，支持状态流转和 AI 写作              |
 | `catalog-builder/` | `index.vue`                                                              | PM 编排：左侧可选功能池（搜索+按分类分组）+ 右侧拖拽排序已选功能                   |
 | `manual-preview/`  | `index.vue`, `PreviewContent.vue`, `PreviewSidebar.vue`                  | 手册预览 + 版本发布 + 版本对比                                                     |
-| `settings/`        | `index.vue`, `AuditLog.vue`, `DataManagement.vue`, `ProjectSettings.vue` | PM 设置：项目管理 + 用户管理 + 审计日志 + 数据管理                                 |
+| `settings/`        | `index.vue`, `AuditLog.vue`, `DataManagement.vue`, `ProjectSettings.vue` | 系统/项目设置：项目管理 + 账号管理 + 存储管理 + 操作日志                           |
 | `profile/`         | `index.vue`                                                              | 个人资料查看 + 飞书账号绑定                                                        |
 | `todo-list/`       | `index.vue`                                                              | 我的待办汇总（按状态分组）                                                         |
 | `feishu-callback/` | `index.vue`                                                              | 飞书 OAuth 回调处理                                                                |

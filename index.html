@@ -6,6 +6,36 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <title>操作手册编写平台</title>
+    <style>
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: transparent transparent;
+      }
+      *:hover {
+        scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+      }
+      *::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      *::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      *::-webkit-scrollbar-thumb {
+        background: transparent;
+        border-radius: 3px;
+        transition: background 0.2s;
+      }
+      *:hover::-webkit-scrollbar-thumb {
+        background: rgba(156, 163, 175, 0.5);
+      }
+      *::-webkit-scrollbar-thumb:hover {
+        background: rgba(156, 163, 175, 0.8);
+      }
+      *::-webkit-scrollbar-corner {
+        background: transparent;
+      }
+    </style>
   </head>
   <body class="bg-gray-50 text-gray-900">
     <div id="app"></div>
