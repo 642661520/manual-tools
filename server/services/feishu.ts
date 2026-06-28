@@ -185,13 +185,52 @@ export interface FeishuUserInfo {
   avatar_url?: string
 }
 
-export function getFeishuAuthUrl(state: string): string {
+export function getFeishuAuthUrl(state: string, redirectUri: string): string {
   const { appId } = getAppCredentials()
-  const redirectUri = config.feishuRedirectUri
   if (!redirectUri) {
-    throw new Error('飞书 OAuth 未配置：缺少 FEISHU_REDIRECT_URI')
+    throw new Error('飞书 OAuth 未配置：无法确定回调地址')
   }
   return `${FEISHU_HOST}/open-apis/authen/v1/authorize?app_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`
+}
+
+/** 从请求头推导前端域名（Origin → Referer → Host → 环境变量后备） */
+export function getRedirectOrigin(req: {
+  headers: Record<string, string | string[] | undefined>
+  protocol: string
+}): string {
+  // 1. Origin header（跨域请求时浏览器自动发送，最可靠）
+  const origin = req.headers.origin
+  if (origin && typeof origin === 'string') {
+    return origin
+  }
+
+  // 2. Referer header（同源 GET 请求时浏览器发送）
+  const referer = req.headers.referer
+  if (referer && typeof referer === 'string') {
+    try {
+      return new URL(referer).origin
+    } catch {
+      // Referer 解析失败，继续降级
+    }
+  }
+
+  // 3. X-Forwarded-Host（反向代理场景）
+  const fwdHost = req.headers['x-forwarded-host']
+  const fwdProto = req.headers['x-forwarded-proto']
+  if (fwdHost && typeof fwdHost === 'string') {
+    const proto = (typeof fwdProto === 'string' ? fwdProto : 'http') as string
+    return `${proto}://${fwdHost}`
+  }
+
+  // 4. Host header（同源请求兜底）
+  const host = req.headers.host
+  if (host && typeof host === 'string') {
+    const proto = req.protocol || 'http'
+    return `${proto}://${host}`
+  }
+
+  // 无法推导，返回空字符串（调用方 getFeishuAuthUrl 会抛出明确错误）
+  return ''
 }
 
 export async function exchangeCodeForToken(code: string): Promise<FeishuUserInfo> {

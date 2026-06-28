@@ -58,7 +58,7 @@ export const config = {
 
   // 系统管理员种子
   adminUsername: env('ADMIN_USERNAME', 'admin'),
-  adminPassword: env('ADMIN_PASSWORD', 'admin123'),
+  adminPassword: env('ADMIN_PASSWORD', 'Admin@123'),
 
   // 目录
   uploadDir: env('UPLOAD_DIR', join(process.cwd(), 'data/uploads')),
@@ -76,7 +76,6 @@ export const config = {
   feishuHost: env('FEISHU_HOST', 'https://open.feishu.cn'),
   feishuAppId: env('FEISHU_APP_ID', ''),
   feishuAppSecret: env('FEISHU_APP_SECRET', ''),
-  feishuRedirectUri: env('FEISHU_REDIRECT_URI', ''),
   adminOpenIds: env('ADMIN_OPEN_IDS', env('PM_OPEN_IDS', '')),
 
   // PDF 导出

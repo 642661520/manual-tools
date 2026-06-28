@@ -24,9 +24,15 @@ export async function profileRoutes(app: FastifyInstance) {
           username_changed: number
         }
       | undefined
+    const u = req.user!
     return success({
       user: {
-        ...req.user,
+        id: u.userId,
+        username: u.username,
+        displayName: u.displayName,
+        role: u.role,
+        avatarUrl: u.avatarUrl,
+        feishuName: u.feishuName,
         hasPassword: row ? row.password_hash !== null && row.password_hash !== '' : false,
         notifyEnabled: row ? !!row.notify_enabled : true,
         notifyPrefs: (() => {

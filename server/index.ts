@@ -513,23 +513,27 @@ async function main() {
     done()
   })
 
-  // tsx watch 重启时旧进程可能尚未释放端口，重试最多 5 次
-  const maxRetries = 5
-  for (let retry = 0; retry <= maxRetries; retry++) {
+  // 开发模式：启动前强制释放端口（解决终端重启时旧进程残留）
+  if (!config.isProduction) {
     try {
-      await app.listen({ port: PORT, host: '0.0.0.0' })
-      app.log.info({ port: PORT }, 'server started')
-      break
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code
-      if (code !== 'EADDRINUSE' || retry === maxRetries) {
-        app.log.error({ err }, 'server start failed')
-        process.exit(1)
+      const { execSync } = await import('node:child_process')
+      if (process.platform === 'win32') {
+        const out = execSync(`netstat -ano | findstr :${PORT}`, { encoding: 'utf8' })
+        for (const line of out.split('\n').filter((l) => l.includes('LISTENING'))) {
+          const pid = line.trim().split(/\s+/).pop()
+          if (pid && pid !== String(process.pid)) {
+            app.log.warn({ pid }, '发现残留旧进程，正在终止...')
+            execSync(`taskkill /PID ${pid} /F`, { stdio: 'ignore' })
+          }
+        }
       }
-      app.log.warn({ port: PORT, retry: retry + 1 }, '端口被占用，1 秒后重试')
-      await new Promise((r) => setTimeout(r, 1000))
+    } catch {
+      /* 端口空闲 */
     }
   }
+
+  await app.listen({ port: PORT, host: '0.0.0.0' })
+  app.log.info({ port: PORT }, 'server started')
 }
 
 main()

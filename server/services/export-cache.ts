@@ -37,8 +37,8 @@ interface ExportOptions {
 export function computeFingerprint(catalogId: string): string {
   const db = getDb()
   const catalog = db
-    .prepare('SELECT features, targets, cover_info FROM catalogs WHERE id = ?')
-    .get(catalogId) as { features: string; targets: string; cover_info: string } | undefined
+    .prepare('SELECT features, cover_info FROM catalogs WHERE id = ?')
+    .get(catalogId) as { features: string; cover_info: string } | undefined
   if (!catalog) return ''
 
   // 收集 catalog 中所有 feature 的 document 更新信息
@@ -67,7 +67,7 @@ export function computeFingerprint(catalogId: string): string {
     maxDocUpdatedAt = row?.max_updated || ''
   }
 
-  const content = [catalog.features, catalog.targets, catalog.cover_info, maxDocUpdatedAt].join('|')
+  const content = [catalog.features, catalog.cover_info, maxDocUpdatedAt].join('|')
 
   return createHash('sha256').update(content).digest('hex').slice(0, 16)
 }

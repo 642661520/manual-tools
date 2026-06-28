@@ -4,10 +4,6 @@
  * 通过 @fastify/swagger 自动生成 OpenAPI 3.x 规范，
  * /docs/api 提供 Swagger UI 交互式文档。
  */
-import type { FastifyInstance } from 'fastify'
-import fastifySwagger from '@fastify/swagger'
-import fastifySwaggerUi from '@fastify/swagger-ui'
-
 // ============================================================
 // 公共响应 Schema
 // ============================================================
@@ -140,58 +136,4 @@ export const loginResponseSchema = {
       },
     },
   },
-}
-
-// ============================================================
-// 配置 Swagger + Swagger UI
-// ============================================================
-
-export async function registerSwagger(app: FastifyInstance) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const instance = app as any
-  await instance.register(fastifySwagger, {
-    openapi: {
-      info: {
-        title: '操作手册编写平台 API',
-        description: '多项目操作手册编写与发布平台 RESTful API 文档',
-        version: '0.1.0',
-      },
-      servers: [{ url: 'http://localhost:3000', description: '本地开发服务器' }],
-      components: {
-        securitySchemes: {
-          bearerAuth: {
-            type: 'http',
-            scheme: 'bearer',
-            bearerFormat: 'JWT',
-            description: '登录后获取的 JWT token',
-          },
-        },
-      },
-      tags: [
-        { name: 'auth', description: '认证 — 登录 / 注册' },
-        { name: 'projects', description: '项目管理' },
-        { name: 'categories', description: '分类管理' },
-        { name: 'features', description: '功能骨架管理' },
-        { name: 'catalogs', description: '目录编排 + 发布' },
-        { name: 'users', description: '用户管理' },
-        { name: 'profile', description: '个人资料' },
-        { name: 'todos', description: '待办汇总' },
-        { name: 'upload', description: '文件上传' },
-        { name: 'data-tasks', description: '数据导入导出' },
-        { name: 'search', description: '全文搜索' },
-        { name: 'ai', description: 'AI 写作助手' },
-        { name: 'diff', description: '版本对比' },
-        { name: 'audit', description: '审计日志' },
-      ],
-    },
-  })
-
-  await instance.register(fastifySwaggerUi, {
-    routePrefix: '/docs/api',
-    uiConfig: {
-      docExpansion: 'list',
-      deepLinking: true,
-      persistAuthorization: true,
-    },
-  })
 }

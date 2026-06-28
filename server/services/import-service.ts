@@ -74,7 +74,7 @@ interface ParsedExport {
   }>
   documents: Map<string, { html: string; featureId: string; sectionKey: string }>
   catalogs: Array<{
-    row: { id: string; title: string; targets: string; features: string; cover_info: string }
+    row: { id: string; title: string; features: string; cover_info: string }
     versions: Array<{
       id: string
       catalog_id: string
@@ -156,7 +156,6 @@ async function parseExportData(zipPath: string): Promise<ParsedExport> {
       row: {
         id: c.id as string,
         title: c.title as string,
-        targets: JSON.stringify(c.targets || []),
         features: JSON.stringify(c.features || []),
         cover_info: JSON.stringify(c.cover_info || {}),
       },
@@ -305,7 +304,9 @@ export async function analyzeImport(
 
   // ---- 目录 ----
   const existingCatalogs = db
-    .prepare('SELECT * FROM catalogs WHERE project_id = ?')
+    .prepare(
+      'SELECT id, title, features, cover_info, project_id, created_at, updated_at FROM catalogs WHERE project_id = ?',
+    )
     .all(targetProjectId) as CatalogRow[]
   const existingCatlMap = new Map(existingCatalogs.map((c) => [c.id, c]))
 
@@ -452,8 +453,8 @@ export async function applyImport(
 
     // ---- 目录 + 版本 ----
     const insertCatl = db.prepare(`
-      INSERT OR REPLACE INTO catalogs (id, title, targets, features, cover_info, project_id, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+      INSERT OR REPLACE INTO catalogs (id, title, features, cover_info, project_id, updated_at)
+      VALUES (?, ?, ?, ?, ?, datetime('now'))
     `)
     const insertVer = db.prepare(`
       INSERT OR REPLACE INTO catalog_versions
@@ -473,14 +474,7 @@ export async function applyImport(
       } else {
         result.catalogs.inserted++
       }
-      insertCatl.run(
-        c.row.id,
-        c.row.title,
-        c.row.targets,
-        c.row.features,
-        c.row.cover_info,
-        targetProjectId,
-      )
+      insertCatl.run(c.row.id, c.row.title, c.row.features, c.row.cover_info, targetProjectId)
       for (const v of c.versions) {
         insertVer.run(
           v.id,

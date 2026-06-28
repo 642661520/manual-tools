@@ -14,6 +14,7 @@ import {
   assembleManual,
   assembleChapter,
   extractChapterMarkdown,
+  resolveSections,
 } from '../services/manual-assembler.js'
 import { buildMarkdownZip } from '../services/markdown-export.js'
 import { buildPdf } from '../services/pdf-export.js'
@@ -44,26 +45,40 @@ export async function catalogRoutes(app: FastifyInstance) {
     const userId = req.user!.userId
     const role = req.user!.role
 
+    // 子查询：每个 catalog 的最新版本
+    const versionJoin = `
+      LEFT JOIN catalog_versions v ON v.id = (
+        SELECT id FROM catalog_versions
+        WHERE catalog_id = c.id
+        ORDER BY version_major DESC, version_minor DESC
+        LIMIT 1
+      )
+    `
+
     if (projectId) {
       if (!isProjectMember(userId, role, projectId)) {
         return fail(reply, 403, '你不是该项目的成员')
       }
       const rows = db
-        .prepare('SELECT * FROM catalogs WHERE project_id = ? ORDER BY updated_at DESC')
+        .prepare(
+          `SELECT c.id, c.title, c.features, c.cover_info, c.project_id, c.created_at, c.updated_at, v.version_major as latest_version_major, v.version_minor as latest_version_minor FROM catalogs c ${versionJoin} WHERE c.project_id = ? ORDER BY c.updated_at DESC`,
+        )
         .all(projectId)
       return success(rows)
     }
     // 无项目过滤时，仅返回用户有成员身份的项目中的 catalog
     if (role === 'admin') {
-      const rows = db.prepare('SELECT * FROM catalogs ORDER BY updated_at DESC').all()
+      const rows = db
+        .prepare(
+          `SELECT c.id, c.title, c.features, c.cover_info, c.project_id, c.created_at, c.updated_at, v.version_major as latest_version_major, v.version_minor as latest_version_minor FROM catalogs c ${versionJoin} ORDER BY c.updated_at DESC`,
+        )
+        .all()
       return success(rows)
     }
     const rows = db
-      .prepare(`
-      SELECT c.* FROM catalogs c
-      JOIN project_members pm ON c.project_id = pm.project_id AND pm.user_id = ?
-      ORDER BY c.updated_at DESC
-    `)
+      .prepare(
+        `SELECT c.id, c.title, c.features, c.cover_info, c.project_id, c.created_at, c.updated_at, v.version_major as latest_version_major, v.version_minor as latest_version_minor FROM catalogs c JOIN project_members pm ON c.project_id = pm.project_id AND pm.user_id = ? ${versionJoin} ORDER BY c.updated_at DESC`,
+      )
       .all(userId)
     return success(rows)
   })
@@ -111,7 +126,7 @@ export async function catalogRoutes(app: FastifyInstance) {
     if (!member) return fail(reply, 404, 'Catalog not found')
     const rows = db
       .prepare(
-        'SELECT id, version_major, version_minor, title, change_notes, visibility, publish_scope, created_at FROM catalog_versions WHERE catalog_id = ? ORDER BY version_major DESC, version_minor DESC',
+        'SELECT id, version_major, version_minor, title, change_notes, visibility, publish_scope, status, created_at FROM catalog_versions WHERE catalog_id = ? ORDER BY version_major DESC, version_minor DESC',
       )
       .all(id) as Pick<
       CatalogVersionRow,
@@ -122,6 +137,7 @@ export async function catalogRoutes(app: FastifyInstance) {
       | 'change_notes'
       | 'visibility'
       | 'publish_scope'
+      | 'status'
       | 'created_at'
     >[]
     return success(rows)
@@ -446,9 +462,11 @@ export async function catalogRoutes(app: FastifyInstance) {
         | undefined
       if (!ver || ver.catalog_id !== id) return fail(reply, 404, '版本不存在')
 
-      const catalogMeta = db.prepare('SELECT * FROM catalogs WHERE id = ?').get(id) as
-        | CatalogRow
-        | undefined
+      const catalogMeta = db
+        .prepare(
+          'SELECT id, title, features, cover_info, project_id, created_at, updated_at FROM catalogs WHERE id = ?',
+        )
+        .get(id) as CatalogRow | undefined
       if (!catalogMeta) return fail(reply, 404, '目录不存在')
       if (!hasProjectRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
@@ -493,7 +511,6 @@ export async function catalogRoutes(app: FastifyInstance) {
               project_id: catalogMeta.project_id,
               created_at: catalogMeta.created_at,
               updated_at: catalogMeta.updated_at,
-              targets: JSON.parse(catalogMeta.targets),
               coverInfo: JSON.parse(catalogMeta.cover_info || '{}'),
               entries: JSON.parse(ver.features_snapshot || '[]') as CatalogEntry[],
             },
@@ -570,7 +587,7 @@ export async function catalogRoutes(app: FastifyInstance) {
           .get(fe.featureId) as { title: string; sections: string } | undefined
         if (!f) continue
         featureNames[fe.featureId] = f.title
-        const secs = JSON.parse(f.sections || '[]') as { key: string; title: string }[]
+        const secs = resolveSections(f.sections, f.title, fe.sectionOrder)
         for (const s of secs) {
           const docId = `${fe.featureId}/${s.key}`
           const doc = db.prepare('SELECT status FROM documents WHERE id = ?').get(docId) as
@@ -597,7 +614,7 @@ export async function catalogRoutes(app: FastifyInstance) {
         return fail(
           reply,
           400,
-          `以下 ${unreviewed.length} 个章节未通过审核：${detail}${more}。\n若要强制发布，请勾选「允许未审核内容发布」。`,
+          `以下 ${unreviewed.length} 个小节未通过审核：${detail}${more}。\n若要强制发布，请勾选「允许未审核内容发布」。`,
         )
       }
 
@@ -675,7 +692,7 @@ export async function catalogRoutes(app: FastifyInstance) {
         id: versionId,
         versionMajor: major,
         versionMinor: minor,
-        approved: unreviewed.length,
+        approved: Object.keys(statusSnapshot).length - unreviewed.length,
         total: Object.keys(statusSnapshot).length,
       })
     },
@@ -725,14 +742,121 @@ export async function catalogRoutes(app: FastifyInstance) {
     },
   )
 
+  // 更新版本生命周期状态（废弃/激活/归档）
+  app.put(
+    '/api/v1/catalogs/:id/versions/:versionId/status',
+    { preHandler: [authMiddleware, requireRole('admin', 'member')] },
+    async (req, reply) => {
+      const { id, versionId } = req.params as { id: string; versionId: string }
+      const body = req.body as { status: string }
+      const validStatuses = ['active', 'deprecated', 'archived']
+      if (!validStatuses.includes(body.status)) {
+        return fail(reply, 400, `无效的状态值，可选: ${validStatuses.join(', ')}`)
+      }
+
+      const db = getDb()
+      const ver = db
+        .prepare('SELECT catalog_id, status FROM catalog_versions WHERE id = ?')
+        .get(versionId) as { catalog_id: string; status: string } | undefined
+      if (!ver || ver.catalog_id !== id) return fail(reply, 404, '版本不存在')
+
+      const catalogMeta = db.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(id) as
+        | { project_id: string }
+        | undefined
+      if (!catalogMeta) return fail(reply, 404, '目录不存在')
+      if (!hasProjectRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
+        return fail(reply, 403, '项目内权限不足')
+      }
+      if (!ensureProjectWritable(catalogMeta.project_id, reply)) return
+
+      db.prepare('UPDATE catalog_versions SET status = ? WHERE id = ?').run(body.status, versionId)
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action:
+          body.status === 'active'
+            ? 'catalog.version_status'
+            : body.status === 'deprecated'
+              ? 'catalog.version_status'
+              : 'catalog.version_status',
+        targetType: 'catalog-version',
+        targetId: versionId,
+        detail: { catalogId: id, previousStatus: ver.status, newStatus: body.status },
+      })
+
+      return ok()
+    },
+  )
+
+  // 删除单个版本
+  app.delete(
+    '/api/v1/catalogs/:id/versions/:versionId',
+    { preHandler: [authMiddleware, requireRole('admin', 'member')] },
+    async (req, reply) => {
+      const { id, versionId } = req.params as { id: string; versionId: string }
+      const db = getDb()
+
+      const ver = db
+        .prepare(
+          'SELECT catalog_id, version_major, version_minor FROM catalog_versions WHERE id = ?',
+        )
+        .get(versionId) as
+        | { catalog_id: string; version_major: number; version_minor: number }
+        | undefined
+      if (!ver || ver.catalog_id !== id) return fail(reply, 404, '版本不存在')
+
+      const catalogMeta = db.prepare('SELECT project_id FROM catalogs WHERE id = ?').get(id) as
+        | { project_id: string }
+        | undefined
+      if (!catalogMeta) return fail(reply, 404, '目录不存在')
+      if (!hasProjectRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
+        return fail(reply, 403, '项目内权限不足')
+      }
+      if (!ensureProjectWritable(catalogMeta.project_id, reply)) return
+
+      const versionLabel = `v${ver.version_major}.${ver.version_minor}`
+
+      // 删除数据库记录
+      db.prepare('DELETE FROM catalog_versions WHERE id = ?').run(versionId)
+
+      // 清理静态文档站点文件
+      const docsDir = join(process.cwd(), 'data/docs', id, versionLabel)
+      rm(docsDir, { recursive: true, force: true }).catch((err) => {
+        app.log.error(
+          `清理版本静态站点失败 (version ${versionId}): ${err instanceof Error ? err.message : err}`,
+        )
+      })
+
+      // 清理 export_cache 中该版本的条目
+      db.prepare('DELETE FROM export_cache WHERE catalog_id = ? AND fingerprint LIKE ?').run(
+        id,
+        `%-${versionId.slice(0, 8)}%`,
+      )
+
+      recordAudit({
+        userId: req.user!.userId,
+        username: req.user?.username || '',
+        action: 'catalog.version_delete',
+        targetType: 'catalog-version',
+        targetId: versionId,
+        detail: { catalogId: id, versionLabel },
+      })
+
+      return ok()
+    },
+  )
+
   // 导出静态站点 ZIP（仅公开版本，无需认证）
   app.get('/api/v1/catalogs/:id/export/site', async (req, reply) => {
     const { id } = req.params as { id: string }
     const db = getDb()
 
-    const catalog = db.prepare('SELECT * FROM catalogs WHERE id = ?').get(id) as
-      | CatalogRow
-      | undefined
+    const catalog = db
+      .prepare(
+        'SELECT id, title, features, cover_info, project_id, created_at, updated_at FROM catalogs WHERE id = ?',
+      )
+      .get(id) as CatalogRow | undefined
     if (!catalog) return fail(reply, 404, '目录不存在')
 
     // 查询所有公开版本
@@ -828,9 +952,11 @@ export async function catalogRoutes(app: FastifyInstance) {
   app.get('/api/v1/catalogs/:id', { preHandler: authMiddleware }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const db = getDb()
-    const catalog = db.prepare('SELECT * FROM catalogs WHERE id = ?').get(id) as
-      | CatalogRow
-      | undefined
+    const catalog = db
+      .prepare(
+        'SELECT id, title, features, cover_info, project_id, created_at, updated_at FROM catalogs WHERE id = ?',
+      )
+      .get(id) as CatalogRow | undefined
     if (!catalog) return fail(reply, 404, 'Not found')
     if (!isProjectMember(req.user!.userId, req.user!.role, catalog.project_id)) {
       return fail(reply, 403, '你不是该项目的成员')
@@ -891,7 +1017,6 @@ export async function catalogRoutes(app: FastifyInstance) {
 
     return success({
       ...catalog,
-      targets: JSON.parse(catalog.targets),
       coverInfo: JSON.parse(catalog.cover_info),
       features: orderedFeatures,
     })
@@ -914,12 +1039,11 @@ export async function catalogRoutes(app: FastifyInstance) {
       const db = getDb()
 
       db.prepare(`
-      INSERT INTO catalogs (id, title, targets, features, cover_info, project_id)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO catalogs (id, title, features, cover_info, project_id)
+      VALUES (?, ?, ?, ?, ?)
     `).run(
         id,
         body.title || '未命名目录',
-        JSON.stringify(body.targets || []),
         JSON.stringify(body.features || []),
         JSON.stringify(body.cover || {}),
         projectId,
@@ -959,16 +1083,10 @@ export async function catalogRoutes(app: FastifyInstance) {
 
       db.prepare(`
       UPDATE catalogs SET
-        title = ?, targets = ?, features = ?, cover_info = ?,
+        title = ?, features = ?, cover_info = ?,
         updated_at = datetime('now')
       WHERE id = ?
-    `).run(
-        body.title,
-        JSON.stringify(body.targets || []),
-        JSON.stringify(body.features || []),
-        JSON.stringify(body.cover || {}),
-        id,
-      )
+    `).run(body.title, JSON.stringify(body.features || []), JSON.stringify(body.cover || {}), id)
 
       recordAudit({
         userId: req.user!.userId,

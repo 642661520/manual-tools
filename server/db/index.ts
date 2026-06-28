@@ -133,7 +133,6 @@ export function initDatabase() {
     CREATE TABLE IF NOT EXISTS catalogs (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
-      targets TEXT NOT NULL DEFAULT '[]',
       features TEXT NOT NULL DEFAULT '[]',
       cover_info TEXT NOT NULL DEFAULT '{}',
       project_id TEXT REFERENCES projects(id),
@@ -188,6 +187,7 @@ export function initDatabase() {
       features_json TEXT DEFAULT '[]',
       headings_json TEXT DEFAULT '[]',
       publish_scope TEXT NOT NULL DEFAULT 'all',
+      status TEXT NOT NULL DEFAULT 'active',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     CREATE TABLE IF NOT EXISTS data_tasks (
@@ -282,6 +282,11 @@ export function initDatabase() {
   // 幂等迁移：为旧版本数据库添加 publish_scope 列
   if (!columnExists(conn, 'catalog_versions', 'publish_scope')) {
     conn.exec("ALTER TABLE catalog_versions ADD COLUMN publish_scope TEXT NOT NULL DEFAULT 'all'")
+  }
+
+  // 幂等迁移：catalog_versions 添加 status 列
+  if (!columnExists(conn, 'catalog_versions', 'status')) {
+    conn.exec("ALTER TABLE catalog_versions ADD COLUMN status TEXT NOT NULL DEFAULT 'active'")
   }
 
   // 幂等迁移：review_log 列重命名为 status_log

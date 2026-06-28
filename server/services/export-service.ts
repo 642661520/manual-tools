@@ -159,7 +159,9 @@ export async function runExportTask(
     .all(projectId) as FeatureRow[]
 
   const catalogs = db
-    .prepare('SELECT * FROM catalogs WHERE project_id = ?')
+    .prepare(
+      'SELECT id, title, features, cover_info, project_id, created_at, updated_at FROM catalogs WHERE project_id = ?',
+    )
     .all(projectId) as CatalogRow[]
 
   // catalog versions
@@ -354,6 +356,8 @@ export async function runExportTask(
         visibility: v.visibility,
         features_json: v.features_json,
         headings_json: v.headings_json,
+        publish_scope: v.publish_scope,
+        status: v.status,
         created_at: v.created_at,
       }))
 
@@ -361,7 +365,6 @@ export async function runExportTask(
         {
           id: cat.id,
           title: cat.title,
-          targets: JSON.parse(cat.targets || '[]'),
           features: JSON.parse(cat.features || '[]'),
           cover_info: JSON.parse(cat.cover_info || '{}'),
           versions,

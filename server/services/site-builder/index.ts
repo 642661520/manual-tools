@@ -86,7 +86,14 @@ export async function buildStaticSite(
 
   // ----- 封面页 -----
   const coverSidebarHtml = buildSidebarHtml(features, parts, hasParts, 0)
-  const coverContentHtml = buildCoverContentHtml(features, parts, hasParts, catalogTitle, versionLabel, coverInfo)
+  const coverContentHtml = buildCoverContentHtml(
+    features,
+    parts,
+    hasParts,
+    catalogTitle,
+    versionLabel,
+    coverInfo,
+  )
   const coverPageHtml = wrapTemplate({
     catalogId,
     title: catalogTitle,
@@ -170,13 +177,14 @@ export async function buildStaticSite(
 
 function assembleManualForSite(catalogId: string): ManualResult | null {
   const db = getDb()
-  const catalog = db.prepare('SELECT * FROM catalogs WHERE id = ?').get(catalogId) as
-    | CatalogRow
-    | undefined
+  const catalog = db
+    .prepare(
+      'SELECT id, title, features, cover_info, project_id, created_at, updated_at FROM catalogs WHERE id = ?',
+    )
+    .get(catalogId) as CatalogRow | undefined
   if (!catalog) return null
 
   const entries: CatalogEntry[] = JSON.parse(catalog.features)
-  const targets: string[] = JSON.parse(catalog.targets)
   const coverInfo = JSON.parse(catalog.cover_info || '{}')
 
   // 展平 entries
@@ -220,7 +228,7 @@ function assembleManualForSite(catalogId: string): ManualResult | null {
   }
 
   return {
-    catalog: { ...catalog, targets, coverInfo, entries },
+    catalog: { ...catalog, coverInfo, entries },
     features,
     markdown: '',
     headings: [] as HeadingEntry[],
@@ -278,8 +286,8 @@ function wrapTemplate(params: {
       .replaceAll('{{CONTENT}}', params.contentHtml)
       .replaceAll('{{TOC}}', params.tocHtml)
       // 使用 split/join 避免 $& 等特殊替换模式被错误解释
-      .split('{{SCRIPTS}}')
-      .join(scripts)
+      .split('<!--SCRIPTS-->')
+      .join(`<script>${scripts}</script>`)
   )
 }
 

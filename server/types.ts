@@ -43,7 +43,6 @@ export interface DocumentRow {
 export interface CatalogRow {
   id: string
   title: string
-  targets: string // JSON string
   features: string // JSON string
   cover_info: string // JSON string
   project_id: string
@@ -114,6 +113,8 @@ export function isCatalogPart(entry: CatalogEntry): entry is CatalogPart {
 
 export type DocVisibility = 'public' | 'login_required' | 'project_members'
 
+export type CatalogVersionStatus = 'active' | 'deprecated' | 'archived'
+
 export interface CatalogVersionRow {
   id: string
   catalog_id: string
@@ -128,12 +129,12 @@ export interface CatalogVersionRow {
   features_json: string
   headings_json: string
   publish_scope: string
+  status: CatalogVersionStatus
   created_at: string
 }
 
 export interface CreateCatalogBody {
   title?: string
-  targets?: string[]
   features?: CatalogEntry[]
   cover?: Record<string, string>
   projectId?: string
@@ -224,8 +225,7 @@ export interface HeadingEntry {
 }
 
 export interface ManualResult {
-  catalog: Omit<CatalogRow, 'targets' | 'cover_info' | 'features'> & {
-    targets: string[]
+  catalog: Omit<CatalogRow, 'cover_info' | 'features'> & {
     coverInfo: Record<string, unknown>
     entries: CatalogEntry[]
   }

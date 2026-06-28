@@ -4,9 +4,10 @@
  */
 import type { FastifyRequest } from 'fastify'
 
-/** 从 Authorization header 或 Cookie 中提取 JWT token */
+/** 从 Authorization header、Cookie 或 query parameter 中提取 JWT token */
 export function extractToken(req: {
   headers: Record<string, string | string[] | undefined>
+  query?: unknown
 }): string | null {
   // 优先 Bearer token
   const auth = req.headers.authorization
@@ -19,6 +20,13 @@ export function extractToken(req: {
   if (typeof cookieHeader === 'string') {
     const match = cookieHeader.match(/auth_token=([^;]+)/)
     if (match) return match[1]
+  }
+
+  // 最后 query parameter（方便直接访问 /docs/api?token=xxx）
+  const q = req.query as Record<string, string | string[] | undefined> | undefined
+  const tokenParam = q?.token
+  if (typeof tokenParam === 'string' && tokenParam.length > 0) {
+    return tokenParam
   }
 
   return null

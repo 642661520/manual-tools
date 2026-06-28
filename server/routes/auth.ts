@@ -5,7 +5,7 @@ import { signToken } from '../auth/jwt.js'
 import { getDb } from '../db/index.js'
 import { v4 as uuid } from 'uuid'
 import type { UserRow } from '../types.js'
-import { getFeishuAuthUrl, exchangeCodeForToken } from '../services/feishu.js'
+import { getFeishuAuthUrl, getRedirectOrigin, exchangeCodeForToken } from '../services/feishu.js'
 import { determineRole } from '../auth/feishu.js'
 import { notifyNewGuest } from '../services/notifications.js'
 import { recordAudit } from '../services/audit.js'
@@ -139,10 +139,12 @@ export async function authRoutes(app: FastifyInstance) {
   })
 
   // 飞书登录 URL
-  app.get('/api/v1/auth/feishu/login-url', async (_req, reply) => {
+  app.get('/api/v1/auth/feishu/login-url', async (req, reply) => {
     const state = `login:${generateState()}`
     try {
-      const url = getFeishuAuthUrl(state)
+      const origin = getRedirectOrigin(req)
+      const redirectUri = origin ? `${origin}/feishu-callback` : ''
+      const url = getFeishuAuthUrl(state, redirectUri)
       return success({ url })
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : '飞书登录未配置'
@@ -166,35 +168,58 @@ export async function authRoutes(app: FastifyInstance) {
         | undefined
 
       let isNewUser = false
+      let wasRelinked = false
 
       if (!user) {
-        isNewUser = true
-        const id = uuid()
         const role = determineRole(info.open_id)
         const username = `feishu_${info.open_id.slice(0, 12)}`
-        db.prepare(
-          'INSERT INTO users (id, username, display_name, password_hash, role, feishu_open_id, feishu_name, feishu_avatar_url, username_changed) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, 0)',
-        ).run(id, username, info.name, role, info.open_id, info.name, info.avatar_url || null)
 
-        // 新注册的 member 用户自动加入默认项目（只读）
-        if (role === 'member') {
+        // 检查是否是之前绑定过但解绑了的用户（feishu_open_id 已清空但 username 仍为 feishu_ 前缀）
+        const existing = db
+          .prepare('SELECT * FROM users WHERE username = ? AND feishu_open_id IS NULL')
+          .get(username) as UserRow | undefined
+
+        if (existing) {
+          wasRelinked = true
+          // 重新关联飞书账号
           db.prepare(
-            'INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)',
-          ).run('default', id, 'viewer')
-        }
+            'UPDATE users SET feishu_open_id = ?, feishu_name = ?, feishu_avatar_url = ?, display_name = ? WHERE id = ?',
+          ).run(info.open_id, info.name, info.avatar_url || null, info.name, existing.id)
 
-        user = {
-          id,
-          username,
-          display_name: info.name,
-          password_hash: null,
-          role,
-          token_version: 0,
-          feishu_open_id: info.open_id,
-          feishu_name: info.name,
-          feishu_avatar_url: info.avatar_url || null,
-          username_changed: 0,
-          created_at: new Date().toISOString(),
+          user = {
+            ...existing,
+            feishu_open_id: info.open_id,
+            feishu_name: info.name,
+            feishu_avatar_url: info.avatar_url || null,
+            display_name: info.name,
+          }
+        } else {
+          isNewUser = true
+          const id = uuid()
+          db.prepare(
+            'INSERT INTO users (id, username, display_name, password_hash, role, feishu_open_id, feishu_name, feishu_avatar_url, username_changed) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, 0)',
+          ).run(id, username, info.name, role, info.open_id, info.name, info.avatar_url || null)
+
+          // 新注册的 member 用户自动加入默认项目（只读）
+          if (role === 'member') {
+            db.prepare(
+              'INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)',
+            ).run('default', id, 'viewer')
+          }
+
+          user = {
+            id,
+            username,
+            display_name: info.name,
+            password_hash: null,
+            role,
+            token_version: 0,
+            feishu_open_id: info.open_id,
+            feishu_name: info.name,
+            feishu_avatar_url: info.avatar_url || null,
+            username_changed: 0,
+            created_at: new Date().toISOString(),
+          }
         }
       } else {
         db.prepare(
@@ -225,10 +250,11 @@ export async function authRoutes(app: FastifyInstance) {
         username: user.username,
         action: 'auth.feishu_login',
         targetType: 'auth',
-        detail: { isNewUser, openId: info.open_id },
+        detail: { isNewUser, relinked: wasRelinked, openId: info.open_id },
       })
 
       return success({
+        token,
         user: {
           id: user.id,
           username: user.username,

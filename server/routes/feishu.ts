@@ -2,7 +2,7 @@
 import { FastifyInstance } from 'fastify'
 import { authMiddleware } from '../auth/middleware.js'
 import { getDb } from '../db/index.js'
-import { getFeishuAuthUrl, exchangeCodeForToken } from '../services/feishu.js'
+import { getFeishuAuthUrl, getRedirectOrigin, exchangeCodeForToken } from '../services/feishu.js'
 import { recordAudit } from '../services/audit.js'
 import { generateState } from '../lib/crypto.js'
 import { success, ok, fail } from '../lib/response.js'
@@ -12,7 +12,9 @@ export async function feishuRoutes(app: FastifyInstance) {
   app.get('/api/v1/auth/feishu/bind-url', { preHandler: authMiddleware }, async (req) => {
     const userId = req.user!.userId
     const state = `${userId}:${generateState()}`
-    const url = getFeishuAuthUrl(state)
+    const origin = getRedirectOrigin(req)
+    const redirectUri = origin ? `${origin}/feishu-callback` : ''
+    const url = getFeishuAuthUrl(state, redirectUri)
     return success({ url })
   })
 

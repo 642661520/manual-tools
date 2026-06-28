@@ -55,7 +55,6 @@ export async function dataTaskRoutes(app: FastifyInstance) {
       // 验证项目存在
       const project = db.prepare('SELECT id FROM projects WHERE id = ?').get(id)
       if (!project) return fail(reply, 404, '项目不存在')
-      if (!ensureProjectWritable(id, reply)) return
 
       const taskId = uuid().slice(0, 12)
       const scope = `project:${id}`

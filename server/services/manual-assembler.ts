@@ -13,9 +13,9 @@ import type {
 
 // ================ 手册组装 =================================================
 
-type SectionDef = { key: string; title: string; description?: string }
+export type SectionDef = { key: string; title: string; description?: string }
 
-function resolveSections(
+export function resolveSections(
   sectionsJson: string | SectionDef[],
   featureTitle: string,
   sectionOrder?: string[],
@@ -43,13 +43,14 @@ export function assembleManual(
   const statusOverride = opts?.statusOverride
   const featuresData = opts?.featuresData
   const db = getDb()
-  const catalog = db.prepare('SELECT * FROM catalogs WHERE id = ?').get(catalogId) as
-    | CatalogRow
-    | undefined
+  const catalog = db
+    .prepare(
+      'SELECT id, title, features, cover_info, project_id, created_at, updated_at FROM catalogs WHERE id = ?',
+    )
+    .get(catalogId) as CatalogRow | undefined
   if (!catalog) return null
 
   const entries: CatalogEntry[] = JSON.parse(opts?.featureOverride || catalog.features)
-  const targets: string[] = JSON.parse(catalog.targets)
   const coverInfo = JSON.parse(catalog.cover_info || '{}')
   const hasParts = entries.some(isCatalogPart)
 
@@ -294,9 +295,9 @@ export function assembleManual(
     }
   }
 
-  const catalogRow = catalog as Omit<CatalogRow, 'targets' | 'cover_info' | 'features'>
+  const catalogRow = catalog as Omit<CatalogRow, 'cover_info' | 'features'>
   return {
-    catalog: { ...catalogRow, targets, coverInfo, entries },
+    catalog: { ...catalogRow, coverInfo, entries },
     features,
     markdown: md,
     headings,
@@ -336,9 +337,11 @@ export function assembleChapter(
   const statusOverride = opts?.statusOverride
   const featuresData = opts?.featuresData
   const db = getDb()
-  const catalog = db.prepare('SELECT * FROM catalogs WHERE id = ?').get(catalogId) as
-    | CatalogRow
-    | undefined
+  const catalog = db
+    .prepare(
+      'SELECT id, title, features, cover_info, project_id, created_at, updated_at FROM catalogs WHERE id = ?',
+    )
+    .get(catalogId) as CatalogRow | undefined
   if (!catalog) return null
 
   const entries: CatalogEntry[] = JSON.parse(opts?.featureOverride || catalog.features)

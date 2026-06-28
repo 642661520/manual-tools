@@ -13,10 +13,16 @@ const APP_BASE_URL = config.appBaseUrl
 
 function getSectionTitle(featureId: string, sectionKey: string): string {
   const db = getDb()
-  const feature = db.prepare('SELECT sections FROM features WHERE id = ?').get(featureId) as
-    | { sections: string }
+  const feature = db.prepare('SELECT title, sections FROM features WHERE id = ?').get(featureId) as
+    | { title: string; sections: string }
     | undefined
   if (!feature) return sectionKey
+
+  // _default 是虚拟默认小节，不在 sections JSON 中，直接返回功能标题
+  if (sectionKey === '_default') {
+    return feature.title || '正文'
+  }
+
   try {
     const sections = JSON.parse(feature.sections) as { key: string; title: string }[]
     return sections.find((s) => s.key === sectionKey)?.title || sectionKey
