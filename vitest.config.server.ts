@@ -12,6 +12,8 @@ export default defineConfig({
     environment: 'node',
     include: ['server/__tests__/**/*.test.ts', 'shared/__tests__/**/*.test.ts'],
     testTimeout: 10000,
+    // E2E 测试共享 DB，必须顺序执行
+    sequence: { concurrent: false },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'text-summary', 'lcov'],
@@ -23,10 +25,10 @@ export default defineConfig({
         'server/services/site-builder/search.js',
       ],
       thresholds: {
-        statements: 22,
-        branches: 18,
-        functions: 29,
-        lines: 23,
+        statements: 35,
+        branches: 22,
+        functions: 35,
+        lines: 36,
       },
     },
   },

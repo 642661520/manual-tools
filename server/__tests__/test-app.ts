@@ -22,6 +22,8 @@ import { aiRoutes } from '../routes/ai.js'
 import { dataTaskRoutes } from '../routes/data-tasks.js'
 import { feishuRoutes } from '../routes/feishu.js'
 import { cacheRoutes } from '../routes/cache.js'
+import { yjsRoutes } from '../routes/yjs.js'
+import websocket from '@fastify/websocket'
 import { getDb } from '../db/index.js'
 
 /** 构建测试用 Fastify 实例（不监听端口） */
@@ -49,6 +51,39 @@ export async function buildTestApp() {
   await app.register(dataTaskRoutes)
   await app.register(feishuRoutes)
   await app.register(cacheRoutes)
+  await app.register(yjsRoutes)
+
+  await app.ready()
+  return app
+}
+
+/** 构建测试用 Fastify 实例（含 WebSocket，可监听端口） */
+export async function buildTestAppWithWs() {
+  initDatabase()
+
+  const app = Fastify({ logger: false })
+
+  await app.register(websocket)
+  await app.register(cors, { origin: true })
+  await app.register(multipart, { limits: { fileSize: 200 * 1024 * 1024 } })
+  await app.register(authRoutes)
+  await app.register(userRoutes)
+  await app.register(projectRoutes)
+  await app.register(featureRoutes)
+  await app.register(catalogRoutes)
+  await app.register(categoryRoutes)
+  await app.register(uploadRoutes)
+  await app.register(searchRoutes)
+  await app.register(todoRoutes)
+  await app.register(profileRoutes)
+  await app.register(diffRoutes)
+  await app.register(auditRoutes)
+  await app.register(logRoutes)
+  await app.register(aiRoutes)
+  await app.register(dataTaskRoutes)
+  await app.register(feishuRoutes)
+  await app.register(cacheRoutes)
+  await app.register(yjsRoutes)
 
   await app.ready()
   return app
