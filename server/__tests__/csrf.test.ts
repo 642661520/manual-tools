@@ -4,7 +4,11 @@ import type { FastifyRequest, FastifyReply } from 'fastify'
 
 // ---- Mock 辅助 ----
 
-function mockReq(method: string, url: string, opts?: { cookieToken?: string; headerToken?: string }) {
+function mockReq(
+  method: string,
+  url: string,
+  opts?: { cookieToken?: string; headerToken?: string },
+) {
   const headers: Record<string, string | string[] | undefined> = {}
   if (opts?.cookieToken !== undefined) {
     headers['cookie'] = `csrf_token=${opts.cookieToken}`
@@ -138,19 +142,13 @@ describe('csrfMiddleware', () => {
 
   it('缺少 cookie token 时返回 403', async () => {
     const { reply, getStatusCode } = mockReply()
-    await csrfMiddleware(
-      mockReq('POST', '/api/v1/features', { headerToken: 'some-token' }),
-      reply,
-    )
+    await csrfMiddleware(mockReq('POST', '/api/v1/features', { headerToken: 'some-token' }), reply)
     expect(getStatusCode()).toBe(403)
   })
 
   it('缺少 header token 时返回 403', async () => {
     const { reply, getStatusCode } = mockReply()
-    await csrfMiddleware(
-      mockReq('POST', '/api/v1/features', { cookieToken: 'some-token' }),
-      reply,
-    )
+    await csrfMiddleware(mockReq('POST', '/api/v1/features', { cookieToken: 'some-token' }), reply)
     expect(getStatusCode()).toBe(403)
   })
 

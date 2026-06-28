@@ -4,9 +4,21 @@
   "description": "管理平台的导出缓存和远程资源缓存，支持查看缓存状态、手动清理过期文件和使特定目录缓存失效",
   "category_id": "cat-admin",
   "sections": [
-    { "key": "overview", "title": "缓存概述", "description": "了解平台缓存类型、存储位置和自动清理机制" },
-    { "key": "export-cache", "title": "导出缓存", "description": "管理 PDF 和 Markdown 导出的缓存文件" },
-    { "key": "remote-cache", "title": "远程资源缓存", "description": "管理编辑器粘贴外部图片的自动缓存" },
+    {
+      "key": "overview",
+      "title": "缓存概述",
+      "description": "了解平台缓存类型、存储位置和自动清理机制"
+    },
+    {
+      "key": "export-cache",
+      "title": "导出缓存",
+      "description": "管理 PDF 和 Markdown 导出的缓存文件"
+    },
+    {
+      "key": "remote-cache",
+      "title": "远程资源缓存",
+      "description": "管理编辑器粘贴外部图片的自动缓存"
+    },
     { "key": "cleanup", "title": "缓存清理", "description": "手动清理过期缓存和失效指定目录缓存" }
   ]
 }

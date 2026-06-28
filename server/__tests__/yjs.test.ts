@@ -215,7 +215,9 @@ describe('Yjs Doc 持久化', () => {
 
     ensureDocument(docId, TEST_FEATURE_ID, 'new-section')
 
-    const row = db.prepare('SELECT id, feature_id, section_key FROM documents WHERE id = ?').get(docId) as { id: string; feature_id: string; section_key: string }
+    const row = db
+      .prepare('SELECT id, feature_id, section_key FROM documents WHERE id = ?')
+      .get(docId) as { id: string; feature_id: string; section_key: string }
     expect(row).toBeTruthy()
     expect(row.feature_id).toBe(TEST_FEATURE_ID)
     expect(row.section_key).toBe('new-section')
@@ -228,7 +230,11 @@ describe('Yjs Doc 持久化', () => {
     // 已存在 TEST_DOC_ID 的记录
     ensureDocument(TEST_DOC_ID, TEST_FEATURE_ID, 'section')
 
-    const count = (db.prepare('SELECT COUNT(*) as cnt FROM documents WHERE id = ?').get(TEST_DOC_ID) as { cnt: number }).cnt
+    const count = (
+      db.prepare('SELECT COUNT(*) as cnt FROM documents WHERE id = ?').get(TEST_DOC_ID) as {
+        cnt: number
+      }
+    ).cnt
     expect(count).toBe(1) // 不应创建重复记录
   })
 })

@@ -144,22 +144,22 @@ manual-tools/
 
 ## 开发命令
 
-| 命令                 | 说明                                  |
-| -------------------- | ------------------------------------- |
-| `pnpm dev`           | 前端 Vite dev server (port 5173)      |
-| `pnpm server`        | 后端 Fastify (port 3000, tsx watch)   |
-| `pnpm build`         | 生产构建（类型检查 + Vite 打包）      |
-| `pnpm start`         | 生产启动                              |
-| `pnpm lint`          | ESLint 检查                           |
-| `pnpm lint:fix`      | ESLint 自动修复                       |
-| `pnpm format`        | oxfmt 格式化                          |
-| `pnpm format:check`  | oxfmt 格式检查                        |
-| `pnpm typecheck`     | 前后端类型检查                        |
-| `pnpm test`          | 运行测试 (Vitest)                     |
-| `pnpm test:watch`    | 测试监听模式                          |
-| `pnpm test:coverage` | 测试覆盖率报告                        |
-| `pnpm seed`          | 强制重新导入种子数据                  |
-| `pnpm seed:export`   | 回写数据库文档到种子文件              |
+| 命令                 | 说明                                |
+| -------------------- | ----------------------------------- |
+| `pnpm dev`           | 前端 Vite dev server (port 5173)    |
+| `pnpm server`        | 后端 Fastify (port 3000, tsx watch) |
+| `pnpm build`         | 生产构建（类型检查 + Vite 打包）    |
+| `pnpm start`         | 生产启动                            |
+| `pnpm lint`          | ESLint 检查                         |
+| `pnpm lint:fix`      | ESLint 自动修复                     |
+| `pnpm format`        | oxfmt 格式化                        |
+| `pnpm format:check`  | oxfmt 格式检查                      |
+| `pnpm typecheck`     | 前后端类型检查                      |
+| `pnpm test`          | 运行测试 (Vitest)                   |
+| `pnpm test:watch`    | 测试监听模式                        |
+| `pnpm test:coverage` | 测试覆盖率报告                      |
+| `pnpm seed`          | 强制重新导入种子数据                |
+| `pnpm seed:export`   | 回写数据库文档到种子文件            |
 
 ## 环境变量
 

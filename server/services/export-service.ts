@@ -207,7 +207,10 @@ export async function runExportTask(
     const updates = db
       .prepare('SELECT update_data FROM document_updates WHERE document_id = ? ORDER BY id ASC')
       .all(docId) as { update_data: Buffer }[]
-    docUpdates.set(docId, updates.map((u) => u.update_data))
+    docUpdates.set(
+      docId,
+      updates.map((u) => u.update_data),
+    )
   }
 
   updateProgress(8, '正在扫描上传文件引用...')

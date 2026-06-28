@@ -87,6 +87,7 @@ shared/                   # 前后端共享类型和工具
 ### Further Reading
 
 详细模块目录请参阅:
+
 - [docs/backend.md](docs/backend.md) — 路由、服务、认证、工具库
 - [docs/frontend.md](docs/frontend.md) — 组件、组合式函数、页面视图、API 端点
 - [docs/shared.md](docs/shared.md) — 前后端共享类型定义

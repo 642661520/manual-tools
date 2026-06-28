@@ -83,7 +83,10 @@ export function deleteOrphans(): Promise<{ deleted: number; freedBytes: number }
 
 // ---- 上传资源管理 ----
 
-export function getUploads(limit?: number, offset?: number): Promise<{
+export function getUploads(
+  limit?: number,
+  offset?: number,
+): Promise<{
   files: UploadFileInfo[]
   totalSize: number
   totalCount: number

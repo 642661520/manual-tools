@@ -3,7 +3,8 @@
 <h2>审核流转</h2>
 <ol>
   <li>作者提交审核 → 文档进入审核链的第一步</li>
-  <li>第一步审核人审核：
+  <li>
+    第一步审核人审核：
     <ul>
       <li><strong>通过</strong> → 自动流转到下一步审核人</li>
       <li><strong>驳回</strong> → 文档状态变为 rejected，退回作者修改</li>
@@ -21,7 +22,23 @@
   <li>通过/驳回操作按钮和审核意见输入框</li>
 </ul>
 <h2>中断流程</h2>
-<p>任何一步被驳回，整个审核流程中断，文档状态变为 rejected。作者修改后需要从 rejected 状态退回修改（回到 in_progress），修改完成后重新提交，审核从第一步重新开始。</p><div data-image-placeholder="review-chain-multi-step.png" style="background:#f1f5f9;border:2px dashed #94a3b8;border-radius:8px;padding:20px 24px;text-align:center;color:#64748b;margin:16px 0;font-size:14px;">
-  <div style="font-size:24px;margin-bottom:6px;">🖼️</div>
+<p>
+  任何一步被驳回，整个审核流程中断，文档状态变为 rejected。作者修改后需要从 rejected
+  状态退回修改（回到 in_progress），修改完成后重新提交，审核从第一步重新开始。
+</p>
+<div
+  data-image-placeholder="review-chain-multi-step.png"
+  style="
+    background: #f1f5f9;
+    border: 2px dashed #94a3b8;
+    border-radius: 8px;
+    padding: 20px 24px;
+    text-align: center;
+    color: #64748b;
+    margin: 16px 0;
+    font-size: 14px;
+  "
+>
+  <div style="font-size: 24px; margin-bottom: 6px">🖼️</div>
   <div>图片占位：review-chain - multi-step</div>
 </div>

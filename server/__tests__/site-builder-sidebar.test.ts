@@ -5,7 +5,10 @@ const featureA = {
   id: 'feat-a',
   title: '功能 A',
   description: '',
-  sections: [{ key: 'intro', title: '简介' }, { key: 'usage', title: '用法' }],
+  sections: [
+    { key: 'intro', title: '简介' },
+    { key: 'usage', title: '用法' },
+  ],
   is_custom: 0,
   category_id: null,
   project_id: 'default',

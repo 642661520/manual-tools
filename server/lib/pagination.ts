@@ -24,7 +24,10 @@ export function parsePagination(
 ): PaginationParams {
   const defLimit = defaults?.limit ?? DEFAULT_LIMIT
   const maxLimit = defaults?.maxLimit ?? MAX_LIMIT
-  const limit = Math.min(maxLimit, Math.max(1, parseInt(query.limit || String(defLimit), 10) || defLimit))
+  const limit = Math.min(
+    maxLimit,
+    Math.max(1, parseInt(query.limit || String(defLimit), 10) || defLimit),
+  )
   const offset = Math.max(0, parseInt(query.offset || '0', 10) || 0)
   return { limit, offset }
 }

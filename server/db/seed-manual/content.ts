@@ -105,13 +105,13 @@ export const SEED_FEATURES: SeedFeature[] = loadFeatures()
 // ---- 分类定义 ----
 
 export const SEED_CATEGORIES = [
-  { id: 'cat-overview',   name: '平台概述',   color: '#6366f1', sort_order: 1 },
-  { id: 'cat-account',    name: '账号与设置', color: '#0891b2', sort_order: 2 },
-  { id: 'cat-projects',   name: '项目管理',   color: '#4f46e5', sort_order: 3 },
-  { id: 'cat-writing',    name: '文档编写',   color: '#059669', sort_order: 4 },
-  { id: 'cat-review',     name: '审核流程',   color: '#d97706', sort_order: 5 },
+  { id: 'cat-overview', name: '平台概述', color: '#6366f1', sort_order: 1 },
+  { id: 'cat-account', name: '账号与设置', color: '#0891b2', sort_order: 2 },
+  { id: 'cat-projects', name: '项目管理', color: '#4f46e5', sort_order: 3 },
+  { id: 'cat-writing', name: '文档编写', color: '#059669', sort_order: 4 },
+  { id: 'cat-review', name: '审核流程', color: '#d97706', sort_order: 5 },
   { id: 'cat-publishing', name: '发布与导出', color: '#dc2626', sort_order: 6 },
-  { id: 'cat-admin',      name: '系统管理',   color: '#64748b', sort_order: 7 },
+  { id: 'cat-admin', name: '系统管理', color: '#64748b', sort_order: 7 },
 ]
 
 // ---- 目录定义 ----
@@ -125,9 +125,7 @@ export const SEED_CATALOG = {
       type: 'part' as const,
       id: 'part-overview',
       title: '平台概述',
-      features: [
-        { featureId: 'manual-tools:project-overview' },
-      ],
+      features: [{ featureId: 'manual-tools:project-overview' }],
     },
     {
       type: 'part' as const,

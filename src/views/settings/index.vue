@@ -775,11 +775,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <Paginator
-          :current="usersPage"
-          :total="usersTotalPages"
-          @go="usersGoPage"
-        />
+        <Paginator :current="usersPage" :total="usersTotalPages" @go="usersGoPage" />
       </div>
 
       <!-- 备份恢复 -->
@@ -966,7 +962,12 @@ onBeforeUnmount(() => {
             <Paginator
               :current="uploadFilesPage"
               :total="uploadFilesTotalPages"
-              @go="(p: number) => { uploadFilesPage = p; loadUploadFiles() }"
+              @go="
+                (p: number) => {
+                  uploadFilesPage = p
+                  loadUploadFiles()
+                }
+              "
             />
           </div>
         </div>
@@ -1114,11 +1115,7 @@ onBeforeUnmount(() => {
             </table>
           </div>
 
-          <Paginator
-            :current="exportCurrentPage"
-            :total="exportTotalPages"
-            @go="exportGoPage"
-          />
+          <Paginator :current="exportCurrentPage" :total="exportTotalPages" @go="exportGoPage" />
 
           <!-- 远程缓存：网格缩略图 -->
           <div v-if="showRemoteDetail" class="border-t border-gray-100 pt-3">

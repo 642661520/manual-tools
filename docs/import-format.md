@@ -36,11 +36,11 @@ Manual Tools 支持通过 ZIP 文件导入项目数据。本文档定义 ZIP 文
 }
 ```
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `exportedAt` | string | ISO 8601 时间戳 |
-| `source.projectId` | string | 来源项目 ID（导入时不会覆盖目标项目 ID） |
-| `source.projectName` | string | 来源项目名称（仅用于差异预览显示） |
+| 字段                 | 类型   | 说明                                     |
+| -------------------- | ------ | ---------------------------------------- |
+| `exportedAt`         | string | ISO 8601 时间戳                          |
+| `source.projectId`   | string | 来源项目 ID（导入时不会覆盖目标项目 ID） |
+| `source.projectName` | string | 来源项目名称（仅用于差异预览显示）       |
 
 ### project.json
 
@@ -52,11 +52,11 @@ Manual Tools 支持通过 ZIP 文件导入项目数据。本文档定义 ZIP 文
 }
 ```
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `id` | string | 项目唯一 ID，建议使用 kebab-case |
-| `name` | string | 项目名称 |
-| `description` | string | 项目描述 |
+| 字段          | 类型   | 说明                             |
+| ------------- | ------ | -------------------------------- |
+| `id`          | string | 项目唯一 ID，建议使用 kebab-case |
+| `name`        | string | 项目名称                         |
+| `description` | string | 项目描述                         |
 
 ### categories.json
 
@@ -77,12 +77,12 @@ Manual Tools 支持通过 ZIP 文件导入项目数据。本文档定义 ZIP 文
 ]
 ```
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `id` | string | 分类唯一 ID |
-| `name` | string | 分类名称 |
-| `color` | string | 颜色（十六进制，如 `#6366f1`） |
-| `sort_order` | number | 排序序号 |
+| 字段         | 类型   | 说明                           |
+| ------------ | ------ | ------------------------------ |
+| `id`         | string | 分类唯一 ID                    |
+| `name`       | string | 分类名称                       |
+| `color`      | string | 颜色（十六进制，如 `#6366f1`） |
+| `sort_order` | number | 排序序号                       |
 
 ### features/{feature-id}.json
 
@@ -100,17 +100,17 @@ Manual Tools 支持通过 ZIP 文件导入项目数据。本文档定义 ZIP 文
 }
 ```
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `id` | string | 功能唯一 ID，建议格式 `{project}:{name}` |
-| `title` | string | 功能标题 |
-| `description` | string | 功能描述 |
-| `sections` | array | 章节定义数组 |
-| `sections[].key` | string | 章节键名，对应 HTML 文件名 |
-| `sections[].title` | string | 章节标题 |
-| `sections[].description` | string | 章节描述（可选） |
-| `is_custom` | number | 是否为自定义功能（0 或 1） |
-| `category_id` | string \| null | 所属分类 ID |
+| 字段                     | 类型           | 说明                                     |
+| ------------------------ | -------------- | ---------------------------------------- |
+| `id`                     | string         | 功能唯一 ID，建议格式 `{project}:{name}` |
+| `title`                  | string         | 功能标题                                 |
+| `description`            | string         | 功能描述                                 |
+| `sections`               | array          | 章节定义数组                             |
+| `sections[].key`         | string         | 章节键名，对应 HTML 文件名               |
+| `sections[].title`       | string         | 章节标题                                 |
+| `sections[].description` | string         | 章节描述（可选）                         |
+| `is_custom`              | number         | 是否为自定义功能（0 或 1）               |
+| `category_id`            | string \| null | 所属分类 ID                              |
 
 ### documents/{feature-id}/{section-key}.html
 
@@ -129,6 +129,7 @@ Manual Tools 支持通过 ZIP 文件导入项目数据。本文档定义 ZIP 文
 ```
 
 **HTML 格式说明**：
+
 - 内容由 Tiptap 编辑器生成，遵循 ProseMirror schema
 - 支持的标签：`h1`-`h6`, `p`, `ul`/`ol`/`li`, `blockquote`, `pre`/`code`, `img`, `video`, `a`, `table`/`tr`/`td`/`th`, `strong`, `em`, `s`, `br`, `hr`
 - 图片使用相对路径引用（见下方）
@@ -141,13 +142,14 @@ Manual Tools 支持通过 ZIP 文件导入项目数据。本文档定义 ZIP 文
 ```html
 <!-- 文档位置: documents/my-project:introduction/overview.html -->
 <!-- 图片位置: uploads/images/ab/fullhash.png -->
-<img src="../../uploads/images/ab/8a7b3c9d...（64位hex）.png" alt="截图">
+<img src="../../uploads/images/ab/8a7b3c9d...（64位hex）.png" alt="截图" />
 
 <!-- 视频同理 -->
 <video src="../../uploads/videos/cd/7f8e9a...（64位hex）.mp4"></video>
 ```
 
 图片路径规则：
+
 - 文档 → 图片的相对路径为 `../../uploads/images/{shard}/{hash}.{ext}`
 - 导入时系统会自动为**非 hash 文件名**计算 SHA-256 并重命名
 - 你可以直接使用原始文件名（如 `../../uploads/images/screenshot.png`），导入时会自动处理
@@ -166,9 +168,7 @@ Manual Tools 支持通过 ZIP 文件导入项目数据。本文档定义 ZIP 文
       "type": "part",
       "id": "part-basics",
       "title": "基础操作",
-      "features": [
-        { "featureId": "my-project:quickstart" }
-      ]
+      "features": [{ "featureId": "my-project:quickstart" }]
     }
   ],
   "cover_info": {
@@ -180,17 +180,17 @@ Manual Tools 支持通过 ZIP 文件导入项目数据。本文档定义 ZIP 文
 }
 ```
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `id` | string | 目录唯一 ID |
-| `title` | string | 目录标题 |
-| `targets` | string[] | 目标读者标签 |
-| `features` | array | 编排的功能列表 |
-| `features[].featureId` | string | 引用的 feature ID |
-| `features[].sectionOrder` | string[] | 章节排序（可选） |
-| `features[].type` | string | `"part"` 表示分组（可选） |
-| `cover_info` | object | 封面信息 |
-| `versions` | array | 发布版本列表（导入时通常为空） |
+| 字段                      | 类型     | 说明                           |
+| ------------------------- | -------- | ------------------------------ |
+| `id`                      | string   | 目录唯一 ID                    |
+| `title`                   | string   | 目录标题                       |
+| `targets`                 | string[] | 目标读者标签                   |
+| `features`                | array    | 编排的功能列表                 |
+| `features[].featureId`    | string   | 引用的 feature ID              |
+| `features[].sectionOrder` | string[] | 章节排序（可选）               |
+| `features[].type`         | string   | `"part"` 表示分组（可选）      |
+| `cover_info`              | object   | 封面信息                       |
+| `versions`                | array    | 发布版本列表（导入时通常为空） |
 
 ### uploads/ 目录
 
@@ -209,6 +209,7 @@ uploads/
 ```
 
 **命名规则**：
+
 - 文件名 = **SHA-256 哈希** + 原始扩展名（64 位 hex）
 - 分片目录 = 哈希的前 2 位
 - 导入时，非 hash 命名的文件会自动计算 SHA-256 并按此规则存放
@@ -233,6 +234,7 @@ example.zip
 ```
 
 **manifest.json**：
+
 ```json
 {
   "exportedAt": "2026-06-28T12:00:00.000Z",
@@ -241,6 +243,7 @@ example.zip
 ```
 
 **project.json**：
+
 ```json
 {
   "id": "example",
@@ -250,41 +253,39 @@ example.zip
 ```
 
 **categories.json**：
+
 ```json
-[
-  { "id": "cat-basics", "name": "基础", "color": "#6366f1", "sort_order": 1 }
-]
+[{ "id": "cat-basics", "name": "基础", "color": "#6366f1", "sort_order": 1 }]
 ```
 
 **features/example:hello.json**：
+
 ```json
 {
   "id": "example:hello",
   "title": "Hello World",
   "description": "第一个功能",
-  "sections": [
-    { "key": "greeting", "title": "问候", "description": "打个招呼" }
-  ],
+  "sections": [{ "key": "greeting", "title": "问候", "description": "打个招呼" }],
   "is_custom": 0,
   "category_id": "cat-basics"
 }
 ```
 
 **documents/example:hello/greeting.html**：
+
 ```html
 <h1>Hello World</h1>
 <p>欢迎使用 Manual Tools！</p>
 ```
 
 **catalogs/example-catalog.json**：
+
 ```json
 {
   "id": "example-catalog",
   "title": "示例目录",
   "targets": ["所有用户"],
-  "features": [
-    { "featureId": "example:hello" }
-  ],
+  "features": [{ "featureId": "example:hello" }],
   "cover_info": {},
   "versions": []
 }

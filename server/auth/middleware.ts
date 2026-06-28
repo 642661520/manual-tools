@@ -57,7 +57,9 @@ export function requireRole(...roles: string[]) {
 /** 检查项目是否可写：线上模式默认项目只读，仅允许添加成员。返回 false 时已发送错误响应 */
 export function ensureProjectWritable(projectId: string, reply: FastifyReply): boolean {
   if (projectId === 'default' && config.defaultProjectReadonly) {
-    reply.status(403).send({ ok: false, error: '默认项目已锁定，仅供查阅。如需编写文档请创建新项目' })
+    reply
+      .status(403)
+      .send({ ok: false, error: '默认项目已锁定，仅供查阅。如需编写文档请创建新项目' })
     return false
   }
   return true

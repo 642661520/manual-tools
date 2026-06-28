@@ -25,21 +25,21 @@
 
 ```ts
 Fastify({
-  loggerInstance: getLogger(),   // Pino 结构化日志
-  genReqId: () => randomUUID(),  // 每个请求生成 UUID
-  bodyLimit: 500 * 1024 * 1024,  // 500MB（支持大文件上传）
+  loggerInstance: getLogger(), // Pino 结构化日志
+  genReqId: () => randomUUID(), // 每个请求生成 UUID
+  bodyLimit: 500 * 1024 * 1024, // 500MB（支持大文件上传）
 })
 ```
 
 ## 2. 插件注册
 
-| 顺序 | 插件 | 配置 |
-|---|---|---|
-| 1 | `@fastify/cors` | 白名单：`localhost:5173`、`localhost:{PORT}`、`CORS_ORIGIN` 环境变量；无 origin 的请求（curl/同源）放行 |
-| 2 | `@fastify/helmet` | 安全响应头（`contentSecurityPolicy: false`） |
-| 3 | `@fastify/rate-limit` | 全局 200 次/分钟（auth 路由内部可覆盖为更严格限制） |
-| 4 | `@fastify/websocket` | WebSocket 支持（Y.js 协同编辑） |
-| 5 | `@fastify/multipart` | 文件上传解析，限制为 `max(uploadMaxSize, videoMaxSize)` MB |
+| 顺序 | 插件                  | 配置                                                                                                    |
+| ---- | --------------------- | ------------------------------------------------------------------------------------------------------- |
+| 1    | `@fastify/cors`       | 白名单：`localhost:5173`、`localhost:{PORT}`、`CORS_ORIGIN` 环境变量；无 origin 的请求（curl/同源）放行 |
+| 2    | `@fastify/helmet`     | 安全响应头（`contentSecurityPolicy: false`）                                                            |
+| 3    | `@fastify/rate-limit` | 全局 200 次/分钟（auth 路由内部可覆盖为更严格限制）                                                     |
+| 4    | `@fastify/websocket`  | WebSocket 支持（Y.js 协同编辑）                                                                         |
+| 5    | `@fastify/multipart`  | 文件上传解析，限制为 `max(uploadMaxSize, videoMaxSize)` MB                                              |
 
 ## 3. CSRF 保护
 
@@ -66,11 +66,11 @@ Fastify({
 
 ## 7. 静态文件服务
 
-| 路径前缀 | 目录 | 用途 |
-|---|---|---|
-| `/` | `dist/` | 生产环境前端构建产物（仅 `NODE_ENV=production`） |
-| `/uploads/` | `data/uploads/` | 用户上传的图片和视频 |
-| `/docs/` | `data/docs/` | 静态文档站点（发布后生成） |
+| 路径前缀    | 目录            | 用途                                             |
+| ----------- | --------------- | ------------------------------------------------ |
+| `/`         | `dist/`         | 生产环境前端构建产物（仅 `NODE_ENV=production`） |
+| `/uploads/` | `data/uploads/` | 用户上传的图片和视频                             |
+| `/docs/`    | `data/docs/`    | 静态文档站点（发布后生成）                       |
 
 **SPA fallback**（仅生产环境）：非 `/api/v1/` 和非 `/ws/` 路径返回 `index.html`。
 
@@ -95,13 +95,14 @@ diffRoutes → logRoutes
 
 `/docs/{catalogId}/v{major}.{minor}/` 路径的访问控制 hook：
 
-| visibility | 访问条件 |
-|---|---|
-| `public` | 任何人可访问（无需登录） |
-| `login_required` | 需登录，未登录重定向到 `/login?redirect=...` |
-| `project_members` | 需是该 catalog 所属项目的成员 |
+| visibility        | 访问条件                                     |
+| ----------------- | -------------------------------------------- |
+| `public`          | 任何人可访问（无需登录）                     |
+| `login_required`  | 需登录，未登录重定向到 `/login?redirect=...` |
+| `project_members` | 需是该 catalog 所属项目的成员                |
 
 辅助端点：
+
 - `GET /docs/:catalogId/versions.json` — 按用户权限返回可见版本列表
 - `GET /docs/:catalogId/latest` — 302 跳转到最新可见版本
 

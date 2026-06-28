@@ -1,9 +1,14 @@
 <h1>协同原理</h1>
 <p>Manual Tools 使用 <strong>Y.js</strong> 作为协同编辑引擎，实现多人实时协作。</p>
 <h2>Y.js 简介</h2>
-<p>Y.js 是一个基于 <strong>CRDT</strong>（Conflict-free Replicated Data Type，无冲突复制数据类型）算法的高性能协同框架。它的核心优势是：</p>
+<p>
+  Y.js 是一个基于 <strong>CRDT</strong>（Conflict-free Replicated Data
+  Type，无冲突复制数据类型）算法的高性能协同框架。它的核心优势是：
+</p>
 <ul>
-  <li><strong>无冲突</strong> — 多个用户同时编辑同一文档时，CRDT 算法自动合并所有修改，不会产生冲突</li>
+  <li>
+    <strong>无冲突</strong> — 多个用户同时编辑同一文档时，CRDT 算法自动合并所有修改，不会产生冲突
+  </li>
   <li><strong>离线支持</strong> — 用户可以在离线状态下编辑，网络恢复后自动同步</li>
   <li><strong>去中心化</strong> — 不需要中心服务器做冲突仲裁</li>
   <li><strong>增量同步</strong> — 只传输编辑的增量数据，而非整个文档</li>
@@ -22,8 +27,23 @@
 <p>每个文档的数据以两种形式存储：</p>
 <ul>
   <li><strong>增量更新（Updates）</strong> — 每次编辑的增量数据</li>
-  <li><strong>完整快照（Snapshots）</strong> — 每 500 次更新后自动生成一次完整快照，加速文档加载</li>
-</ul><div data-image-placeholder="collaborative-editing-principle.png" style="background:#f1f5f9;border:2px dashed #94a3b8;border-radius:8px;padding:20px 24px;text-align:center;color:#64748b;margin:16px 0;font-size:14px;">
-  <div style="font-size:24px;margin-bottom:6px;">🖼️</div>
+  <li>
+    <strong>完整快照（Snapshots）</strong> — 每 500 次更新后自动生成一次完整快照，加速文档加载
+  </li>
+</ul>
+<div
+  data-image-placeholder="collaborative-editing-principle.png"
+  style="
+    background: #f1f5f9;
+    border: 2px dashed #94a3b8;
+    border-radius: 8px;
+    padding: 20px 24px;
+    text-align: center;
+    color: #64748b;
+    margin: 16px 0;
+    font-size: 14px;
+  "
+>
+  <div style="font-size: 24px; margin-bottom: 6px">🖼️</div>
   <div>图片占位：collaborative-editing - principle</div>
 </div>

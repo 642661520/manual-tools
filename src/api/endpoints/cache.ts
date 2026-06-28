@@ -84,9 +84,7 @@ export function invalidateCatalog(catalogId: string): Promise<void> {
 
 /** 列出导出缓存文件（分页） */
 export function listExportEntries(limit = 40, offset = 0): Promise<ExportCachePage> {
-  return api.get<ExportCachePage>(
-    `${CACHE}/entries/export?limit=${limit}&offset=${offset}`,
-  )
+  return api.get<ExportCachePage>(`${CACHE}/entries/export?limit=${limit}&offset=${offset}`)
 }
 
 /** 删除单个导出缓存文件 */

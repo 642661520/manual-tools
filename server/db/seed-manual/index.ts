@@ -24,9 +24,10 @@ function getCurrentSeedVersion(): number {
 
 function setCurrentSeedVersion(version: number): void {
   const db = getDb()
-  db.prepare(
-    'INSERT OR REPLACE INTO seed_metadata (seed_key, seed_value) VALUES (?, ?)',
-  ).run(SEED_KEY, String(version))
+  db.prepare('INSERT OR REPLACE INTO seed_metadata (seed_key, seed_value) VALUES (?, ?)').run(
+    SEED_KEY,
+    String(version),
+  )
 }
 
 /** 将冲突列表映射为 overwrite 策略 */
@@ -63,10 +64,7 @@ export async function seedManualIfNeeded(force = false): Promise<void> {
   }
 
   const isFresh = currentVersion === 0
-  log.info(
-    { isFresh, currentVersion, targetVersion: SEED_VERSION },
-    '开始种子平台操作手册数据',
-  )
+  log.info({ isFresh, currentVersion, targetVersion: SEED_VERSION }, '开始种子平台操作手册数据')
 
   // 构建种子 ZIP
   const { zipBuffer } = await buildSeedZip('default')

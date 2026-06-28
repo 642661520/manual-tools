@@ -80,7 +80,9 @@ export function useYjsDoc(docId: string) {
           if (msg.type === 'readonly') {
             readOnly.value = Boolean(msg.value)
           }
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
         return
       }
 

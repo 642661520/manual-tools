@@ -277,9 +277,9 @@ export async function projectRoutes(app: FastifyInstance) {
       const project = db.prepare('SELECT name FROM projects WHERE id = ?').get(id) as
         | { name: string }
         | undefined
-      const operator = db.prepare('SELECT display_name, username FROM users WHERE id = ?').get(userId) as
-        | { display_name: string; username: string }
-        | undefined
+      const operator = db
+        .prepare('SELECT display_name, username FROM users WHERE id = ?')
+        .get(userId) as { display_name: string; username: string } | undefined
       const operatorName = operator?.display_name || operator?.username || '未知用户'
       const projectName = project?.name || id
 
@@ -330,9 +330,9 @@ export async function projectRoutes(app: FastifyInstance) {
       const project = db.prepare('SELECT name FROM projects WHERE id = ?').get(id) as
         | { name: string }
         | undefined
-      const operator = db.prepare('SELECT display_name, username FROM users WHERE id = ?').get(operatorId) as
-        | { display_name: string; username: string }
-        | undefined
+      const operator = db
+        .prepare('SELECT display_name, username FROM users WHERE id = ?')
+        .get(operatorId) as { display_name: string; username: string } | undefined
 
       db.prepare('DELETE FROM project_members WHERE project_id = ? AND user_id = ?').run(
         id,

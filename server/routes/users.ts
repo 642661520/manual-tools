@@ -112,9 +112,13 @@ export async function userRoutes(app: FastifyInstance) {
       const operator = db
         .prepare('SELECT display_name, username FROM users WHERE id = ?')
         .get(req.user!.userId) as { display_name: string; username: string } | undefined
-      notifyRoleChange(id, oldRole, role, operator?.display_name || operator?.username || '未知用户').catch(
-        (e: unknown) =>
-          app.log.error(`飞书通知失败(角色变更): ${e instanceof Error ? e.message : e}`),
+      notifyRoleChange(
+        id,
+        oldRole,
+        role,
+        operator?.display_name || operator?.username || '未知用户',
+      ).catch((e: unknown) =>
+        app.log.error(`飞书通知失败(角色变更): ${e instanceof Error ? e.message : e}`),
       )
 
       return ok()

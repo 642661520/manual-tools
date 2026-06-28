@@ -7,6 +7,10 @@
     { "key": "display-name", "title": "修改显示名称", "description": "设置和修改个人显示名称" },
     { "key": "username", "title": "修改用户名", "description": "修改登录用户名的操作方式" },
     { "key": "password", "title": "修改密码", "description": "修改登录密码的安全要求" },
-    { "key": "feishu-bind", "title": "飞书绑定", "description": "绑定飞书账号以使用飞书登录和消息通知" }
+    {
+      "key": "feishu-bind",
+      "title": "飞书绑定",
+      "description": "绑定飞书账号以使用飞书登录和消息通知"
+    }
   ]
 }

@@ -4,7 +4,11 @@
   "description": "项目级别的数据导入导出功能，支持将完整项目（包括功能、文档、目录和版本）打包为 ZIP 文件进行迁移",
   "category_id": "cat-admin",
   "sections": [
-    { "key": "export", "title": "项目导出", "description": "导出完整项目数据为 ZIP 文件的操作流程" },
+    {
+      "key": "export",
+      "title": "项目导出",
+      "description": "导出完整项目数据为 ZIP 文件的操作流程"
+    },
     { "key": "import", "title": "项目导入", "description": "从 ZIP 文件导入项目数据的操作步骤" },
     { "key": "diff", "title": "差异分析", "description": "导入前的数据差异检测和冲突处理策略" },
     { "key": "backup", "title": "系统备份", "description": "使用系统级数据库备份功能保护数据安全" }

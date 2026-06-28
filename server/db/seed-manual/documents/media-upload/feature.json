@@ -6,7 +6,11 @@
   "sections": [
     { "key": "image", "title": "图片上传", "description": "支持拖拽和剪贴板粘贴上传图片" },
     { "key": "video", "title": "视频上传", "description": "视频文件的格式支持和上传限制" },
-    { "key": "limits", "title": "大小限制", "description": "图片最大 10MB、视频最大 100MB 的文件限制说明" },
+    {
+      "key": "limits",
+      "title": "大小限制",
+      "description": "图片最大 10MB、视频最大 100MB 的文件限制说明"
+    },
     { "key": "cache", "title": "远程图片缓存", "description": "粘贴外部图片链接时的自动缓存机制" }
   ]
 }

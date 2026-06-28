@@ -149,7 +149,9 @@ export function getUploadsList(pagination?: { limit: number; offset: number }): 
   const referencedCount = files.filter((f) => f.referenced).length
   const orphanedCount = files.length - referencedCount
 
-  const sliced = pagination ? files.slice(pagination.offset, pagination.offset + pagination.limit) : files
+  const sliced = pagination
+    ? files.slice(pagination.offset, pagination.offset + pagination.limit)
+    : files
 
   return { files: sliced, totalSize, totalCount: files.length, referencedCount, orphanedCount }
 }

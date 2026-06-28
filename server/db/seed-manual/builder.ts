@@ -63,7 +63,9 @@ function processImageRefs(html: string): {
       // 非哈希文件：从 images/ 目录查找
       const imagePath = path.join(IMAGES_DIR, filename)
       if (!fs.existsSync(imagePath)) {
-        console.warn(`[seed] 种子图片不存在，跳过引用: ${filename}（请放入 server/db/seed-manual/images/）`)
+        console.warn(
+          `[seed] 种子图片不存在，跳过引用: ${filename}（请放入 server/db/seed-manual/images/）`,
+        )
         continue
       }
       const buffer = fs.readFileSync(imagePath)

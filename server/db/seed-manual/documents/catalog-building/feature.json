@@ -5,8 +5,16 @@
   "category_id": "cat-publishing",
   "sections": [
     { "key": "create", "title": "创建目录", "description": "新建目录并设置标题和目标受众" },
-    { "key": "organize", "title": "编排功能", "description": "从功能池中选取功能加入目录，拖拽调整顺序" },
+    {
+      "key": "organize",
+      "title": "编排功能",
+      "description": "从功能池中选取功能加入目录，拖拽调整顺序"
+    },
     { "key": "reorder", "title": "章节排序", "description": "调整功能内章节在目录中的显示顺序" },
-    { "key": "parts", "title": "分区管理", "description": "使用 Part（分区）将目录中的功能按主题分组" }
+    {
+      "key": "parts",
+      "title": "分区管理",
+      "description": "使用 Part（分区）将目录中的功能按主题分组"
+    }
   ]
 }

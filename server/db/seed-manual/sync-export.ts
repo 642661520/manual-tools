@@ -36,8 +36,8 @@ function convertUploadRefsToSeed(html: string): string {
 
   while ((match = regex.exec(html)) !== null) {
     const fullRef = match[1] // "images/ab/hash.png"
-    const hash = match[2]    // "abchash..."
-    const ext = match[3]     // ".png"
+    const hash = match[2] // "abchash..."
+    const ext = match[3] // ".png"
 
     const sourcePath = path.join(UPLOADS_BASE, fullRef)
     if (!fs.existsSync(sourcePath)) {
@@ -102,9 +102,7 @@ function exportDocuments(): void {
 
       try {
         const updates = db
-          .prepare(
-            'SELECT update_data FROM document_updates WHERE document_id = ? ORDER BY id ASC',
-          )
+          .prepare('SELECT update_data FROM document_updates WHERE document_id = ? ORDER BY id ASC')
           .all(docId) as { update_data: Buffer }[]
 
         // 解码 Y.js → HTML
@@ -133,9 +131,7 @@ function exportDocuments(): void {
     }
   }
 
-  console.log(
-    `\n回写完成: ${exported} 篇文档, ${imagesCopied} 张图片, ${skipped} 篇跳过`,
-  )
+  console.log(`\n回写完成: ${exported} 篇文档, ${imagesCopied} 张图片, ${skipped} 篇跳过`)
 }
 
 exportDocuments()

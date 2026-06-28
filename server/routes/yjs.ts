@@ -116,12 +116,24 @@ export async function yjsRoutes(app: FastifyInstance) {
             // Viewer 角色只读：无权编辑文档内容
             if (!hasProjectRole(payload.userId, payload.role, feature.project_id, 'writer')) {
               readOnly = true
-              socket.send(JSON.stringify({ type: 'readonly', value: true, reason: '您的角色为 Viewer，文档内容仅供查阅' }))
+              socket.send(
+                JSON.stringify({
+                  type: 'readonly',
+                  value: true,
+                  reason: '您的角色为 Viewer，文档内容仅供查阅',
+                }),
+              )
             }
             if (feature.project_id === 'default' && config.defaultProjectReadonly) {
               readOnly = true
               // 通知客户端进入只读模式
-              socket.send(JSON.stringify({ type: 'readonly', value: true, reason: '默认项目已锁定，仅供查阅' }))
+              socket.send(
+                JSON.stringify({
+                  type: 'readonly',
+                  value: true,
+                  reason: '默认项目已锁定，仅供查阅',
+                }),
+              )
             }
 
             authenticated = true

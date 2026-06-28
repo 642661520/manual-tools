@@ -356,9 +356,9 @@ export async function featureRoutes(app: FastifyInstance) {
       }
 
       // 3) 事务：纯 DB 写入（不再含 fail() 调用）
-      const dbUser = db.prepare('SELECT display_name, username FROM users WHERE id = ?').get(userId) as
-        | { display_name: string; username: string }
-        | undefined
+      const dbUser = db
+        .prepare('SELECT display_name, username FROM users WHERE id = ?')
+        .get(userId) as { display_name: string; username: string } | undefined
       const operatorName = dbUser?.display_name || dbUser?.username || '未知用户'
 
       interface NotificationJob {

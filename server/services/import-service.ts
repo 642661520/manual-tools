@@ -72,10 +72,7 @@ interface ParsedExport {
     is_custom: number
     category_id: string | null
   }>
-  documents: Map<
-    string,
-    { html: string; featureId: string; sectionKey: string }
-  >
+  documents: Map<string, { html: string; featureId: string; sectionKey: string }>
   catalogs: Array<{
     row: { id: string; title: string; targets: string; features: string; cover_info: string }
     versions: Array<{
@@ -230,9 +227,7 @@ async function buildUploadMapping(
         const zipBase = parsed.zipPath.replace(/[^/]+$/, '') // "uploads/images/" or "uploads/images/ab/"
         // 确保分片目录存在
         const shard = hash.slice(0, 2)
-        const finalDir = zipBase.includes(`/${shard}/`)
-          ? zipBase
-          : `${zipBase}${shard}/`
+        const finalDir = zipBase.includes(`/${shard}/`) ? zipBase : `${zipBase}${shard}/`
         const finalZipPath = `${finalDir}${hash}${ext}`
         mapping.set(parsed.zipPath, `/uploads/${finalZipPath.replace('uploads/', '')}`)
       }
@@ -523,16 +518,7 @@ export async function applyImport(
 
       const finalHtml = rewrittenDocs.get(docId) || doc.html
 
-      insertDoc.run(
-        docId,
-        doc.featureId,
-        doc.sectionKey,
-        defaultStatus,
-        '[]',
-        '',
-        0,
-        '[]',
-      )
+      insertDoc.run(docId, doc.featureId, doc.sectionKey, defaultStatus, '[]', '', 0, '[]')
 
       // 清理旧的 updates/snapshots（覆盖模式下）
       if (existing) {

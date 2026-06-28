@@ -13,7 +13,12 @@ const CSRF_COOKIE = 'csrf_token'
 const CSRF_HEADER = 'x-csrf-token'
 
 /** 免 CSRF 校验的路径前缀 */
-const SKIP_PATHS = ['/api/v1/auth/login', '/api/v1/auth/feishu/', '/api/v1/auth/feishu-login', '/api/v1/log/frontend']
+const SKIP_PATHS = [
+  '/api/v1/auth/login',
+  '/api/v1/auth/feishu/',
+  '/api/v1/auth/feishu-login',
+  '/api/v1/log/frontend',
+]
 
 /** 生成新的 CSRF token */
 export function generateCsrfToken(): string {

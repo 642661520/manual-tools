@@ -3,7 +3,12 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getDb } from '../db/index.js'
-import { isProjectMember, hasProjectRole, isExplicitMember, assertCatalogMember } from '../auth/membership.js'
+import {
+  isProjectMember,
+  hasProjectRole,
+  isExplicitMember,
+  assertCatalogMember,
+} from '../auth/membership.js'
 
 const TEST_USER_ID = '__test_mbr_user'
 const TEST_PROJECT_ID = '__test_mbr_proj'
@@ -16,9 +21,11 @@ beforeAll(() => {
     'INSERT OR IGNORE INTO users (id, username, display_name, password_hash, role) VALUES (?, ?, ?, ?, ?)',
   ).run(TEST_USER_ID, TEST_USER_ID, 'Test Member', 'hash', 'member')
   // 创建测试项目
-  db.prepare(
-    'INSERT OR IGNORE INTO projects (id, name, description) VALUES (?, ?, ?)',
-  ).run(TEST_PROJECT_ID, TEST_PROJECT_ID, 'test')
+  db.prepare('INSERT OR IGNORE INTO projects (id, name, description) VALUES (?, ?, ?)').run(
+    TEST_PROJECT_ID,
+    TEST_PROJECT_ID,
+    'test',
+  )
   // 添加为项目成员 (writer 角色)
   db.prepare(
     'INSERT OR REPLACE INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)',

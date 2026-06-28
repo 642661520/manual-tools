@@ -9,6 +9,7 @@
 **禁止使用文字图标**（emoji、Unicode 符号、纯文本字符）。项目使用 UnoCSS `presetIcons` + `@iconify-json/lucide`。
 
 **使用方式：**
+
 ```html
 <span class="i-lucide-<icon-name> w-4 h-4 inline-block align-middle" />
 ```
@@ -20,6 +21,7 @@
 **可用图标：** 在 [Iconify Lucide](https://icon-sets.iconify.design/lucide/) 搜索，使用 `i-lucide-<name>` 格式。
 
 **禁止项：**
+
 - ❌ emoji 作为图标：`💡`, `⚠️`, `✅`, `❌` 等
 - ❌ Unicode 符号作为图标：`×`, `✓`, `→`, `…` 等
 - ❌ 纯文本字符作为图标：`Aa`, `B`, `I`, `S`, `U`, `x₂`, `x²`, `H1`-`H6` 等
@@ -38,6 +40,7 @@
 核心原则：**按钮不做 `:disabled` 阻止点击**（会导致错误提示永远不显示），而是靠函数内校验显示错误信息。
 
 三步校验流程：
+
 1. 前端空值/格式检查
 2. API 响应 `body.error` 检查
 3. `catch` 网络异常
