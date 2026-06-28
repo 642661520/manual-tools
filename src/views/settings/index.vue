@@ -44,13 +44,25 @@ const localUsers = ref<UserDetail[]>([])
 const showAddUser = ref(false)
 const addUserError = ref('')
 const newUser = ref({ username: '', displayName: '', password: '', role: 'member' })
+const usersPage = ref(1)
+const usersTotal = ref(0)
+const usersPageSize = 20
+const usersTotalPages = computed(() => Math.max(1, Math.ceil(usersTotal.value / usersPageSize)))
 
 async function loadUsers() {
   try {
-    localUsers.value = await authApi.getUsers()
+    const offset = (usersPage.value - 1) * usersPageSize
+    const result = await authApi.getUsers(usersPageSize, offset)
+    localUsers.value = result.rows
+    usersTotal.value = result.total
   } catch {
     /* ignore */
   }
+}
+
+function usersGoPage(p: number) {
+  usersPage.value = p
+  loadUsers()
 }
 
 async function addUser() {
@@ -266,6 +278,11 @@ const uploadFilesError = ref('')
 const uploadFilesResult = ref<string>('')
 const showUploadFiles = ref(false)
 const uploadPreviewFile = ref<UploadFileInfo | null>(null)
+const uploadFilesPage = ref(1)
+const uploadFilesPageSize = 20
+const uploadFilesTotalPages = computed(() =>
+  Math.max(1, Math.ceil(uploadFilesTotalCount.value / uploadFilesPageSize)),
+)
 
 /** 获取上传文件预览 URL */
 function getUploadPreviewUrl(file: UploadFileInfo): string {
@@ -286,7 +303,8 @@ async function loadUploadFiles() {
   uploadFilesLoading.value = true
   uploadFilesError.value = ''
   try {
-    const data = await dataApi.getUploads()
+    const offset = (uploadFilesPage.value - 1) * uploadFilesPageSize
+    const data = await dataApi.getUploads(uploadFilesPageSize, offset)
     uploadFiles.value = data.files
     uploadFilesTotalSize.value = data.totalSize
     uploadFilesTotalCount.value = data.totalCount
@@ -361,6 +379,11 @@ const remotePageSize = 10
 const cacheEntriesLoading = ref(false)
 const cacheCleanResult = ref<string>('')
 const cacheCleaning = ref(false)
+const exportOffset = ref(0)
+const exportTotal = ref(0)
+const exportPageSize = 20
+const exportCurrentPage = computed(() => Math.floor(exportOffset.value / exportPageSize) + 1)
+const exportTotalPages = computed(() => Math.max(1, Math.ceil(exportTotal.value / exportPageSize)))
 const showExportDetail = ref(false)
 const showRemoteDetail = ref(false)
 const previewEntry = ref<cacheApi.RemoteCacheEntry | null>(null)
@@ -467,13 +490,20 @@ async function loadCacheStats() {
 async function loadExportEntries() {
   cacheEntriesLoading.value = true
   try {
-    exportEntries.value = await cacheApi.listExportEntries()
+    const result = await cacheApi.listExportEntries(exportPageSize, exportOffset.value)
+    exportEntries.value = result.entries
+    exportTotal.value = result.total
     showExportDetail.value = true
   } catch (e: unknown) {
     cacheStatsError.value = e instanceof Error ? e.message : '加载导出缓存列表失败'
   } finally {
     cacheEntriesLoading.value = false
   }
+}
+
+function exportGoPage(p: number) {
+  exportOffset.value = (p - 1) * exportPageSize
+  loadExportEntries()
 }
 
 function toggleExportDetail() {
@@ -744,6 +774,12 @@ onBeforeUnmount(() => {
             </button>
           </div>
         </div>
+
+        <Paginator
+          :current="usersPage"
+          :total="usersTotalPages"
+          @go="usersGoPage"
+        />
       </div>
 
       <!-- 备份恢复 -->
@@ -926,6 +962,12 @@ onBeforeUnmount(() => {
                 </tbody>
               </table>
             </div>
+
+            <Paginator
+              :current="uploadFilesPage"
+              :total="uploadFilesTotalPages"
+              @go="(p: number) => { uploadFilesPage = p; loadUploadFiles() }"
+            />
           </div>
         </div>
 
@@ -1071,6 +1113,12 @@ onBeforeUnmount(() => {
               </tbody>
             </table>
           </div>
+
+          <Paginator
+            :current="exportCurrentPage"
+            :total="exportTotalPages"
+            @go="exportGoPage"
+          />
 
           <!-- 远程缓存：网格缩略图 -->
           <div v-if="showRemoteDetail" class="border-t border-gray-100 pt-3">

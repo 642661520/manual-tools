@@ -215,13 +215,11 @@ async function confirmImport() {
   try {
     const result = await dataApi.applyImport(importTaskId.value, {
       strategies: strategies.value,
-      includeMembers: true,
     })
     const msg = [
       `功能: 新增${result.features.inserted} 更新${result.features.updated} 跳过${result.features.skipped}`,
       `目录: 新增${result.catalogs.inserted} 更新${result.catalogs.updated}`,
       `文档: 新增${result.documents.inserted} 更新${result.documents.updated}`,
-      `成员: ${result.members.inserted}`,
       `文件: 复制${result.uploads.copied} 跳过${result.uploads.skipped}`,
     ].join('\n')
     alert(`导入完成!\n${msg}`)
@@ -417,17 +415,6 @@ onUnmounted(() => {
           <div>
             <span class="font-medium">文档:</span>
             新增 {{ importDiff.documents.added }} · 冲突 {{ importDiff.documents.conflicted }}
-          </div>
-
-          <!-- 成员 -->
-          <div>
-            <span class="font-medium">成员:</span>
-            新增 {{ importDiff.projectMembers.added.length }}
-            <template v-if="importDiff.projectMembers.unknownUsers.length > 0">
-              <span class="text-orange-500 ml-1">
-                ({{ importDiff.projectMembers.unknownUsers.length }} 个用户不存在将被跳过)
-              </span>
-            </template>
           </div>
 
           <!-- 上传 -->

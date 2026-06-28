@@ -83,20 +83,24 @@ export function deleteOrphans(): Promise<{ deleted: number; freedBytes: number }
 
 // ---- 上传资源管理 ----
 
-export function getUploads(): Promise<{
+export function getUploads(limit?: number, offset?: number): Promise<{
   files: UploadFileInfo[]
   totalSize: number
   totalCount: number
   referencedCount: number
   orphanedCount: number
 }> {
+  const params = new URLSearchParams()
+  if (limit !== undefined) params.set('limit', String(limit))
+  if (offset !== undefined) params.set('offset', String(offset))
+  const qs = params.toString()
   return api.get<{
     files: UploadFileInfo[]
     totalSize: number
     totalCount: number
     referencedCount: number
     orphanedCount: number
-  }>('/api/v1/uploads')
+  }>(`/api/v1/uploads${qs ? `?${qs}` : ''}`)
 }
 
 export function deleteUpload(filePath: string): Promise<OkResponse> {

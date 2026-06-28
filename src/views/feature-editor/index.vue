@@ -181,7 +181,7 @@ const newAssigneeId = ref<string | null>(null)
 
 async function loadUsers() {
   try {
-    users.value = (await getUsers()) as ApiUser[]
+    users.value = (await getUsers(9999, 0)).rows as ApiUser[]
   } catch {
     /* ignore */
   }

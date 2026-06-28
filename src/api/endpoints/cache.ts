@@ -47,6 +47,12 @@ export interface RemoteCacheEntry {
   fetchCount: number
 }
 
+/** 导出缓存分页结果 */
+export interface ExportCachePage {
+  entries: ExportCacheEntry[]
+  total: number
+}
+
 /** 远程缓存分页结果 */
 export interface RemoteCachePage {
   entries: RemoteCacheEntry[]
@@ -76,9 +82,11 @@ export function invalidateCatalog(catalogId: string): Promise<void> {
 
 // ---- 导出缓存列表 & 删除 ----
 
-/** 列出导出缓存文件 */
-export function listExportEntries(): Promise<ExportCacheEntry[]> {
-  return api.get<ExportCacheEntry[]>(`${CACHE}/entries/export`)
+/** 列出导出缓存文件（分页） */
+export function listExportEntries(limit = 40, offset = 0): Promise<ExportCachePage> {
+  return api.get<ExportCachePage>(
+    `${CACHE}/entries/export?limit=${limit}&offset=${offset}`,
+  )
 }
 
 /** 删除单个导出缓存文件 */

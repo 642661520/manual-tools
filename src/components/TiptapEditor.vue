@@ -60,15 +60,15 @@ const props = defineProps<{
   findText?: string
 }>()
 
-const { ydoc, connected, synced, awareness } = useYjsDoc(props.docId)
+const { ydoc, connected, synced, readOnly, awareness } = useYjsDoc(props.docId)
 const { editor, initialSyncDone } = useTiptapYjs(ydoc, awareness, {
   editable: false,
   placeholder: props.placeholder,
 })
 
-// 同步完成后才根据 props.editable 启用编辑，防止远程数据覆盖用户输入
-watch([synced, () => props.editable], ([isSynced, edit]) => {
-  editor.value?.setEditable(isSynced && (edit ?? false))
+// 同步完成后才根据 props.editable 和 readOnly 启用编辑
+watch([synced, () => props.editable, readOnly], ([isSynced, edit, ro]) => {
+  editor.value?.setEditable(isSynced && (edit ?? false) && !ro)
 })
 
 // 搜索跳转定位 — 用 Highlight 标记闪烁
@@ -529,7 +529,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
     :class="{ fullscreen: isFullscreen }"
   >
     <div
-      v-if="editable"
+      v-if="editable && !readOnly"
       class="flex items-center gap-1 px-4 py-2 border-b border-gray-200 bg-white flex-wrap"
     >
       <button
@@ -1005,6 +1005,15 @@ defineExpose({ connected, synced, initialSyncDone, editor })
     >
       <span>{{ wordCount }} 词 / {{ charCount }} 字符</span>
       <div class="flex items-center gap-1.5">
+        <!-- 只读标记 -->
+        <span
+          v-if="readOnly"
+          class="flex items-center gap-1 px-1.5 py-0.5 rounded text-orange-600 bg-orange-50 border border-orange-200"
+          v-tooltip="'当前项目已锁定为只读模式，仅供查阅'"
+        >
+          <span class="i-lucide-eye w-3 h-3" />
+          只读
+        </span>
         <!-- 在线用户头像 -->
         <div
           v-if="onlineUsers.length > 0"

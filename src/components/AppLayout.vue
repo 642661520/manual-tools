@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useProject } from '@/composables/useProject'
 import { useDialog } from '@/composables/useDialog'
+import { toasts } from '@/composables/toast'
 import SelectDropdown from '@/components/SelectDropdown.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import SearchBox from '@/components/SearchBox.vue'
@@ -216,9 +217,31 @@ onMounted(loadProjects)
       <slot />
     </div>
   </div>
+
+  <!-- 全局错误提示 -->
+  <Teleport to="body">
+    <div class="z-9999 fixed top-5 right-5 flex flex-col gap-3">
+      <TransitionGroup name="toast">
+        <div
+          v-for="t in toasts"
+          :key="t.id"
+          class="flex items-start gap-3 bg-white rounded-lg shadow-lg border border-red-200 border-l-4 border-l-red-500 px-4 py-3 max-w-96"
+        >
+          <span class="i-lucide-alert-circle w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+          <p class="text-sm text-gray-700 leading-relaxed">{{ t.message }}</p>
+        </div>
+      </TransitionGroup>
+    </div>
+  </Teleport>
 </template>
 
 <style>
+/* toast 进出动画 */
+.toast-enter-active { transition: all 0.3s ease-out; }
+.toast-leave-active { transition: all 0.2s ease-in; }
+.toast-enter-from { opacity: 0; transform: translateX(30px); }
+.toast-leave-to { opacity: 0; transform: translateX(30px); }
+
 @media print {
   @page {
     margin: 1.5cm;

@@ -5,6 +5,8 @@ import { routes } from './router'
 import { getCurrentUser } from '@/api/endpoints/auth'
 import { getStoredUser } from '@/utils/storage'
 import { vTooltip } from './directives/tooltip'
+import { ApiRequestError } from '@shared/types'
+import { showErrorToast } from '@/composables/toast'
 import '@unocss/reset/tailwind.css'
 import 'virtual:uno.css'
 
@@ -78,8 +80,8 @@ router.beforeEach(async (to, _from, next) => {
 // ---- 全局前端错误上报 ----
 
 function getCsrfToken(): string {
-  const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-  return token || ''
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/)
+  return match ? match[1] : ''
 }
 
 function reportFrontendError(payload: { message: string; stack?: string }) {
@@ -121,6 +123,11 @@ window.addEventListener('unhandledrejection', (event) => {
     message: reason instanceof Error ? reason.message : String(reason),
     stack: reason instanceof Error ? reason.stack : undefined,
   })
+  // API 错误提示用户
+  if (reason instanceof ApiRequestError) {
+    showErrorToast(reason.message)
+    event.preventDefault()
+  }
 })
 
 const app = createApp(App)
@@ -131,6 +138,9 @@ app.config.errorHandler = (err, _instance, info) => {
     message: `[Vue ${info}]: ${err instanceof Error ? err.message : String(err)}`,
     stack: err instanceof Error ? err.stack : undefined,
   })
+  if (err instanceof ApiRequestError) {
+    showErrorToast(err.message)
+  }
 }
 
 app.use(router)

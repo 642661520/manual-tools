@@ -56,8 +56,13 @@ export function changePassword(data: ChangePasswordBody): Promise<PasswordChange
 
 // ---- 用户管理 ----
 
-export function getUsers(): Promise<UserDetail[]> {
-  return api.get<UserDetail[]>('/api/v1/auth/users')
+export interface UserPage {
+  rows: UserDetail[]
+  total: number
+}
+
+export function getUsers(limit = 50, offset = 0): Promise<UserPage> {
+  return api.get<UserPage>(`/api/v1/auth/users?limit=${limit}&offset=${offset}`)
 }
 
 export function createUser(data: CreateUserBody): Promise<CreateResponse> {

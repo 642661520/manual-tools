@@ -72,7 +72,8 @@ async function loadMembers() {
 
 async function loadAllUsers() {
   try {
-    allUsers.value = await getUsers()
+    const result = await getUsers(9999, 0)
+    allUsers.value = result.rows
   } catch {
     /* ignore */
   }

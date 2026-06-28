@@ -30,6 +30,7 @@ export function useYjsDoc(docId: string) {
   let closed = false
   const connected = ref(false)
   const synced = ref(false)
+  const readOnly = ref(false)
   const pendingQueue: Uint8Array[] = []
 
   function sendRaw(data: Uint8Array) {
@@ -72,6 +73,17 @@ export function useYjsDoc(docId: string) {
     }
 
     ws.onmessage = (event) => {
+      // 处理 JSON 控制消息（如 readonly 通知）
+      if (typeof event.data === 'string') {
+        try {
+          const msg = JSON.parse(event.data)
+          if (msg.type === 'readonly') {
+            readOnly.value = Boolean(msg.value)
+          }
+        } catch { /* ignore */ }
+        return
+      }
+
       const data = new Uint8Array(event.data)
       const decoder = decoding.createDecoder(data)
       const messageType = decoding.readVarUint(decoder)
@@ -155,5 +167,5 @@ export function useYjsDoc(docId: string) {
     ydoc.destroy()
   })
 
-  return { ydoc, connected, synced, awareness }
+  return { ydoc, connected, synced, readOnly, awareness }
 }
