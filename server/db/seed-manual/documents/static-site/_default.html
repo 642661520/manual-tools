@@ -1,0 +1,131 @@
+<h2>自动构建</h2>
+<p>每次发布版本后，系统会自动生成静态文档站点。</p>
+<h2>构建内容</h2>
+<p>发布的静态站点包含：</p>
+<ul>
+  <li>完整手册内容的 HTML 页面</li>
+  <li>左侧导航边栏和章节目录</li>
+  <li>版本切换器（可切换到其他已发布版本）</li>
+  <li>全文搜索功能（前端倒排索引）</li>
+  <li>响应式布局样式</li>
+</ul>
+<h2>存储位置</h2>
+<p>静态站点文件存储在 <code>data/docs/{catalogId}/{version}/</code> 目录下。</p>
+<h2>触发方式</h2>
+<p>发布版本时自动触发构建。如果需要手动重建（如修改了站点模板），可以在版本管理中重新发布。</p>
+<div
+  data-image-placeholder="static-site-build.png"
+  style="
+    background: #f1f5f9;
+    border: 2px dashed #94a3b8;
+    border-radius: 8px;
+    padding: 20px 24px;
+    text-align: center;
+    color: #64748b;
+    margin: 16px 0;
+    font-size: 14px;
+  "
+>
+  <div style="font-size: 24px; margin-bottom: 6px">🖼️</div>
+  <div>图片占位：static-site - build</div>
+</div>
+<hr />
+
+<h2>站点访问</h2>
+<p>已发布的文档站点通过 <code>/docs/</code> 路径访问。</p>
+<h2>访问地址</h2>
+<p>
+  格式为 <code>/docs/{catalogId}/</code>。访问
+  <code>/latest/</code> 会自动重定向到最新版本。站点支持：
+</p>
+<ul>
+  <li><strong>版本切换</strong> — 在已发布的版本之间切换</li>
+  <li><strong>搜索</strong> — 在当前版本中全文搜索文档内容</li>
+  <li><strong>导航</strong> — 左侧边栏展示手册目录结构</li>
+</ul>
+<h2>访问控制</h2>
+<p>根据发布时设置的可见性级别，未登录用户或非项目成员访问受限制的文档时会看到登录提示页面。</p>
+<div
+  data-image-placeholder="static-site-access.png"
+  style="
+    background: #f1f5f9;
+    border: 2px dashed #94a3b8;
+    border-radius: 8px;
+    padding: 20px 24px;
+    text-align: center;
+    color: #64748b;
+    margin: 16px 0;
+    font-size: 14px;
+  "
+>
+  <div style="font-size: 24px; margin-bottom: 6px">🖼️</div>
+  <div>图片占位：static-site - access</div>
+</div>
+<hr />
+
+<h2>更新机制</h2>
+<p>静态站点会随着版本发布自动更新。</p>
+<h2>更新流程</h2>
+<ol>
+  <li>文档内容修改和审核</li>
+  <li>发布新版本</li>
+  <li>系统自动重新构建静态站点</li>
+  <li>新版本在 <code>/latest/</code> 路径下立即可用</li>
+  <li>旧版本站点保持不变，通过版本切换器仍可访问</li>
+</ol>
+<h2>版本共存</h2>
+<p>多个版本的静态站点可以同时存在并独立访问。用户可以随时切换到以前的版本查看历史文档。</p>
+<div
+  data-image-placeholder="static-site-update.png"
+  style="
+    background: #f1f5f9;
+    border: 2px dashed #94a3b8;
+    border-radius: 8px;
+    padding: 20px 24px;
+    text-align: center;
+    color: #64748b;
+    margin: 16px 0;
+    font-size: 14px;
+  "
+>
+  <div style="font-size: 24px; margin-bottom: 6px">🖼️</div>
+  <div>图片占位：static-site - update</div>
+</div>
+<hr />
+
+<h2>离线站点导出</h2>
+<p>
+  当手册需要部署到内网环境时，可以将所有公开版本的静态站点打包下载，方便在 nginx
+  等静态服务器上一键部署。
+</p>
+<h2>导出方式</h2>
+<p>
+  在手册预览页面的工具栏中，点击 <strong>下载离线站点</strong> 按钮即可下载 ZIP 包。该操作属于
+  catalog 级别，会导出当前目录下所有已发布的公开版本，不依赖当前选择的版本。
+</p>
+<h2>ZIP 包内容</h2>
+<p>下载的 ZIP 包解压后目录结构如下：</p>
+<pre><code>docs/{catalogId}/
+├── index.html          # 自动跳转到最新公开版本
+├── versions.json       # 公开版本列表
+└── v1.0/
+    ├── index.html      # 封面页
+    ├── ch01.html       # 各章节页面
+    ├── ch02.html
+    └── search-index.json</code></pre>
+<h2>部署方式</h2>
+<p>解压到 nginx 的 web root 目录即可使用，无需额外配置：</p>
+<pre><code>server {
+    listen 80;
+    root /var/www/manual-site;
+    index index.html;
+}</code></pre>
+<p>
+  部署后访问 <code>/docs/{catalogId}/</code> 自动跳转到最新版本，版本切换器和全文搜索均可正常使用。
+</p>
+<h2>适用场景</h2>
+<ul>
+  <li>将公开手册分发到内网环境供离线查阅</li>
+  <li>对方无需部署本平台，仅需一个静态文件服务器</li>
+  <li>导出的 ZIP 包含所有公开版本，支持版本回看</li>
+</ul>

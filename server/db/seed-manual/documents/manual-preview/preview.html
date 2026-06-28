@@ -13,6 +13,20 @@
   <li><strong>按状态筛选</strong> — 可以只看已审核通过的内容</li>
   <li><strong>按需刷新</strong> — 文档内容变化后刷新预览即可看到最新效果</li>
 </ul>
+<h2>导出与下载</h2>
+<p>预览页面工具栏提供多种导出选项：</p>
+<ul>
+  <li><strong>下载 MD</strong> — 将当前版本导出为 Markdown ZIP 包（含图片等资源）</li>
+  <li><strong>下载 PDF</strong> — 将当前版本导出为 PDF 文件</li>
+  <li>
+    <strong>下载离线站点</strong> — 导出当前目录下所有公开版本的静态站点 ZIP 包，解压后可直接用
+    nginx 部署到内网环境
+  </li>
+</ul>
+<p>
+  其中 MD 和 PDF 导出基于当前所选版本（或实时内容），而离线站点是 catalog
+  级别的操作，始终导出所有已发布的公开版本。
+</p>
 <div
   data-image-placeholder="manual-preview-preview.png"
   style="

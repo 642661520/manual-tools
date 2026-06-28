@@ -1,12 +1,12 @@
 {
   "id": "manual-tools:review-chain",
-  "title": "审核链",
+  "title": "审核流程",
   "description": "多步骤审核流程的配置和管理，支持在项目设置中定义审核人序列，审核依次进行直至最终通过",
   "category_id": "cat-review",
   "sections": [
     {
       "key": "config",
-      "title": "审核链配置",
+      "title": "审核流程配置",
       "description": "在项目设置中配置多步审核人和审核顺序"
     },
     { "key": "multi-step", "title": "多步审核", "description": "多步骤审核的工作流程和操作界面" },

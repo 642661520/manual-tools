@@ -119,7 +119,7 @@ export const SEED_CATEGORIES = [
 export const SEED_CATALOG = {
   id: 'manual-tools-manual',
   title: 'Manual Tools 用户手册',
-  targets: ['新用户', '文档编写者', '项目管理员', '系统管理员'],
+  targets: ['新用户', '文档编辑者', '项目负责人', '系统管理员'],
   features: [
     {
       type: 'part' as const,
@@ -143,6 +143,8 @@ export const SEED_CATALOG = {
       features: [
         { featureId: 'manual-tools:project-crud' },
         { featureId: 'manual-tools:project-members' },
+        { featureId: 'manual-tools:data-import-export' },
+        { featureId: 'manual-tools:search' },
       ],
     },
     {
@@ -189,8 +191,6 @@ export const SEED_CATALOG = {
       features: [
         { featureId: 'manual-tools:user-management' },
         { featureId: 'manual-tools:permissions' },
-        { featureId: 'manual-tools:data-import-export' },
-        { featureId: 'manual-tools:search' },
         { featureId: 'manual-tools:audit-log' },
         { featureId: 'manual-tools:cache-management' },
       ],

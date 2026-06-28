@@ -1,0 +1,100 @@
+<h2>项目导出</h2>
+<p>支持将整个项目的数据导出为 ZIP 文件，用于数据迁移和备份。</p>
+<h2>导出内容</h2>
+<p>导出 ZIP 包含：</p>
+<ul>
+  <li>项目基本信息（名称、描述、审核链配置）</li>
+  <li>所有分类和功能定义</li>
+  <li>所有文档内容（Y.js 增量数据和快照）</li>
+  <li>所有目录和发布版本</li>
+  <li>文档中引用的上传文件（图片、视频）</li>
+</ul>
+<h2>操作步骤</h2>
+<ol>
+  <li>进入<strong>项目设置</strong> → <strong>数据管理</strong></li>
+  <li>点击<strong>导出项目</strong></li>
+  <li>系统估算导出大小并显示预览</li>
+  <li>确认后开始导出（异步任务）</li>
+  <li>导出完成后下载 ZIP 文件</li>
+</ol>
+<h2>任务管理</h2>
+<p>导出是异步任务，支持进度查询和历史记录查看。导出任务 24 小时后自动过期清理。</p>
+<div
+  data-image-placeholder="data-import-export-export.png"
+  style="
+    background: #f1f5f9;
+    border: 2px dashed #94a3b8;
+    border-radius: 8px;
+    padding: 20px 24px;
+    text-align: center;
+    color: #64748b;
+    margin: 16px 0;
+    font-size: 14px;
+  "
+>
+  <div style="font-size: 24px; margin-bottom: 6px">🖼️</div>
+  <div>图片占位：data-import-export - export</div>
+</div>
+<hr />
+
+<h2>项目导入</h2>
+<p>支持从 ZIP 文件导入项目数据，可用于数据迁移和恢复。</p>
+<h2>导入流程</h2>
+<ol>
+  <li>进入<strong>项目设置</strong> → <strong>数据管理</strong></li>
+  <li>点击<strong>导入项目</strong>，选择 ZIP 文件上传</li>
+  <li>系统分析 ZIP 内容并与当前项目对比</li>
+  <li>在差异确认界面查看将新增和冲突的条目</li>
+  <li>对冲突条目选择处理策略（覆盖/跳过）</li>
+  <li>确认后执行导入</li>
+</ol>
+<h2>冲突处理</h2>
+<p>
+  当导入数据中的实体（分类、功能、目录、文档）ID
+  与当前项目冲突时，您可以为每个实体单独选择覆盖或跳过策略。
+</p>
+<div
+  data-image-placeholder="data-import-export-import.png"
+  style="
+    background: #f1f5f9;
+    border: 2px dashed #94a3b8;
+    border-radius: 8px;
+    padding: 20px 24px;
+    text-align: center;
+    color: #64748b;
+    margin: 16px 0;
+    font-size: 14px;
+  "
+>
+  <div style="font-size: 24px; margin-bottom: 6px">🖼️</div>
+  <div>图片占位：data-import-export - import</div>
+</div>
+<hr />
+
+<h2>差异分析</h2>
+<p>导入前系统会自动进行差异分析，让您清楚了解导入会带来哪些变化。</p>
+<h2>分析结果</h2>
+<p>差异报告显示：</p>
+<ul>
+  <li><strong>新增</strong> — 导入数据中有但当前项目中没有的条目数量</li>
+  <li><strong>冲突</strong> — 两方都有的条目（按 ID 匹配）</li>
+  <li><strong>上传文件</strong> — 将复制到上传目录的文件数量和总大小</li>
+</ul>
+<h2>决策辅助</h2>
+<p>对于每个冲突条目，系统会显示源名称和目标名称，帮助您做出跳过或覆盖的决策。</p>
+<div
+  data-image-placeholder="data-import-export-diff.png"
+  style="
+    background: #f1f5f9;
+    border: 2px dashed #94a3b8;
+    border-radius: 8px;
+    padding: 20px 24px;
+    text-align: center;
+    color: #64748b;
+    margin: 16px 0;
+    font-size: 14px;
+  "
+>
+  <div style="font-size: 24px; margin-bottom: 6px">🖼️</div>
+  <div>图片占位：data-import-export - diff</div>
+</div>

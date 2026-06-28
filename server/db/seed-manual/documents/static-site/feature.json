@@ -3,9 +3,5 @@
   "title": "静态站点",
   "description": "每次发布后自动生成静态文档站点，支持版本切换器、全文搜索和权限访问控制",
   "category_id": "cat-publishing",
-  "sections": [
-    { "key": "build", "title": "自动构建", "description": "发布后自动触发的静态站点构建流程" },
-    { "key": "access", "title": "站点访问", "description": "通过 /docs/ 路径访问已发布的文档站点" },
-    { "key": "update", "title": "更新机制", "description": "发布新版本后静态站点的自动更新" }
-  ]
+  "sections": []
 }

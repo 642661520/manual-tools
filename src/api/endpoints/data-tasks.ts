@@ -65,12 +65,6 @@ export function downloadExport(taskId: string): Promise<void> {
   return api.download(`${TASKS}/${taskId}/download`, 'export.zip')
 }
 
-// ---- 系统备份 ----
-
-export function startSystemExport(): Promise<{ taskId: string }> {
-  return api.post<{ taskId: string }>('/api/v1/system/export')
-}
-
 // ---- 孤儿清理 ----
 
 export function getOrphans(): Promise<{ orphans: OrphanFile[]; totalSize: number }> {

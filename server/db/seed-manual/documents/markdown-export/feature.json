@@ -3,8 +3,5 @@
   "title": "Markdown 导出",
   "description": "将手册导出为 Markdown 文件，支持图片引用路径处理和多格式输出",
   "category_id": "cat-publishing",
-  "sections": [
-    { "key": "export-md", "title": "导出流程", "description": "Markdown 导出的操作方式和输出格式" },
-    { "key": "images", "title": "图片引用处理", "description": "导出时图片引用的路径转换策略" }
-  ]
+  "sections": []
 }

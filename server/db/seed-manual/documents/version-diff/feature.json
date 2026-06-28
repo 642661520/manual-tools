@@ -3,8 +3,5 @@
   "title": "版本对比",
   "description": "对比两个已发布版本之间的差异，包括新增、修改和删除的内容，帮助追踪文档变更",
   "category_id": "cat-publishing",
-  "sections": [
-    { "key": "interface", "title": "对比界面", "description": "版本差异对比的界面布局和操作方式" },
-    { "key": "diff", "title": "差异查看", "description": "差异高亮显示的阅读方式和筛选功能" }
-  ]
+  "sections": []
 }

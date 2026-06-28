@@ -3,6 +3,7 @@
 // 用法: pnpm seed
 // ============================================================
 
+import '../../lib/win-encoding.js'
 import { initDatabase } from '../index.js'
 import { seedManualIfNeeded } from './index.js'
 

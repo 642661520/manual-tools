@@ -3,9 +3,5 @@
   "title": "项目成员管理",
   "description": "管理项目成员及其角色权限，包括添加成员、移除成员以及 PM / Writer / Viewer 三种项目角色的权限说明",
   "category_id": "cat-projects",
-  "sections": [
-    { "key": "add", "title": "添加成员", "description": "向项目中添加新成员的操作流程" },
-    { "key": "remove", "title": "移除成员", "description": "从项目中移除成员的影响" },
-    { "key": "roles", "title": "项目角色说明", "description": "PM、Writer、Viewer 角色的权限详解" }
-  ]
+  "sections": []
 }

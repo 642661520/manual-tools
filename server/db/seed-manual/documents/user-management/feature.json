@@ -3,14 +3,5 @@
   "title": "用户管理",
   "description": "系统管理员创建和管理用户账号，包括设置角色、重置密码和删除用户等操作",
   "category_id": "cat-admin",
-  "sections": [
-    { "key": "create-user", "title": "创建用户", "description": "创建新用户并设置初始密码和角色" },
-    { "key": "list", "title": "查看用户", "description": "用户列表的查看和筛选功能" },
-    {
-      "key": "delete-user",
-      "title": "删除用户",
-      "description": "删除用户账号的注意事项和数据影响"
-    },
-    { "key": "roles", "title": "系统角色", "description": "Admin、Member、Guest 三种系统角色说明" }
-  ]
+  "sections": []
 }

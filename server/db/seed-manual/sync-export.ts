@@ -4,6 +4,7 @@
 // 用法: pnpm seed:export
 // ============================================================
 
+import '../../lib/win-encoding.js'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
