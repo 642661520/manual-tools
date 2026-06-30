@@ -2,20 +2,20 @@
 
 ## 路由 (src/router.ts) — 18 条（含 7 条旧路径兼容重定向）
 
-| 路径                    | 名称             | 视图                                 | 权限  |
-| ----------------------- | ---------------- | ------------------------------------ | ----- |
-| `/login`                | login            | `views/login/index.vue`              | 公开  |
-| `/`                     | —                | 重定向到 `/features`                 | —     |
-| `/features`             | feature-list     | `views/feature-list/index.vue`       | 登录  |
-| `/features/:id/edit`    | feature-editor   | `views/feature-editor/index.vue`     | 登录  |
-| `/manuals`              | manual-list      | `views/catalog-list/index.vue`       | 登录  |
-| `/manuals/:id/edit`     | manual-builder   | `views/catalog-builder/index.vue`    | 登录  |
-| `/manuals/:id`          | manual-preview   | `views/manual-preview/index.vue`     | 登录  |
-| `/settings`             | settings         | `views/settings/index.vue`           | admin |
-| `/settings/project`     | project-settings | `views/settings/ProjectSettings.vue` | 登录  |
-| `/profile`              | profile          | `views/profile/index.vue`            | 登录  |
-| `/todos`                | todo-list        | `views/todo-list/index.vue`          | 登录  |
-| `/feishu-callback`      | feishu-callback  | `views/feishu-callback/index.vue`    | 公开  |
+| 路径                 | 名称             | 视图                                 | 权限  |
+| -------------------- | ---------------- | ------------------------------------ | ----- |
+| `/login`             | login            | `views/login/index.vue`              | 公开  |
+| `/`                  | —                | 重定向到 `/features`                 | —     |
+| `/features`          | feature-list     | `views/feature-list/index.vue`       | 登录  |
+| `/features/:id/edit` | feature-editor   | `views/feature-editor/index.vue`     | 登录  |
+| `/manuals`           | manual-list      | `views/catalog-list/index.vue`       | 登录  |
+| `/manuals/:id/edit`  | manual-builder   | `views/catalog-builder/index.vue`    | 登录  |
+| `/manuals/:id`       | manual-preview   | `views/manual-preview/index.vue`     | 登录  |
+| `/settings`          | settings         | `views/settings/index.vue`           | admin |
+| `/settings/project`  | project-settings | `views/settings/ProjectSettings.vue` | 登录  |
+| `/profile`           | profile          | `views/profile/index.vue`            | 登录  |
+| `/todos`             | todo-list        | `views/todo-list/index.vue`          | 登录  |
+| `/feishu-callback`   | feishu-callback  | `views/feishu-callback/index.vue`    | 公开  |
 
 旧路径兼容重定向（保留向后兼容）：`/catalogs` → `/manuals`，`/catalogs/:id` → `/manuals/:id`，`/catalogs/:id/preview` → `/manuals/:id`，`/preview` → `/manuals`，`/preview/:id` → `/manuals/:id`。
 
@@ -82,13 +82,13 @@
 
 ### 表单组件
 
-| 组件                     | 用途                                                        |
-| ------------------------ | ----------------------------------------------------------- |
-| `SelectDropdown`         | 可搜索下拉选择框                                            |
-| `PasswordInput`          | 密码输入框（含显示/隐藏切换），v-model 绑定                 |
-| `SearchBox`              | 全局搜索框，支持快捷键 `Ctrl+K` 唤起，调用 `/api/v1/search` |
-| `ColorPicker`            | 颜色选择器（文字颜色 10 色 + 背景高亮 10 色）               |
-| `CreateEditManualModal`  | 创建/编辑手册对话框（标题 + 描述表单）                      |
+| 组件                    | 用途                                                        |
+| ----------------------- | ----------------------------------------------------------- |
+| `SelectDropdown`        | 可搜索下拉选择框                                            |
+| `PasswordInput`         | 密码输入框（含显示/隐藏切换），v-model 绑定                 |
+| `SearchBox`             | 全局搜索框，支持快捷键 `Ctrl+K` 唤起，调用 `/api/v1/search` |
+| `ColorPicker`           | 颜色选择器（文字颜色 10 色 + 背景高亮 10 色）               |
+| `CreateEditManualModal` | 创建/编辑手册对话框（标题 + 描述表单）                      |
 
 ### 编辑器组件
 
@@ -151,7 +151,7 @@
 | `login/`           | `index.vue`                                                              | 用户名密码登录 + 飞书 OAuth 登录                                                   |
 | `feature-list/`    | `index.vue`                                                              | PM 集中管理：创建/编辑/删除自定义功能、导入 JSON 骨架（diff 确认界面）、按分类分组 |
 | `feature-editor/`  | `index.vue`                                                              | 运维编写：左侧功能导航树 + 右侧 TipTap 编辑器，支持状态流转和 AI 写作              |
-| `catalog-list/`    | `index.vue`                                                              | 手册列表：浏览所有手册、创建/编辑/删除手册                                          |
+| `catalog-list/`    | `index.vue`                                                              | 手册列表：浏览所有手册、创建/编辑/删除手册                                         |
 | `catalog-builder/` | `index.vue`                                                              | PM 编排：左侧可选功能池（搜索+按分类分组）+ 右侧拖拽排序已选功能                   |
 | `manual-preview/`  | `index.vue`, `PreviewContent.vue`, `PreviewSidebar.vue`                  | 手册预览 + 版本发布 + 版本对比                                                     |
 | `settings/`        | `index.vue`, `AuditLog.vue`, `DataManagement.vue`, `ProjectSettings.vue` | 系统/项目设置：项目管理 + 账号管理 + 存储管理 + 操作日志                           |

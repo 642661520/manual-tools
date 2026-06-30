@@ -58,7 +58,10 @@
 
 - 前端路由 meta：`requiresAuth: true` 需要登录，`requiresAdmin: true` 需要 admin 角色
 - 后端路由：`authMiddleware` 校验 JWT，`requireRole('admin')` 限制角色
-- 项目级权限：`isProjectMember(userId, role, projectId)` — admin 全局通过，其他角色检查 `project_members` 表
+- 项目级权限（三层）：
+  - `isProjectMember()` — 只读查看，admin 全局通过
+  - `hasProjectRole()` — 项目管理操作（成员、审核链、导入导出），admin 绕过
+  - `hasContentRole()` — 内容流水线操作（编辑、审核、状态流转、指派编辑者、发布），admin 不绕过，需显式加入项目
 
 ## 文件命名约定
 

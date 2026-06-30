@@ -47,13 +47,13 @@
 
 ## 认证模块 (server/auth/) — 5 个
 
-| 文件            | 用途                                                                                   |
-| --------------- | -------------------------------------------------------------------------------------- |
-| `middleware.ts` | `authMiddleware` 校验 JWT（含 `token_version` 比对），`requireRole(...roles)` 角色守卫 |
-| `jwt.ts`        | `signToken()` / `verifyToken()`，含 `tokenVersion` 载荷                                |
-| `token.ts`      | `extractToken()` — 从 Bearer header 或 Cookie 中统一提取 JWT                           |
-| `feishu.ts`     | 飞书 OAuth 流程（授权 URL 生成、code 换 token、用户信息获取）                          |
-| `membership.ts` | `isProjectMember()` — 项目成员检查（admin 全局通过）                                   |
+| 文件            | 用途                                                                                                                                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `middleware.ts` | `authMiddleware` 校验 JWT（含 `token_version` 比对），`requireRole(...roles)` 角色守卫                                                                                                     |
+| `jwt.ts`        | `signToken()` / `verifyToken()`，含 `tokenVersion` 载荷                                                                                                                                    |
+| `token.ts`      | `extractToken()` — 从 Bearer header 或 Cookie 中统一提取 JWT                                                                                                                               |
+| `feishu.ts`     | 飞书 OAuth 流程（授权 URL 生成、code 换 token、用户信息获取）                                                                                                                              |
+| `membership.ts` | `isProjectMember()` — 项目成员检查（admin 全局通过）；`hasProjectRole()` — 项目角色检查（admin 绕过，用于项目管理）；`hasContentRole()` — 内容角色检查（admin 不绕过，用于编辑/审核/发布） |
 
 ## 工具库 (server/lib/) — 10 个
 
@@ -68,7 +68,7 @@
 | `pagination.ts`   | 分页查询工具：`parsePagination()` 解析 limit/offset + `paginatedQuery<T>()` 封装 COUNT + SELECT      |
 | `upload-refs.ts`  | 上传文件引用提取：从 HTML/Y.js BLOB 中扫描 `/uploads/` 路径，绝对/相对路径互转                       |
 | `yjs-utils.ts`    | Y.js 编解码：`yjsDataToHtml()` 将 snapshot+updates 解码为 HTML，`htmlToYjsSnapshot()` 反向编码       |
-| `win-encoding.ts` | Windows 终端 UTF-8 修复（启动时自动 `chcp 65001`）                                                    |
+| `win-encoding.ts` | Windows 终端 UTF-8 修复（启动时自动 `chcp 65001`）                                                   |
 
 ## 配置 (server/config.ts)
 

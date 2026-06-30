@@ -48,6 +48,7 @@ export default defineConfig({
     ['bg-accent', { 'background-color': 'var(--c-accent-bg)' }],
     // 语义色
     ['color-danger', { color: 'var(--c-danger)' }],
+    ['color-success', { color: 'var(--c-success)' }],
     ['bg-danger', { 'background-color': 'var(--c-danger-bg)' }],
     ['bg-warning', { 'background-color': 'var(--c-warning-bg)' }],
     ['bg-success', { 'background-color': 'var(--c-success-bg)' }],

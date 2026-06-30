@@ -56,7 +56,7 @@ CatalogEntry = CatalogFeatureEntry | CatalogPart
 CatalogInfo // { id, title, features, coverInfo, projectId, createdAt, updatedAt }
 CatalogVersionStatus // 'active' | 'deprecated' | 'archived'
 CatalogVersionInfo // { id, versionMajor, versionMinor, title, changeNotes, visibility, publishScope, status, createdAt }
-isCatalogPart(entry)  // 类型守卫
+isCatalogPart(entry) // 类型守卫
 ```
 
 ### 分类相关
