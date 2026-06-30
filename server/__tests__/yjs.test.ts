@@ -1,12 +1,13 @@
 /** Yjs 文档测试：快照创建与恢复 */
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest'
-import { getDb } from '../db/index.js'
+import { getDb, initDatabase } from '../db/index.js'
 
 const TEST_FEATURE_ID = '__test_yjs_feat'
 const TEST_DOC_ID = `${TEST_FEATURE_ID}/section`
 const TEST_DOC_ID_2 = `${TEST_FEATURE_ID}/section2`
 
 beforeAll(async () => {
+  initDatabase()
   const db = getDb()
   db.prepare(
     'INSERT OR IGNORE INTO features (id, title, description, sections, is_custom, project_id) VALUES (?, ?, ?, ?, ?, ?)',

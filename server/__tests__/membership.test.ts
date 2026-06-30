@@ -2,7 +2,7 @@
  * 直接测试 membership 工具函数（不走 HTTP）
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { getDb } from '../db/index.js'
+import { getDb, initDatabase } from '../db/index.js'
 import {
   isProjectMember,
   hasProjectRole,
@@ -16,6 +16,7 @@ const TEST_PROJECT_ID = '__test_mbr_proj'
 const TEST_CATALOG_ID = '__test_mbr_cat'
 
 beforeAll(() => {
+  initDatabase()
   const db = getDb()
   // 创建测试用户
   db.prepare(

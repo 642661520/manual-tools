@@ -34,6 +34,8 @@ export default defineConfig({
       'shared/__tests__/**/*.test.ts',
     ],
     testTimeout: 10000,
+    // 服务端测试共享 SQLite DB，必须顺序执行
+    sequence: { concurrent: false },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'text-summary', 'lcov', 'html'],

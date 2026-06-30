@@ -300,15 +300,14 @@ export function initDatabase() {
     conn.exec('ALTER TABLE users ADD COLUMN deleted_at TEXT DEFAULT NULL')
   }
 
-  // 种子系统管理员账号
-  const admin = conn.prepare('SELECT id FROM users WHERE username = ?').get(config.adminUsername)
-  if (!admin) {
-    const hashed = bcrypt.hashSync(config.adminPassword, 10)
-    conn
-      .prepare(
-        'INSERT INTO users (id, username, display_name, password_hash, role) VALUES (?, ?, ?, ?, ?)',
-      )
-      .run('seed-admin-001', config.adminUsername, 'admin', hashed, 'admin')
+  // 种子系统管理员账号（幂等：INSERT OR IGNORE 防并发冲突）
+  const hashed = bcrypt.hashSync(config.adminPassword, 10)
+  const result = conn
+    .prepare(
+      'INSERT OR IGNORE INTO users (id, username, display_name, password_hash, role) VALUES (?, ?, ?, ?, ?)',
+    )
+    .run('seed-admin-001', config.adminUsername, 'admin', hashed, 'admin')
+  if (result.changes > 0) {
     log.info('admin user seeded')
   }
   // 确保管理员始终在默认项目中（幂等，独立于用户创建）
