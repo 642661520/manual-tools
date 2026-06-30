@@ -6,7 +6,12 @@ import { join } from 'path'
 import { ZipArchive } from 'archiver'
 import { getDb } from '../db/index.js'
 import { authMiddleware, requireRole, ensureProjectWritable } from '../auth/middleware.js'
-import { isProjectMember, hasProjectRole, assertCatalogMember } from '../auth/membership.js'
+import {
+  isProjectMember,
+  hasProjectRole,
+  hasContentRole,
+  assertCatalogMember,
+} from '../auth/membership.js'
 import { recordAudit } from '../services/audit.js'
 import { success, created, ok, fail } from '../lib/response.js'
 import { v4 as uuid } from 'uuid'
@@ -337,7 +342,7 @@ export async function catalogRoutes(app: FastifyInstance) {
         .prepare('SELECT project_id, title FROM catalogs WHERE id = ?')
         .get(id) as { project_id: string; title: string } | undefined
       if (!catalogMeta) return fail(reply, 404, '目录不存在')
-      if (!hasProjectRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
+      if (!hasContentRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
 
@@ -400,7 +405,7 @@ export async function catalogRoutes(app: FastifyInstance) {
         .prepare('SELECT project_id, title FROM catalogs WHERE id = ?')
         .get(id) as { project_id: string; title: string } | undefined
       if (!catalogMeta) return fail(reply, 404, '目录不存在')
-      if (!hasProjectRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
+      if (!hasContentRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
 
@@ -468,7 +473,7 @@ export async function catalogRoutes(app: FastifyInstance) {
         )
         .get(id) as CatalogRow | undefined
       if (!catalogMeta) return fail(reply, 404, '目录不存在')
-      if (!hasProjectRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
+      if (!hasContentRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
 
@@ -564,7 +569,7 @@ export async function catalogRoutes(app: FastifyInstance) {
         .prepare('SELECT project_id, title, features FROM catalogs WHERE id = ?')
         .get(id) as { project_id: string; title: string; features: string } | undefined
       if (!catalogMeta) return fail(reply, 404, 'Catalog not found')
-      if (!hasProjectRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
+      if (!hasContentRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
       if (!ensureProjectWritable(catalogMeta.project_id, reply)) return
@@ -719,7 +724,7 @@ export async function catalogRoutes(app: FastifyInstance) {
         | { project_id: string }
         | undefined
       if (!catalogMeta) return fail(reply, 404, '目录不存在')
-      if (!hasProjectRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
+      if (!hasContentRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
       if (!ensureProjectWritable(catalogMeta.project_id, reply)) return
@@ -764,7 +769,7 @@ export async function catalogRoutes(app: FastifyInstance) {
         | { project_id: string }
         | undefined
       if (!catalogMeta) return fail(reply, 404, '目录不存在')
-      if (!hasProjectRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
+      if (!hasContentRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
       if (!ensureProjectWritable(catalogMeta.project_id, reply)) return
@@ -810,7 +815,7 @@ export async function catalogRoutes(app: FastifyInstance) {
         | { project_id: string }
         | undefined
       if (!catalogMeta) return fail(reply, 404, '目录不存在')
-      if (!hasProjectRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
+      if (!hasContentRole(req.user!.userId, req.user!.role, catalogMeta.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
       if (!ensureProjectWritable(catalogMeta.project_id, reply)) return
@@ -1030,7 +1035,7 @@ export async function catalogRoutes(app: FastifyInstance) {
       const body = req.body as CreateCatalogBody
       const projectId = body.projectId || 'default'
 
-      if (!hasProjectRole(req.user!.userId, req.user!.role, projectId, 'pm')) {
+      if (!hasContentRole(req.user!.userId, req.user!.role, projectId, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
       if (!ensureProjectWritable(projectId, reply)) return
@@ -1076,7 +1081,7 @@ export async function catalogRoutes(app: FastifyInstance) {
         | undefined
       if (!existing) return fail(reply, 404, 'Not found')
 
-      if (!hasProjectRole(req.user!.userId, req.user!.role, existing.project_id, 'pm')) {
+      if (!hasContentRole(req.user!.userId, req.user!.role, existing.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
       if (!ensureProjectWritable(existing.project_id, reply)) return
@@ -1114,7 +1119,7 @@ export async function catalogRoutes(app: FastifyInstance) {
         | undefined
       if (!catalog) return fail(reply, 404, 'Not found')
 
-      if (!hasProjectRole(req.user!.userId, req.user!.role, catalog.project_id, 'pm')) {
+      if (!hasContentRole(req.user!.userId, req.user!.role, catalog.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
       if (!ensureProjectWritable(catalog.project_id, reply)) return

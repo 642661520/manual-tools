@@ -152,9 +152,10 @@ export function initDatabase() {
       token_version INTEGER NOT NULL DEFAULT 0,
       notify_enabled INTEGER NOT NULL DEFAULT 1,
       notify_prefs TEXT DEFAULT '{"assign":true,"review":true,"project":true,"status":true}',
-      username_changed INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
+	      username_changed INTEGER NOT NULL DEFAULT 0,
+	      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+	      deleted_at TEXT DEFAULT NULL
+	    );
 
     CREATE TABLE IF NOT EXISTS project_members (
       project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -294,6 +295,11 @@ export function initDatabase() {
     conn.exec('ALTER TABLE documents RENAME COLUMN review_log TO status_log')
   }
 
+  // 幂等迁移：users 添加 deleted_at 列（软删除）
+  if (!columnExists(conn, 'users', 'deleted_at')) {
+    conn.exec('ALTER TABLE users ADD COLUMN deleted_at TEXT DEFAULT NULL')
+  }
+
   // 种子系统管理员账号
   const admin = conn.prepare('SELECT id FROM users WHERE username = ?').get(config.adminUsername)
   if (!admin) {
@@ -303,12 +309,19 @@ export function initDatabase() {
         'INSERT INTO users (id, username, display_name, password_hash, role) VALUES (?, ?, ?, ?, ?)',
       )
       .run('seed-admin-001', config.adminUsername, 'admin', hashed, 'admin')
-    // 将管理员加入默认项目
-    conn
-      .prepare('INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)')
-      .run('default', 'seed-admin-001', 'pm')
     log.info('admin user seeded')
   }
+  // 确保管理员始终在默认项目中（幂等，独立于用户创建）
+  conn
+    .prepare('INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)')
+    .run('default', 'seed-admin-001', 'pm')
+
+  // 幂等迁移：确保已存在的管理员在默认项目中有 pm 角色（修复旧数据库）
+  conn
+    .prepare(
+      "INSERT OR IGNORE INTO project_members (project_id, user_id, role) SELECT 'default', u.id, 'pm' FROM users u WHERE u.role = 'admin'",
+    )
+    .run()
 
   // 清理过期的导出/导入任务文件
   const expiredTasks = conn

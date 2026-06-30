@@ -50,13 +50,17 @@ export async function todoRoutes(app: FastifyInstance) {
     } else if (userRole === 'member') {
       docs = db
         .prepare(`
-        SELECT d.*, f.title as feature_title, f.project_id as feature_project_id
+        SELECT d.*, f.title as feature_title, f.project_id as feature_project_id, pm.role as member_role
         FROM documents d
         JOIN features f ON f.id = d.feature_id
         JOIN project_members pm ON f.project_id = pm.project_id AND pm.user_id = ?
         ORDER BY f.title, d.section_key
       `)
-        .all(userId) as (DocumentRow & { feature_title: string; feature_project_id: string })[]
+        .all(userId) as (DocumentRow & {
+        feature_title: string
+        feature_project_id: string
+        member_role: string
+      })[]
     } else {
       docs = db
         .prepare(`
@@ -94,26 +98,26 @@ export async function todoRoutes(app: FastifyInstance) {
         const project = db
           .prepare('SELECT review_chain FROM projects WHERE id = ?')
           .get(projectId) as { review_chain: string } | undefined
+        let chain: string[] = []
         if (project) {
           try {
-            reviewChainCache.set(projectId, JSON.parse(project.review_chain || '[]') as string[])
+            chain = JSON.parse(project.review_chain || '[]') as string[]
           } catch {
-            reviewChainCache.set(projectId, [])
+            chain = []
           }
-        } else {
-          // fallback: 项目所有 PM（查 project_members.role = 'pm'）
+        }
+        // fallback：审核链为空时，所有 PM 都是审核人
+        if (chain.length === 0) {
           const pms = db
             .prepare(`
             SELECT u.id FROM users u
             JOIN project_members pm ON u.id = pm.user_id
-            WHERE pm.project_id = ? AND pm.role = 'pm'
+            WHERE pm.project_id = ? AND pm.role = 'pm' AND u.deleted_at IS NULL
           `)
             .all(projectId) as { id: string }[]
-          reviewChainCache.set(
-            projectId,
-            pms.map((p) => p.id),
-          )
+          chain = pms.map((p) => p.id)
         }
+        reviewChainCache.set(projectId, chain)
       }
       const chain = reviewChainCache.get(projectId)!
       return step < chain.length ? chain[step] : null
@@ -123,8 +127,12 @@ export async function todoRoutes(app: FastifyInstance) {
       try {
         const assignees: string[] = JSON.parse(doc.assignees || '[]')
 
-        // 1. 编写任务：当前用户被指派
-        if (assignees.includes(userId)) {
+        // 1. 编写任务：当前用户被指派，且可编写，且文档状态允许编写
+        // pending_review / approved 状态下不生成编写任务（已提交/已审核）
+        const memberRole = (doc as any).member_role as string | undefined
+        const canWrite = !memberRole || memberRole === 'writer' || memberRole === 'pm'
+        const writeStatuses = ['draft', 'in_progress', 'rejected']
+        if (assignees.includes(userId) && canWrite && writeStatuses.includes(doc.status)) {
           todos.push({
             docId: doc.id,
             featureId: doc.feature_id,
@@ -139,7 +147,7 @@ export async function todoRoutes(app: FastifyInstance) {
         }
 
         // 2. 审核任务：待审核且当前用户是当前步骤的审核人
-        if (doc.status === 'pending_review' && (userRole === 'admin' || userRole === 'member')) {
+        if (doc.status === 'pending_review') {
           const currentReviewer = getReviewerAtStep(doc.feature_project_id, doc.review_step)
           if (currentReviewer === userId) {
             // 避免重复（如果用户既是指派人又是审核人）

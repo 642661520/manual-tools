@@ -26,11 +26,16 @@ export async function authMiddleware(req: FastifyRequest, reply: FastifyReply) {
   const { getDb } = await import('../db/index.js')
   const db = getDb()
   const user = db
-    .prepare('SELECT role, token_version FROM users WHERE id = ?')
-    .get(payload.userId) as { role: string; token_version: number } | undefined
+    .prepare('SELECT role, token_version, deleted_at FROM users WHERE id = ?')
+    .get(payload.userId) as
+    | { role: string; token_version: number; deleted_at: string | null }
+    | undefined
 
   if (!user) {
     return reply.status(401).send({ ok: false, error: '用户不存在' })
+  }
+  if (user.deleted_at) {
+    return reply.status(401).send({ ok: false, error: '账号已被禁用' })
   }
   if (user.token_version !== payload.tokenVersion) {
     return reply.status(401).send({ ok: false, error: '登录已失效，请重新登录' })

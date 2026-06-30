@@ -1,22 +1,52 @@
 <h1>权限矩阵</h1>
-<p>以下是系统角色和项目角色交叉的完整权限对照。</p>
-<h2>项目操作权限</h2>
+<p>以下是系统角色和项目角色交叉的完整权限对照。注意：系统 Admin 不会自动继承项目内容操作权限。</p>
+<h2>平台级操作</h2>
 <table>
   <tr>
     <th>操作</th>
     <th>Admin</th>
-    <th>Member+PM</th>
-    <th>Member+Writer</th>
-    <th>Member+Viewer</th>
+    <th>Member</th>
     <th>Guest</th>
   </tr>
   <tr>
-    <td>创建项目</td>
+    <td>创建/删除项目</td>
     <td>✅</td>
     <td>❌</td>
     <td>❌</td>
+  </tr>
+  <tr>
+    <td>管理用户</td>
+    <td>✅</td>
     <td>❌</td>
     <td>❌</td>
+  </tr>
+  <tr>
+    <td>查看审计日志</td>
+    <td>✅</td>
+    <td>❌</td>
+    <td>❌</td>
+  </tr>
+  <tr>
+    <td>查看所有项目列表</td>
+    <td>✅</td>
+    <td>（仅已加入的）</td>
+    <td>❌</td>
+  </tr>
+  <tr>
+    <td>访问公开文档</td>
+    <td>✅</td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+</table>
+<h2>项目管理操作</h2>
+<table>
+  <tr>
+    <th>操作</th>
+    <th>Admin（未加入项目）</th>
+    <th>PM</th>
+    <th>Writer</th>
+    <th>Viewer</th>
   </tr>
   <tr>
     <td>管理项目成员</td>
@@ -24,53 +54,91 @@
     <td>✅</td>
     <td>❌</td>
     <td>❌</td>
+  </tr>
+  <tr>
+    <td>配置审核链</td>
+    <td>✅</td>
+    <td>✅</td>
+    <td>❌</td>
+    <td>❌</td>
+  </tr>
+  <tr>
+    <td>数据导入导出</td>
+    <td>✅</td>
+    <td>✅</td>
+    <td>❌</td>
+    <td>❌</td>
+  </tr>
+  <tr>
+    <td>查看项目数据（只读）</td>
+    <td>✅</td>
+    <td>✅</td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+</table>
+<h2>内容操作</h2>
+<table>
+  <tr>
+    <th>操作</th>
+    <th>Admin（未加入项目）</th>
+    <th>PM</th>
+    <th>Writer</th>
+    <th>Viewer</th>
+  </tr>
+  <tr>
+    <td>创建/编辑/删除功能</td>
+    <td>❌</td>
+    <td>✅</td>
+    <td>❌</td>
     <td>❌</td>
   </tr>
   <tr>
     <td>管理分类</td>
-    <td>✅</td>
-    <td>✅</td>
     <td>❌</td>
-    <td>❌</td>
-    <td>❌</td>
-  </tr>
-  <tr>
-    <td>管理功能</td>
     <td>✅</td>
-    <td>✅</td>
-    <td>❌</td>
     <td>❌</td>
     <td>❌</td>
   </tr>
   <tr>
     <td>编辑文档</td>
+    <td>❌</td>
     <td>✅</td>
     <td>✅</td>
+    <td>❌</td>
+  </tr>
+  <tr>
+    <td>提交审核</td>
+    <td>❌</td>
+    <td>✅</td>
+    <td>✅</td>
+    <td>❌</td>
+  </tr>
+  <tr>
+    <td>审核文档（通过/退回）</td>
+    <td>❌</td>
     <td>✅</td>
     <td>❌</td>
     <td>❌</td>
   </tr>
   <tr>
-    <td>查看文档</td>
+    <td>指派编辑者</td>
+    <td>❌</td>
     <td>✅</td>
-    <td>✅</td>
-    <td>✅</td>
-    <td>✅</td>
+    <td>❌</td>
     <td>❌</td>
   </tr>
   <tr>
     <td>管理目录</td>
-    <td>✅</td>
-    <td>✅</td>
     <td>❌</td>
+    <td>✅</td>
     <td>❌</td>
     <td>❌</td>
   </tr>
   <tr>
     <td>发布版本</td>
-    <td>✅</td>
-    <td>✅</td>
     <td>❌</td>
+    <td>✅</td>
     <td>❌</td>
     <td>❌</td>
   </tr>
@@ -80,22 +148,30 @@
     <td>✅</td>
     <td>✅</td>
     <td>✅</td>
-    <td>❌</td>
-  </tr>
-  <tr>
-    <td>访问公开文档</td>
-    <td>✅</td>
-    <td>✅</td>
-    <td>✅</td>
-    <td>✅</td>
-    <td>✅</td>
   </tr>
 </table>
-<h2>说明</h2>
-<p>
-  Admin 对所有项目自动拥有 PM 权限，不受项目成员列表限制。公开文档（visibility =
-  public）无需登录即可访问。
-</p>
+<h2>技术实现</h2>
+<ul>
+  <li>
+    <code>hasProjectRole()</code> — 用于项目管理操作，Admin 默认通过。检查
+    <code>project_members</code> 表
+  </li>
+  <li>
+    <code>hasContentRole()</code> — 用于内容流水线操作，Admin 不绕过，必须显式在
+    <code>project_members</code> 中有对应角色
+  </li>
+  <li><code>isProjectMember()</code> — 用于只读查看，Admin 默认通过</li>
+  <li>
+    前端使用 <code>canManageProject</code> 控制项目设置入口，<code>isProjectPM</code>/<code
+      >isProjectWriter</code
+    >
+    控制内容操作入口
+  </li>
+  <li>
+    指派编辑者下拉菜单仅显示 Writer 项目角色成员，Viewer 和 PM 不可见（PM
+    无需被指派即可操作所有内容）
+  </li>
+</ul>
 <div data-image-placeholder="permissions-matrix.png">
   <div>图片占位：permissions - matrix</div>
 </div>

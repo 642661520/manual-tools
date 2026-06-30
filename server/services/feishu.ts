@@ -88,6 +88,11 @@ export interface FeishuCardContent {
   elements?: Array<Record<string, unknown>>
 }
 
+/** 将普通 URL 转为飞书 AppLink，使链接在飞书客户端内打开而非外部浏览器 */
+function toAppLink(url: string): string {
+  return `https://applink.feishu.cn/client/web_url/open?url=${encodeURIComponent(url)}&mode=appCenter`
+}
+
 export function buildCardMessage(
   title: string,
   body: string,
@@ -105,6 +110,7 @@ export function buildCardMessage(
   ]
 
   if (options?.link) {
+    const appLink = toAppLink(options.link.url)
     elements.push({
       tag: 'action',
       actions: [
@@ -112,7 +118,7 @@ export function buildCardMessage(
           tag: 'button',
           text: { tag: 'plain_text', content: options.link.title },
           type: 'primary',
-          url: options.link.url,
+          url: appLink,
         },
       ],
     })
@@ -261,5 +267,9 @@ export async function exchangeCodeForToken(code: string): Promise<FeishuUserInfo
     }
   }
 
-  throw new Error('飞书授权失败')
+  // 打印飞书 API 原始错误，方便定位
+  console.error('[feishu] exchangeCodeForToken 失败，飞书响应:', JSON.stringify(userData))
+  throw new Error(
+    `飞书授权失败: ${(userData as unknown as Record<string, unknown>).msg || userData.code || '未知错误'}`,
+  )
 }

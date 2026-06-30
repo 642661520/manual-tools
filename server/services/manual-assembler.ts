@@ -370,9 +370,6 @@ export function assembleChapter(
       flat.push({ featureId: entry.featureId, sectionOrder: entry.sectionOrder })
     }
   }
-  const totalChapters = flat.length
-  if (chNum < 1 || chNum > totalChapters) return null
-  const target = flat[chNum - 1]
 
   // 构建 featureMap：优先使用传入的快照数据，否则查询 DB
   let featureMap: Map<string, FeatureRow | FeatureData>
@@ -386,12 +383,17 @@ export function assembleChapter(
     featureMap = new Map<string, FeatureRow | FeatureData>(featureRows.map((f) => [f.id, f]))
   }
 
-  // 构建 chapterMap
+  // 过滤已删除的 feature，使章节编号紧凑（与侧边栏/assembleManual 一致）
+  const alive = flat.filter((e) => featureMap.has(e.featureId))
+  const totalChapters = alive.length
+  if (chNum < 1 || chNum > totalChapters) return null
+  const target = alive[chNum - 1]
+
+  // 构建 chapterMap（基于全部 raw entries，用于交叉引用解析）
   const chapterMap = buildChapterMap(flat, featureMap)
 
-  // 获取目标 feature
-  const f = featureMap.get(target.featureId)
-  if (!f) return null
+  // 获取目标 feature（alive 已过滤，必然存在）
+  const f = featureMap.get(target.featureId)!
 
   const ordered = resolveSections(f.sections, f.title, target.sectionOrder)
 
@@ -597,7 +599,7 @@ function batchGetDocumentContents(docIds: string[]): Map<string, string> {
 
 // ================ 交叉引用解析 =============================================
 
-function resolveCrossReferences(
+export function resolveCrossReferences(
   html: string,
   chapterMap: Map<
     string,
@@ -610,18 +612,28 @@ function resolveCrossReferences(
   >,
 ): string {
   if (!html) return html
+  // 匹配 <crossref ...>content</crossref> 或自闭合 <crossref ... />
   return html.replace(
-    /<crossref\s+[^>]*(?:data-feature-id|featureid|featureId)="([^"]+)"[^>]*>(?:[^<]*)<\/crossref>/gi,
-    (_match, featureId: string) => {
-      const sectionMatch = _match.match(/(?:data-section-key|sectionkey|sectionKey)="([^"]*)"/i)
-      const sectionKey = sectionMatch ? sectionMatch[1] : ''
+    /<crossref\b[^>]*?\bdata-feature-id="([^"]*)"([^>]*?)(?:\/>|>([\s\S]*?)<\/crossref>)/gi,
+    (_match, featureId: string, restAttrs: string, innerContent?: string) => {
+      if (!featureId) return _match
+      // 从剩余属性或 innerContent 中提取 sectionKey
+      let sectionKey = ''
+      const secMatch = restAttrs.match(/\bdata-section-key="([^"]*)"/i)
+      if (secMatch) {
+        sectionKey = secMatch[1]
+      } else if (innerContent !== undefined) {
+        // 尝试从 innerContent 中提取（兼容旧格式）
+        const contentMatch = innerContent.match(/\bdata-section-key="([^"]*)"/i)
+        if (contentMatch) sectionKey = contentMatch[1]
+      }
       const info = chapterMap.get(featureId)
       if (!info) return '→ 参见：*（未收录）*'
       if (sectionKey && info.sections[sectionKey]) {
         const sec = info.sections[sectionKey]
-        return `→ 参见：[第 ${info.num} 章 ${info.title} › ${sec.title}](#${sec.anchorId})`
+        return `→ 参见：<a href="#${sec.anchorId}" class="crossref-link">第 ${info.num} 章 ${info.title} › ${sec.title}</a>`
       }
-      return `→ 参见：[第 ${info.num} 章 ${info.title}](#${info.anchorId})`
+      return `→ 参见：<a href="#${info.anchorId}" class="crossref-link">第 ${info.num} 章 ${info.title}</a>`
     },
   )
 }

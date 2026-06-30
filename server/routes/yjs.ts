@@ -11,7 +11,7 @@ import {
 import { authMiddleware, ensureProjectWritable } from '../auth/middleware.js'
 import { config } from '../config.js'
 import { verifyToken } from '../auth/jwt.js'
-import { isProjectMember, hasProjectRole } from '../auth/membership.js'
+import { isProjectMember, hasProjectRole, hasContentRole } from '../auth/membership.js'
 import { getDb } from '../db/index.js'
 import { ok, fail } from '../lib/response.js'
 import {
@@ -115,7 +115,7 @@ export async function yjsRoutes(app: FastifyInstance) {
               return
             }
             // Viewer 角色只读：无权编辑文档内容
-            if (!hasProjectRole(payload.userId, payload.role, feature.project_id, 'writer')) {
+            if (!hasContentRole(payload.userId, payload.role, feature.project_id, 'writer')) {
               readOnly = true
               socket.send(
                 JSON.stringify({

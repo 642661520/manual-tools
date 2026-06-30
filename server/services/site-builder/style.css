@@ -698,6 +698,17 @@ a:hover {
   color: var(--vp-c-accent-hover);
 }
 
+.vp-section-body a.crossref-link {
+  color: var(--vp-c-accent);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--vp-c-accent);
+  padding-bottom: 1px;
+}
+.vp-section-body a.crossref-link:hover {
+  color: var(--vp-c-accent-hover);
+  border-bottom-style: solid;
+}
+
 .vp-section-body code {
   font-family: var(--vp-font-mono);
   font-size: 0.875em;

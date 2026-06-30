@@ -6,6 +6,7 @@ import { getDb } from '../db/index.js'
 import {
   isProjectMember,
   hasProjectRole,
+  hasContentRole,
   isExplicitMember,
   assertCatalogMember,
 } from '../auth/membership.js'
@@ -82,6 +83,28 @@ describe('hasProjectRole', () => {
 
   it('非项目成员不满足任何角色', () => {
     expect(hasProjectRole('non-existent', 'member', TEST_PROJECT_ID, 'viewer')).toBe(false)
+  })
+})
+
+describe('hasContentRole', () => {
+  it('admin 不自动绕过，需显式在 project_members 中', () => {
+    // admin 不在 project_members 中 → 不满足任何角色
+    expect(hasContentRole('any-user', 'admin', TEST_PROJECT_ID, 'pm')).toBe(false)
+    expect(hasContentRole('any-user', 'admin', TEST_PROJECT_ID, 'writer')).toBe(false)
+    expect(hasContentRole('any-user', 'admin', TEST_PROJECT_ID, 'viewer')).toBe(false)
+  })
+
+  it('显式成员满足对应角色', () => {
+    expect(hasContentRole(TEST_USER_ID, 'member', TEST_PROJECT_ID, 'viewer')).toBe(true)
+    expect(hasContentRole(TEST_USER_ID, 'member', TEST_PROJECT_ID, 'writer')).toBe(true)
+  })
+
+  it('writer 角色不满足 pm 要求', () => {
+    expect(hasContentRole(TEST_USER_ID, 'member', TEST_PROJECT_ID, 'pm')).toBe(false)
+  })
+
+  it('非项目成员不满足任何角色', () => {
+    expect(hasContentRole('non-existent', 'member', TEST_PROJECT_ID, 'viewer')).toBe(false)
   })
 })
 

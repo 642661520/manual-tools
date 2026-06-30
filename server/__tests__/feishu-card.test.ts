@@ -17,14 +17,17 @@ describe('buildCardMessage', () => {
 
   it('包含链接按钮', () => {
     const card = buildCardMessage('标题', '内容', {
-      link: { url: 'https://example.com', title: '查看详情' },
+      link: { url: 'https://example.com/page', title: '查看详情' },
     })
     expect(card.elements!).toHaveLength(2)
     const action = card.elements![1] as { tag: string; actions: Array<Record<string, unknown>> }
     expect(action.tag).toBe('action')
-    expect(action.actions[0].tag).toBe('button')
-    expect(action.actions[0].text).toEqual({ tag: 'plain_text', content: '查看详情' })
-    expect(action.actions[0].url).toBe('https://example.com')
+    const btn = action.actions[0]
+    expect(btn.tag).toBe('button')
+    expect(btn.text).toEqual({ tag: 'plain_text', content: '查看详情' })
+    expect(btn.type).toBe('primary')
+    expect(btn.url).toContain('applink.feishu.cn/client/web_url/open')
+    expect(btn.url).toContain('mode=appCenter')
   })
 
   it('不传 options 使用默认值', () => {

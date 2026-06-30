@@ -70,6 +70,7 @@ export interface CreateFeatureBody {
   sections?: SectionDef[]
   categoryId?: string
   projectId?: string
+  createDefaultSection?: boolean
 }
 
 export type UpdateFeatureBody = CreateFeatureBody

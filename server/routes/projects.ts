@@ -243,7 +243,7 @@ export async function projectRoutes(app: FastifyInstance) {
       SELECT u.id, u.username, u.display_name, u.role, u.feishu_open_id, u.feishu_name, u.feishu_avatar_url, pm.role as project_role
       FROM users u
       JOIN project_members pm ON u.id = pm.user_id
-      WHERE pm.project_id = ?
+      WHERE pm.project_id = ? AND u.deleted_at IS NULL
       ORDER BY u.display_name
     `)
       .all(id) as (UserRow & { project_role: string })[]
@@ -273,10 +273,10 @@ export async function projectRoutes(app: FastifyInstance) {
 
       const db = getDb()
       // 验证目标用户存在
-      const targetUser = db.prepare('SELECT id, role FROM users WHERE id = ?').get(targetUserId) as
-        | { id: string; role: string }
-        | undefined
-      if (!targetUser) {
+      const targetUser = db
+        .prepare('SELECT id, role, deleted_at FROM users WHERE id = ?')
+        .get(targetUserId) as { id: string; role: string; deleted_at: string | null } | undefined
+      if (!targetUser || targetUser.deleted_at) {
         return fail(reply, 404, '用户不存在')
       }
       if (targetUser.role === 'guest') {
@@ -303,6 +303,32 @@ export async function projectRoutes(app: FastifyInstance) {
         id,
         targetUserId,
       )
+
+      // 角色变更到 viewer 或 PM 时，清理该用户在本项目的所有编写指派
+      // viewer 无权编写，PM 无需被指派（可自行编辑审核）
+      if (memberRole === 'viewer' || memberRole === 'pm') {
+        const docs = db
+          .prepare(`
+          SELECT d.id, d.assignees FROM documents d
+          JOIN features f ON f.id = d.feature_id
+          WHERE f.project_id = ?
+        `)
+          .all(id) as { id: string; assignees: string }[]
+        for (const doc of docs) {
+          try {
+            const assignees: string[] = JSON.parse(doc.assignees || '[]')
+            const updated = assignees.filter((a) => a !== targetUserId)
+            if (updated.length !== assignees.length) {
+              db.prepare('UPDATE documents SET assignees = ? WHERE id = ?').run(
+                JSON.stringify(updated),
+                doc.id,
+              )
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+      }
 
       const project = db.prepare('SELECT name FROM projects WHERE id = ?').get(id) as
         | { name: string }
@@ -455,7 +481,7 @@ export async function projectRoutes(app: FastifyInstance) {
       SELECT u.id, u.username, u.display_name, u.role
       FROM users u
       JOIN project_members pm ON u.id = pm.user_id
-      WHERE pm.project_id = ? AND pm.role = 'pm'
+      WHERE pm.project_id = ? AND pm.role = 'pm' AND u.deleted_at IS NULL
       ORDER BY u.display_name
     `)
         .all(id) as { id: string; username: string; display_name: string; role: string }[]
@@ -495,7 +521,7 @@ export async function projectRoutes(app: FastifyInstance) {
         .prepare(`
       SELECT u.id FROM users u
       JOIN project_members pm ON u.id = pm.user_id
-      WHERE pm.project_id = ? AND pm.role = 'pm'
+      WHERE pm.project_id = ? AND pm.role = 'pm' AND u.deleted_at IS NULL
     `)
         .all(id) as { id: string }[]
       const pmIds = new Set(pmMembers.map((p) => p.id))

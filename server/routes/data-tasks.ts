@@ -5,6 +5,7 @@
 import { FastifyInstance } from 'fastify'
 import { getDb } from '../db/index.js'
 import { authMiddleware, requireRole, ensureProjectWritable } from '../auth/middleware.js'
+import { hasProjectRole } from '../auth/membership.js'
 import { config } from '../config.js'
 import { success, ok, fail } from '../lib/response.js'
 import { parsePagination } from '../lib/pagination.js'
@@ -25,6 +26,12 @@ import type { ImportApplyOptions } from '../../shared/types/models.js'
 const IMPORT_BASE = config.importDir
 
 export async function dataTaskRoutes(app: FastifyInstance) {
+  /** 从任务 scope 校验用户是否为对应项目的 PM（admin 自动通过） */
+  function requireTaskPM(userId: string, role: string, scope: string): boolean {
+    const projectId = scope.replace(/^project:/, '')
+    return hasProjectRole(userId, role, projectId, 'pm')
+  }
+
   // ============================================================
   // 项目导出
   // ============================================================
@@ -33,10 +40,13 @@ export async function dataTaskRoutes(app: FastifyInstance) {
   app.get(
     '/api/v1/projects/:id/export/estimate',
     {
-      preHandler: [authMiddleware, requireRole('admin')],
+      preHandler: [authMiddleware, requireRole('admin', 'member')],
     },
-    async (req) => {
+    async (req, reply) => {
       const { id } = req.params as { id: string }
+      if (!hasProjectRole(req.user!.userId, req.user!.role, id, 'pm')) {
+        return fail(reply, 403, '项目内权限不足')
+      }
       const estimate = estimateExport(id)
       return success(estimate)
     },
@@ -46,10 +56,13 @@ export async function dataTaskRoutes(app: FastifyInstance) {
   app.post(
     '/api/v1/projects/:id/export',
     {
-      preHandler: [authMiddleware, requireRole('admin')],
+      preHandler: [authMiddleware, requireRole('admin', 'member')],
     },
     async (req, reply) => {
       const { id } = req.params as { id: string }
+      if (!hasProjectRole(req.user!.userId, req.user!.role, id, 'pm')) {
+        return fail(reply, 403, '项目内权限不足')
+      }
       const db = getDb()
 
       // 验证项目存在
@@ -106,10 +119,13 @@ export async function dataTaskRoutes(app: FastifyInstance) {
   app.post(
     '/api/v1/projects/:id/import/upload',
     {
-      preHandler: [authMiddleware, requireRole('admin')],
+      preHandler: [authMiddleware, requireRole('admin', 'member')],
     },
     async (req, reply) => {
       const { id } = req.params as { id: string }
+      if (!hasProjectRole(req.user!.userId, req.user!.role, id, 'pm')) {
+        return fail(reply, 403, '项目内权限不足')
+      }
       const db = getDb()
 
       const project = db.prepare('SELECT id FROM projects WHERE id = ?').get(id)
@@ -159,11 +175,18 @@ export async function dataTaskRoutes(app: FastifyInstance) {
   app.get(
     '/api/v1/data-tasks',
     {
-      preHandler: [authMiddleware, requireRole('admin')],
+      preHandler: [authMiddleware, requireRole('admin', 'member')],
     },
-    async (req) => {
+    async (req, reply) => {
       const { scope } = req.query as { scope?: string }
       const db = getDb()
+      const userId = req.user!.userId
+      const role = req.user!.role
+
+      // 若指定了 scope，校验 PM 权限
+      if (scope && !requireTaskPM(userId, role, scope)) {
+        return fail(reply, 403, '项目内权限不足')
+      }
 
       let rows: Array<{
         id: string
@@ -219,11 +242,13 @@ export async function dataTaskRoutes(app: FastifyInstance) {
   app.get(
     '/api/v1/data-tasks/:id',
     {
-      preHandler: [authMiddleware, requireRole('admin')],
+      preHandler: [authMiddleware, requireRole('admin', 'member')],
     },
     async (req, reply) => {
       const { id } = req.params as { id: string }
       const db = getDb()
+      const userId = req.user!.userId
+      const role = req.user!.role
 
       const task = db.prepare('SELECT * FROM data_tasks WHERE id = ?').get(id) as
         | {
@@ -246,6 +271,9 @@ export async function dataTaskRoutes(app: FastifyInstance) {
         | undefined
 
       if (!task) return fail(reply, 404, '任务不存在')
+      if (!requireTaskPM(userId, role, task.scope)) {
+        return fail(reply, 403, '项目内权限不足')
+      }
 
       return success({
         id: task.id,
@@ -269,23 +297,31 @@ export async function dataTaskRoutes(app: FastifyInstance) {
   app.get(
     '/api/v1/data-tasks/:id/download',
     {
-      preHandler: [authMiddleware, requireRole('admin')],
+      preHandler: [authMiddleware, requireRole('admin', 'member')],
     },
     async (req, reply) => {
       const { id } = req.params as { id: string }
       const db = getDb()
+      const userId = req.user!.userId
+      const role = req.user!.role
 
       const task = db
-        .prepare('SELECT * FROM data_tasks WHERE id = ? AND type = ?')
+        .prepare(
+          'SELECT status, file_path, expires_at, scope FROM data_tasks WHERE id = ? AND type = ?',
+        )
         .get(id, 'export') as
         | {
             status: string
             file_path: string | null
             expires_at: string
+            scope: string
           }
         | undefined
 
       if (!task) return fail(reply, 404, '任务不存在')
+      if (!requireTaskPM(userId, role, task.scope)) {
+        return fail(reply, 403, '项目内权限不足')
+      }
       if (task.status !== 'completed') return fail(reply, 400, '任务未完成')
       if (!task.file_path || !fs.existsSync(task.file_path)) {
         return fail(reply, 404, '导出文件不存在或已过期')
@@ -306,11 +342,13 @@ export async function dataTaskRoutes(app: FastifyInstance) {
   app.get(
     '/api/v1/data-tasks/:id/analyze',
     {
-      preHandler: [authMiddleware, requireRole('admin')],
+      preHandler: [authMiddleware, requireRole('admin', 'member')],
     },
     async (req, reply) => {
       const { id } = req.params as { id: string }
       const db = getDb()
+      const userId = req.user!.userId
+      const role = req.user!.role
 
       const task = db
         .prepare('SELECT * FROM data_tasks WHERE id = ? AND type = ?')
@@ -323,6 +361,9 @@ export async function dataTaskRoutes(app: FastifyInstance) {
         | undefined
 
       if (!task) return fail(reply, 404, '任务不存在')
+      if (!requireTaskPM(userId, role, task.scope)) {
+        return fail(reply, 403, '项目内权限不足')
+      }
       if (task.status !== 'uploaded' && task.status !== 'analyzed') {
         return fail(reply, 400, '任务状态不允许分析')
       }
@@ -359,11 +400,13 @@ export async function dataTaskRoutes(app: FastifyInstance) {
   app.post(
     '/api/v1/data-tasks/:id/apply',
     {
-      preHandler: [authMiddleware, requireRole('admin')],
+      preHandler: [authMiddleware, requireRole('admin', 'member')],
     },
     async (req, reply) => {
       const { id } = req.params as { id: string }
       const db = getDb()
+      const userId = req.user!.userId
+      const role = req.user!.role
       const body = req.body as { options: ImportApplyOptions }
 
       if (!body.options?.strategies) {
@@ -381,6 +424,9 @@ export async function dataTaskRoutes(app: FastifyInstance) {
         | undefined
 
       if (!task) return fail(reply, 404, '任务不存在')
+      if (!requireTaskPM(userId, role, task.scope)) {
+        return fail(reply, 403, '项目内权限不足')
+      }
       if (task.status !== 'analyzed') {
         return fail(reply, 400, '请先完成差异分析')
       }
@@ -432,17 +478,22 @@ export async function dataTaskRoutes(app: FastifyInstance) {
   app.delete(
     '/api/v1/data-tasks/:id',
     {
-      preHandler: [authMiddleware, requireRole('admin')],
+      preHandler: [authMiddleware, requireRole('admin', 'member')],
     },
     async (req, reply) => {
       const { id } = req.params as { id: string }
       const db = getDb()
+      const userId = req.user!.userId
+      const role = req.user!.role
 
-      const task = db.prepare('SELECT file_path FROM data_tasks WHERE id = ?').get(id) as
-        | { file_path: string | null }
+      const task = db.prepare('SELECT file_path, scope FROM data_tasks WHERE id = ?').get(id) as
+        | { file_path: string | null; scope: string }
         | undefined
 
       if (!task) return fail(reply, 404, '任务不存在')
+      if (!requireTaskPM(userId, role, task.scope)) {
+        return fail(reply, 403, '项目内权限不足')
+      }
 
       if (task.file_path) {
         try {

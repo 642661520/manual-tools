@@ -41,7 +41,7 @@ export async function buildMarkdownZip(
 
   archive.finalize()
 
-  const filename = `${encodeURIComponent(safeTitle)}-markdown.zip`
+  const filename = `${safeTitle}-markdown.zip`
   return { stream: archive, filename }
 }
 

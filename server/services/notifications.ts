@@ -9,6 +9,11 @@ const log = getLogger()
 
 const APP_BASE_URL = config.appBaseUrl
 
+/** 将页面路径包装为飞书免密登录跳转链接 */
+function feishuLoginLink(path: string): string {
+  return `${APP_BASE_URL}/api/v1/auth/feishu/redirect?redirect=${encodeURIComponent(path)}`
+}
+
 // ---- 辅助 ----
 
 function getSectionTitle(featureId: string, sectionKey: string): string {
@@ -43,7 +48,7 @@ function getFeatureTitle(featureId: string): string {
 function shouldNotify(userId: string, category: string): boolean {
   const db = getDb()
   const user = db
-    .prepare('SELECT notify_enabled, notify_prefs FROM users WHERE id = ?')
+    .prepare('SELECT notify_enabled, notify_prefs FROM users WHERE id = ? AND deleted_at IS NULL')
     .get(userId) as { notify_enabled: number; notify_prefs: string } | undefined
   if (!user) return false
   // 全局开关
@@ -70,8 +75,8 @@ function getNotifiableOpenIds(
   const placeholders = filtered.map(() => '?').join(',')
   const rows = db
     .prepare(`
-    SELECT feishu_open_id, notify_enabled, notify_prefs FROM users
-    WHERE id IN (${placeholders}) AND feishu_open_id IS NOT NULL
+	    SELECT feishu_open_id, notify_enabled, notify_prefs FROM users
+	    WHERE id IN (${placeholders}) AND feishu_open_id IS NOT NULL AND deleted_at IS NULL
   `)
     .all(...filtered) as { feishu_open_id: string; notify_enabled: number; notify_prefs: string }[]
 
@@ -90,16 +95,18 @@ function getNotifiableOpenIds(
 }
 function getUserOpenIdById(userId: string): string | null {
   const db = getDb()
-  const user = db.prepare('SELECT feishu_open_id FROM users WHERE id = ?').get(userId) as
-    | { feishu_open_id: string | null }
-    | undefined
+  const user = db
+    .prepare('SELECT feishu_open_id FROM users WHERE id = ? AND deleted_at IS NULL')
+    .get(userId) as { feishu_open_id: string | null } | undefined
   return user?.feishu_open_id || null
 }
 
 function getAdminOpenIds(): string[] {
   const db = getDb()
   const admins = db
-    .prepare("SELECT feishu_open_id FROM users WHERE role = 'admin' AND feishu_open_id IS NOT NULL")
+    .prepare(
+      "SELECT feishu_open_id FROM users WHERE role = 'admin' AND feishu_open_id IS NOT NULL AND deleted_at IS NULL",
+    )
     .all() as { feishu_open_id: string }[]
   return admins.map((p) => p.feishu_open_id)
 }
@@ -120,7 +127,7 @@ export async function notifyAssignees(
 
     const featureTitle = getFeatureTitle(featureId)
     const sectionTitle = getSectionTitle(featureId, sectionKey)
-    const editorUrl = `${APP_BASE_URL}/features/${featureId}/edit?section=${sectionKey}`
+    const editorUrl = feishuLoginLink(`/features/${featureId}/edit?section=${sectionKey}`)
 
     const card = buildCardMessage(
       '📝 新任务指派',
@@ -150,7 +157,7 @@ export async function notifyNextReviewer(
 
     const featureTitle = getFeatureTitle(featureId)
     const sectionTitle = getSectionTitle(featureId, sectionKey)
-    const editorUrl = `${APP_BASE_URL}/features/${featureId}/edit?section=${sectionKey}`
+    const editorUrl = feishuLoginLink(`/features/${featureId}/edit?section=${sectionKey}`)
 
     const card = buildCardMessage(
       '🔍 待审核',
@@ -180,7 +187,7 @@ export async function notifyWriterReviewResult(
 
     const featureTitle = getFeatureTitle(featureId)
     const sectionTitle = getSectionTitle(featureId, sectionKey)
-    const editorUrl = `${APP_BASE_URL}/features/${featureId}/edit?section=${sectionKey}`
+    const editorUrl = feishuLoginLink(`/features/${featureId}/edit?section=${sectionKey}`)
 
     const isApproved = newStatus === 'approved'
     const title = isApproved ? '✅ 审核通过' : '↩️ 退回修改'
@@ -213,7 +220,7 @@ export async function notifyDirectApprove(
 
     const featureTitle = getFeatureTitle(featureId)
     const sectionTitle = getSectionTitle(featureId, sectionKey)
-    const editorUrl = `${APP_BASE_URL}/features/${featureId}/edit?section=${sectionKey}`
+    const editorUrl = feishuLoginLink(`/features/${featureId}/edit?section=${sectionKey}`)
 
     const card = buildCardMessage(
       '✅ 直接通过',
@@ -242,7 +249,7 @@ export async function notifyStatusReset(
 
     const featureTitle = getFeatureTitle(featureId)
     const sectionTitle = getSectionTitle(featureId, sectionKey)
-    const editorUrl = `${APP_BASE_URL}/features/${featureId}/edit?section=${sectionKey}`
+    const editorUrl = feishuLoginLink(`/features/${featureId}/edit?section=${sectionKey}`)
 
     const statusLabel =
       newStatus === 'draft' ? '未开始' : newStatus === 'in_progress' ? '编写中' : newStatus
@@ -265,12 +272,12 @@ export async function notifyNewGuest(displayName: string): Promise<void> {
     const adminOpenIds = getAdminOpenIds()
     if (adminOpenIds.length === 0) return
 
-    const settingsUrl = `${APP_BASE_URL}/settings`
+    const loginUrl = `${APP_BASE_URL}/api/v1/auth/feishu/redirect?redirect=${encodeURIComponent('/settings')}`
 
     const card = buildCardMessage(
       '👤 新成员注册',
       `${displayName} 通过飞书登录注册了账号，当前角色为「成员」。\n已自动加入默认项目（只读），可按需调整项目角色。`,
-      { color: 'blue', link: { url: settingsUrl, title: '去设置' } },
+      { color: 'blue', link: { url: loginUrl, title: '去设置' } },
     )
 
     await Promise.allSettled(adminOpenIds.map((openId) => sendFeishuMessage(openId, card)))
@@ -293,7 +300,7 @@ export async function notifyJoinProject(
     const openId = getUserOpenIdById(targetUserId)
     if (!openId) return
 
-    const previewUrl = `${APP_BASE_URL}/preview`
+    const previewUrl = feishuLoginLink('/preview')
     const projectRoleLabel = (r: string) =>
       r === 'pm' ? '项目负责人' : r === 'writer' ? '编辑' : r === 'viewer' ? '只读' : r
 

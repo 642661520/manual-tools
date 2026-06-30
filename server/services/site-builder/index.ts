@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url'
 import { getDb } from '../../db/index.js'
 import { yjsDataToHtml } from '../../lib/yjs-utils.js'
 import { isCatalogPart } from '../../types.js'
+import { resolveCrossReferencesHtml } from './shared.js'
 import type {
   CatalogRow,
   CatalogFeatureEntry,
@@ -55,7 +56,37 @@ export async function buildStaticSite(
 
   // 收集所有 section 的 HTML 内容，按章节分组，同时处理 heading id
   const chapterPages: Map<number, SitePage[]> = new Map()
+
+  // 第一轮：构建交叉引用所需的章节映射
+  const chapterMap = new Map<
+    string,
+    {
+      num: number
+      anchorId: string
+      title: string
+      sections: Record<string, { anchorId: string; title: string }>
+    }
+  >()
+
   let chNum = 1
+  for (const f of manual.features) {
+    let secNum = 1
+    const sectionMap: Record<string, { anchorId: string; title: string }> = {}
+    for (const sec of f.sections) {
+      sectionMap[sec.key] = { anchorId: `ch${chNum}-s${secNum}`, title: sec.title }
+      secNum++
+    }
+    chapterMap.set(f.id, {
+      num: chNum,
+      anchorId: `ch${chNum}`,
+      title: f.title,
+      sections: sectionMap,
+    })
+    chNum++
+  }
+
+  // 第二轮：收集内容，解析 crossref 并处理 heading
+  chNum = 1
   for (const f of manual.features) {
     const pages: SitePage[] = []
     let secNum = 1
@@ -66,8 +97,10 @@ export async function buildStaticSite(
         secNum++
         continue
       }
+      // 解析交叉引用，将 <crossref> 自定义元素转为 HTML 链接
+      const resolvedContent = resolveCrossReferencesHtml(rawContent, chapterMap)
       // 注入 heading id 以支持 TOC 锚点
-      const { html: content } = processContentHeadings(rawContent)
+      const { html: content } = processContentHeadings(resolvedContent)
       pages.push({
         id: `ch${chNum}-s${secNum}`,
         title: `${chNum}.${secNum} ${f.title} > ${sec.title}`,

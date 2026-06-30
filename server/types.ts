@@ -62,6 +62,7 @@ export interface UserRow {
   feishu_avatar_url: string | null
   username_changed: number
   created_at: string
+  deleted_at: string | null
 }
 
 export interface ProjectMemberRow {
@@ -89,6 +90,7 @@ export interface CreateFeatureBody {
   sections?: { key: string; title: string; description?: string }[]
   categoryId?: string
   projectId?: string
+  createDefaultSection?: boolean
 }
 
 export type UpdateFeatureBody = CreateFeatureBody

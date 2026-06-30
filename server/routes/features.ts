@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { getDb } from '../db/index.js'
 import { authMiddleware, requireRole, ensureProjectWritable } from '../auth/middleware.js'
-import { isProjectMember, hasProjectRole } from '../auth/membership.js'
+import { isProjectMember, hasProjectRole, hasContentRole } from '../auth/membership.js'
 import { success, created, ok, fail } from '../lib/response.js'
 import { v4 as uuid } from 'uuid'
 import {
@@ -51,7 +51,7 @@ function getEffectiveReviewChain(projectId: string): string[] {
     .prepare(`
     SELECT u.id FROM users u
     JOIN project_members pm ON u.id = pm.user_id
-    WHERE pm.project_id = ? AND pm.role = 'pm'
+    WHERE pm.project_id = ? AND pm.role = 'pm' AND u.deleted_at IS NULL
     ORDER BY u.display_name
   `)
     .all(projectId) as { id: string }[]
@@ -100,25 +100,29 @@ export async function featureRoutes(app: FastifyInstance) {
       let sql = `
       SELECT f.*,
         COALESCE(
-          (SELECT COUNT(*) FROM documents d WHERE d.feature_id = f.id),
+          (SELECT COUNT(*) FROM documents d WHERE d.feature_id = f.id
+           AND NOT (d.section_key = '_default' AND json_array_length(f.sections) > 0)),
           0
         ) as total_sections,
         COALESCE(
-          (SELECT COUNT(*) FROM documents d WHERE d.feature_id = f.id AND d.status = 'approved'),
+          (SELECT COUNT(*) FROM documents d WHERE d.feature_id = f.id AND d.status = 'approved'
+           AND NOT (d.section_key = '_default' AND json_array_length(f.sections) > 0)),
           0
         ) as approved_sections,
         COALESCE(
-          (SELECT COUNT(*) FROM documents d WHERE d.feature_id = f.id AND d.status = 'pending_review'),
+          (SELECT COUNT(*) FROM documents d WHERE d.feature_id = f.id AND d.status = 'pending_review'
+           AND NOT (d.section_key = '_default' AND json_array_length(f.sections) > 0)),
           0
         ) as completed_sections,
         COALESCE(
-          (SELECT COUNT(*) FROM documents d WHERE d.feature_id = f.id AND d.status IN ('in_progress','pending_review','rejected','approved')),
+          (SELECT COUNT(*) FROM documents d WHERE d.feature_id = f.id AND d.status IN ('in_progress','pending_review','rejected','approved')
+           AND NOT (d.section_key = '_default' AND json_array_length(f.sections) > 0)),
           0
         ) as edited_sections,
         COALESCE(
           (SELECT COUNT(*) FROM documents d WHERE d.feature_id = f.id
            AND d.section_key NOT IN (SELECT json_extract(value, '$.key') FROM json_each(f.sections))
-           AND d.section_key != '_default'),
+           AND NOT (d.section_key = '_default' AND json_array_length(f.sections) = 0)),
           0
         ) as orphaned_count
       FROM features f
@@ -158,10 +162,15 @@ export async function featureRoutes(app: FastifyInstance) {
 
     const docs = db.prepare('SELECT * FROM documents WHERE feature_id = ?').all(id) as DocumentRow[]
 
-    // 检测游离文档：有 documents 记录但 section_key 不在当前 sections 中（_default 除外）
+    // 检测游离文档：有 documents 记录但 section_key 不在当前 sections 中
+    // _default 仅在无显式小节时不算游离文档
     const sectionKeys = new Set(sections.map((s) => s.key))
     const orphaned = docs
-      .filter((d) => !sectionKeys.has(d.section_key) && d.section_key !== '_default')
+      .filter(
+        (d) =>
+          !sectionKeys.has(d.section_key) &&
+          !(d.section_key === '_default' && sections.length === 0),
+      )
       .map((d) => ({
         key: d.section_key,
         status: d.status || 'draft',
@@ -172,20 +181,21 @@ export async function featureRoutes(app: FastifyInstance) {
         updated_at: d.updated_at,
       }))
 
-    // _default 节数据（当 feature 无显式 section 时的默认小节）
+    // _default 节数据（仅当 feature 无显式 section 时作为默认小节，否则归入游离文档）
     const defaultDoc = docs.find((d: DocumentRow) => d.section_key === '_default')
-    const defaultSection = defaultDoc
-      ? {
-          key: '_default',
-          title: feature.title || '正文',
-          description: '',
-          status: defaultDoc.status || 'draft',
-          assignees: defaultDoc.assignees || '[]',
-          reviewNote: defaultDoc.review_note || '',
-          reviewStep: defaultDoc.review_step || 0,
-          statusLog: defaultDoc.status_log || '[]',
-        }
-      : null
+    const defaultSection =
+      sections.length === 0 && defaultDoc
+        ? {
+            key: '_default',
+            title: feature.title || '正文',
+            description: '',
+            status: defaultDoc.status || 'draft',
+            assignees: defaultDoc.assignees || '[]',
+            reviewNote: defaultDoc.review_note || '',
+            reviewStep: defaultDoc.review_step || 0,
+            statusLog: defaultDoc.status_log || '[]',
+          }
+        : null
 
     return success({
       ...feature,
@@ -218,7 +228,7 @@ export async function featureRoutes(app: FastifyInstance) {
       const projectId = body.projectId || 'default'
       const userId = req.user!.userId
       const role = req.user!.role
-      if (!hasProjectRole(userId, role, projectId, 'pm')) {
+      if (!hasContentRole(userId, role, projectId, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
       if (!ensureProjectWritable(projectId, reply)) return
@@ -237,6 +247,13 @@ export async function featureRoutes(app: FastifyInstance) {
         body.categoryId || null,
         projectId,
       )
+
+      // 无显式小节且未明确禁用时，创建 _default 文档记录
+      if (sections.length === 0 && body.createDefaultSection !== false) {
+        db.prepare(
+          'INSERT OR IGNORE INTO documents (id, feature_id, section_key) VALUES (?, ?, ?)',
+        ).run(`${id}/_default`, id, '_default')
+      }
 
       recordAudit({
         userId: req.user!.userId,
@@ -269,7 +286,7 @@ export async function featureRoutes(app: FastifyInstance) {
 
       const userId = req.user!.userId
       const role = req.user!.role
-      if (!hasProjectRole(userId, role, feature.project_id, 'pm')) {
+      if (!hasContentRole(userId, role, feature.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
       if (!ensureProjectWritable(feature.project_id, reply)) return
@@ -284,6 +301,19 @@ export async function featureRoutes(app: FastifyInstance) {
         body.categoryId || null,
         id,
       )
+
+      // 无显式小节时，确保 _default 文档记录存在
+      if (sections.length === 0) {
+        db.prepare(
+          'INSERT OR IGNORE INTO documents (id, feature_id, section_key) VALUES (?, ?, ?)',
+        ).run(`${id}/_default`, id, '_default')
+      }
+      // 为所有 section key 补建文档记录
+      for (const s of sections) {
+        db.prepare(
+          'INSERT OR IGNORE INTO documents (id, feature_id, section_key) VALUES (?, ?, ?)',
+        ).run(`${id}/${s.key}`, id, s.key)
+      }
 
       recordAudit({
         userId: req.user!.userId,
@@ -313,7 +343,7 @@ export async function featureRoutes(app: FastifyInstance) {
 
       const userId = req.user!.userId
       const role = req.user!.role
-      if (!hasProjectRole(userId, role, feature.project_id, 'pm')) {
+      if (!hasContentRole(userId, role, feature.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
       if (!ensureProjectWritable(feature.project_id, reply)) return
@@ -362,14 +392,14 @@ export async function featureRoutes(app: FastifyInstance) {
       const oldAssignees: string[] = JSON.parse(existingDoc?.assignees || '[]')
 
       // 2) 所有权限校验（事务外，提前 fail，避免部分提交）
-      if (assignees !== undefined && !hasProjectRole(userId, userRole, projectId, 'pm')) {
+      if (assignees !== undefined && !hasContentRole(userId, userRole, projectId, 'pm')) {
         return fail(reply, 403, '项目内权限不足，只有项目负责人可以指派编辑者')
       }
       if (status === 'pending_review' && reviewChain.length === 0) {
         return fail(reply, 400, '该项目没有可审核的 PM，请先添加 PM 成员')
       }
       if (status === 'approved') {
-        if (!hasProjectRole(userId, userRole, projectId, 'pm')) {
+        if (!hasContentRole(userId, userRole, projectId, 'pm')) {
           return fail(reply, 403, '项目内权限不足，只有项目负责人可以审核')
         }
         if (!direct) {
@@ -380,7 +410,7 @@ export async function featureRoutes(app: FastifyInstance) {
         }
       }
       if (status === 'rejected') {
-        if (!hasProjectRole(userId, userRole, projectId, 'pm')) {
+        if (!hasContentRole(userId, userRole, projectId, 'pm')) {
           return fail(reply, 403, '项目内权限不足，只有项目负责人可以审核')
         }
         const currentReviewerId = reviewChain[currentStep]
@@ -393,7 +423,7 @@ export async function featureRoutes(app: FastifyInstance) {
       }
       if (
         (status === 'draft' || status === 'in_progress') &&
-        !hasProjectRole(userId, userRole, projectId, 'pm')
+        !hasContentRole(userId, userRole, projectId, 'pm')
       ) {
         return fail(reply, 403, '项目内权限不足，只有项目负责人可以重置状态')
       }
@@ -655,7 +685,7 @@ export async function featureRoutes(app: FastifyInstance) {
       const projectId = getFeatureProjectId(featureId)
       const userId = req.user!.userId
       const role = req.user!.role
-      if (projectId && !hasProjectRole(userId, role, projectId, 'pm')) {
+      if (projectId && !hasContentRole(userId, role, projectId, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
       if (projectId && !ensureProjectWritable(projectId, reply)) return
@@ -694,7 +724,7 @@ export async function featureRoutes(app: FastifyInstance) {
 
       const userId = req.user!.userId
       const userRole = req.user!.role
-      if (!hasProjectRole(userId, userRole, feature.project_id, 'pm')) {
+      if (!hasContentRole(userId, userRole, feature.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
       if (!ensureProjectWritable(feature.project_id, reply)) return
@@ -703,6 +733,19 @@ export async function featureRoutes(app: FastifyInstance) {
         JSON.stringify(sections),
         id,
       )
+
+      // 无显式小节时，确保 _default 文档记录存在
+      if (sections.length === 0) {
+        db.prepare(
+          'INSERT OR IGNORE INTO documents (id, feature_id, section_key) VALUES (?, ?, ?)',
+        ).run(`${id}/_default`, id, '_default')
+      }
+      // 为所有 section key 补建文档记录
+      for (const s of sections) {
+        db.prepare(
+          'INSERT OR IGNORE INTO documents (id, feature_id, section_key) VALUES (?, ?, ?)',
+        ).run(`${id}/${s.key}`, id, s.key)
+      }
 
       recordAudit({
         userId: req.user!.userId,

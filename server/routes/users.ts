@@ -16,11 +16,17 @@ export async function userRoutes(app: FastifyInstance) {
     const db = getDb()
     const { limit, offset } = parsePagination(req.query as Record<string, string>, { limit: 50 })
     const baseSql =
-      'SELECT id, username, display_name, role, feishu_open_id, feishu_name, feishu_avatar_url, created_at FROM users ORDER BY created_at'
-    const result = paginatedQuery(db, baseSql, 'SELECT COUNT(*) as cnt FROM users', [], {
-      limit,
-      offset,
-    })
+      'SELECT id, username, display_name, role, feishu_open_id, feishu_name, feishu_avatar_url, created_at FROM users WHERE deleted_at IS NULL ORDER BY created_at'
+    const result = paginatedQuery(
+      db,
+      baseSql,
+      'SELECT COUNT(*) as cnt FROM users WHERE deleted_at IS NULL',
+      [],
+      {
+        limit,
+        offset,
+      },
+    )
     return success(result)
   })
 
@@ -69,7 +75,7 @@ export async function userRoutes(app: FastifyInstance) {
     },
   )
 
-  // 删除用户
+  // 删除用户（软删除：标记 deleted_at，保留数据以便引用解析）
   app.delete(
     '/api/v1/auth/users/:id',
     { preHandler: [authMiddleware, requireRole('admin')] },
@@ -78,11 +84,15 @@ export async function userRoutes(app: FastifyInstance) {
       if (id === req.user!.userId) return fail(reply, 403, '不能删除自己的账号')
       if (id === 'seed-admin-001') return fail(reply, 403, '内置管理员账号不可删除')
       const db = getDb()
-      const existing = db.prepare('SELECT id, username FROM users WHERE id = ?').get(id) as
-        | { id: string; username: string }
-        | undefined
+      const existing = db
+        .prepare('SELECT id, username, deleted_at FROM users WHERE id = ?')
+        .get(id) as { id: string; username: string; deleted_at: string | null } | undefined
       if (!existing) return fail(reply, 404, '用户不存在')
-      db.prepare('DELETE FROM users WHERE id = ?').run(id)
+      if (existing.deleted_at) return fail(reply, 400, '该用户已被删除')
+
+      db.prepare("UPDATE users SET deleted_at = datetime('now') WHERE id = ?").run(id)
+      // 同时从项目中移除
+      db.prepare('DELETE FROM project_members WHERE user_id = ?').run(id)
 
       recordAudit({
         userId: req.user!.userId,
@@ -108,10 +118,11 @@ export async function userRoutes(app: FastifyInstance) {
         return fail(reply, 400, '无效的角色')
       }
       const db = getDb()
-      const existing = db.prepare('SELECT id, role FROM users WHERE id = ?').get(id) as
-        | { id: string; role: string }
+      const existing = db.prepare('SELECT id, role, deleted_at FROM users WHERE id = ?').get(id) as
+        | { id: string; role: string; deleted_at: string | null }
         | undefined
       if (!existing) return fail(reply, 404, '用户不存在')
+      if (existing.deleted_at) return fail(reply, 400, '该用户已被删除')
       const oldRole = existing.role
       db.prepare('UPDATE users SET role = ?, token_version = token_version + 1 WHERE id = ?').run(
         role,

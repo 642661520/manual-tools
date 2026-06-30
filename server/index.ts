@@ -56,7 +56,7 @@ function extractDocUser(
   try {
     const payload = verifyToken(token)
     const user = conn
-      .prepare('SELECT token_version FROM users WHERE id = ?')
+      .prepare('SELECT token_version FROM users WHERE id = ? AND deleted_at IS NULL')
       .get(payload.userId) as { token_version: number } | undefined
     if (!user || user.token_version !== payload.tokenVersion) return null
     return { userId: payload.userId, role: payload.role }
@@ -97,7 +97,9 @@ async function main() {
           .map((s) => s.trim())
           .filter(Boolean),
       ]
-      if (!origin || allowed.includes(origin)) {
+      // 允许 ngrok 隧道域名（本地开发联调用）
+      const isNgrok = origin && /^https?:\/\/[a-zA-Z0-9-]+\.ngrok-free\.(dev|app)$/.test(origin)
+      if (!origin || isNgrok || allowed.includes(origin)) {
         cb(null, true)
       } else {
         cb(new Error('Not allowed by CORS'), false)
@@ -122,7 +124,7 @@ async function main() {
       try {
         const payload = verifyToken(token)
         const user = conn
-          .prepare('SELECT token_version FROM users WHERE id = ?')
+          .prepare('SELECT token_version FROM users WHERE id = ? AND deleted_at IS NULL')
           .get(payload.userId) as { token_version: number } | undefined
         if (user && user.token_version === payload.tokenVersion) {
           ;(req as unknown as Record<string, unknown>)._userId = payload.userId
@@ -395,7 +397,7 @@ async function main() {
         payload = verifyToken(token)
         // 校验 token_version：登出后会递增，旧 token 失效
         const user = conn
-          .prepare('SELECT token_version FROM users WHERE id = ?')
+          .prepare('SELECT token_version FROM users WHERE id = ? AND deleted_at IS NULL')
           .get(payload.userId) as { token_version: number } | undefined
         if (!user || user.token_version !== payload.tokenVersion) {
           payload = null

@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { getDb } from '../db/index.js'
 import { authMiddleware, requireRole, ensureProjectWritable } from '../auth/middleware.js'
-import { isProjectMember, hasProjectRole } from '../auth/membership.js'
+import { isProjectMember, hasContentRole } from '../auth/membership.js'
 import { success, ok, fail } from '../lib/response.js'
 import { recordAudit } from '../services/audit.js'
 import { v4 as uuid } from 'uuid'
@@ -51,7 +51,7 @@ export async function categoryRoutes(app: FastifyInstance) {
       if (!body.name?.trim()) return fail(reply, 400, '分类名称不能为空')
 
       const projectId = body.projectId || 'default'
-      if (!hasProjectRole(req.user!.userId, req.user!.role, projectId, 'pm')) {
+      if (!hasContentRole(req.user!.userId, req.user!.role, projectId, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
       if (!ensureProjectWritable(projectId, reply)) return
@@ -102,7 +102,7 @@ export async function categoryRoutes(app: FastifyInstance) {
         | undefined
       if (!existing) return fail(reply, 404, '分类不存在')
 
-      if (!hasProjectRole(req.user!.userId, req.user!.role, existing.project_id, 'pm')) {
+      if (!hasContentRole(req.user!.userId, req.user!.role, existing.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
       if (!ensureProjectWritable(existing.project_id, reply)) return
@@ -140,7 +140,7 @@ export async function categoryRoutes(app: FastifyInstance) {
         | undefined
       if (!existing) return fail(reply, 404, '分类不存在')
 
-      if (!hasProjectRole(req.user!.userId, req.user!.role, existing.project_id, 'pm')) {
+      if (!hasContentRole(req.user!.userId, req.user!.role, existing.project_id, 'pm')) {
         return fail(reply, 403, '项目内权限不足')
       }
       if (!ensureProjectWritable(existing.project_id, reply)) return

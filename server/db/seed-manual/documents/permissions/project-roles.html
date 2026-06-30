@@ -1,13 +1,19 @@
 <h1>项目角色详解</h1>
-<p>项目角色控制用户在特定项目内的操作权限。</p>
+<p>
+  项目角色控制用户在特定项目内的操作权限。系统 Admin
+  不会自动继承项目角色，必须被显式添加为项目成员后才可操作该项目内容。
+</p>
 <h2>PM（项目负责人）</h2>
 <ul>
   <li>管理项目设置和审核链</li>
   <li>管理项目成员</li>
   <li>创建和管理分类、功能、目录</li>
+  <li>指派章节编辑者</li>
+  <li>审核文档（通过/退回/重置状态）</li>
   <li>预览和发布手册版本</li>
-  <li>直接通过文档审核</li>
+  <li>管理版本生命周期和可见性</li>
   <li>项目数据导入导出</li>
+  <li>编辑文档内容</li>
 </ul>
 <h2>Writer（编辑者）</h2>
 <ul>
@@ -22,6 +28,18 @@
   <li>查看功能列表和分类</li>
   <li>查看文档内容（只读模式）</li>
   <li>查看手册预览和已发布版本</li>
+  <li><strong>不能被指派为编辑者</strong></li>
+</ul>
+<h2>权限隔离原则</h2>
+<ul>
+  <li><strong>项目管理操作</strong>（成员管理、审核链配置、导入导出）：Admin 保留全局管理权</li>
+  <li>
+    <strong>内容流水线操作</strong>（编辑、审核、状态流转、指派编辑者、发布）：仅项目 PM/Writer
+    可操作，Admin 也需显式加入项目
+  </li>
+  <li>
+    编辑者指派下拉菜单仅显示 Writer 角色成员，Viewer 和 PM 不可见（PM 无需被指派即可操作所有内容）
+  </li>
 </ul>
 <div data-image-placeholder="permissions-project-roles.png">
   <div>图片占位：permissions - project-roles</div>

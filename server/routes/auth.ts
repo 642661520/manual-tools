@@ -14,6 +14,7 @@ import { authMiddleware } from '../auth/middleware.js'
 import { generateState } from '../lib/crypto.js'
 import { generateCsrfToken } from '../lib/csrf.js'
 import { config } from '../config.js'
+const APP_BASE_URL = config.appBaseUrl
 import { loginRequestSchema, loginResponseSchema, errorResponseSchema } from '../lib/swagger.js'
 
 /** 同时设置 auth_token + csrf_token，避免 Set-Cookie 被覆盖 */
@@ -52,9 +53,9 @@ export async function authRoutes(app: FastifyInstance) {
         return fail(reply, 400, '请输入用户名和密码')
       }
       const db = getDb()
-      const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as
-        | UserRow
-        | undefined
+      const user = db
+        .prepare('SELECT * FROM users WHERE username = ? AND deleted_at IS NULL')
+        .get(username) as UserRow | undefined
       if (!user) {
         recordAudit({
           userId: 'anonymous',
@@ -138,15 +139,37 @@ export async function authRoutes(app: FastifyInstance) {
     return success({ ok: true })
   })
 
+  // 飞书登录重定向（用于通知卡片等外部链接跳转飞书授权）
+  // 注意：此端点由通知卡片等服务端场景触发，必须用 APP_BASE_URL 而非动态 origin
+  app.get('/api/v1/auth/feishu/redirect', async (req, reply) => {
+    const { redirect } = req.query as { redirect?: string }
+    const statePayload = redirect
+      ? `login:${Buffer.from(redirect).toString('base64')}:${generateState()}`
+      : `login:${generateState()}`
+    try {
+      const redirectUri = `${APP_BASE_URL}/feishu-callback`
+      const url = getFeishuAuthUrl(statePayload, redirectUri)
+      return reply.redirect(url)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '飞书登录未配置'
+      return fail(reply, 500, msg)
+    }
+  })
+
   // 飞书登录 URL
   app.get('/api/v1/auth/feishu/login-url', async (req, reply) => {
-    const state = `login:${generateState()}`
+    const { redirect } = req.query as { redirect?: string }
+    const statePayload = redirect
+      ? `login:${Buffer.from(redirect).toString('base64')}:${generateState()}`
+      : `login:${generateState()}`
     try {
       const origin = getRedirectOrigin(req)
-      const redirectUri = origin ? `${origin}/feishu-callback` : ''
-      const url = getFeishuAuthUrl(state, redirectUri)
+      const redirectUri = origin ? `${origin}/feishu-callback` : `${APP_BASE_URL}/feishu-callback`
+      app.log.info({ origin, redirectUri }, 'feishu login-url')
+      const url = getFeishuAuthUrl(statePayload, redirectUri)
       return success({ url })
     } catch (e: unknown) {
+      app.log.error({ err: e }, 'feishu login-url failed')
       const msg = e instanceof Error ? e.message : '飞书登录未配置'
       return fail(reply, 500, msg)
     }
@@ -163,9 +186,9 @@ export async function authRoutes(app: FastifyInstance) {
       const info = await exchangeCodeForToken(code)
       if (!info.open_id) return fail(reply, 400, '获取飞书用户信息失败')
 
-      let user = db.prepare('SELECT * FROM users WHERE feishu_open_id = ?').get(info.open_id) as
-        | UserRow
-        | undefined
+      let user = db
+        .prepare('SELECT * FROM users WHERE feishu_open_id = ? AND deleted_at IS NULL')
+        .get(info.open_id) as UserRow | undefined
 
       let isNewUser = false
       let wasRelinked = false
@@ -176,7 +199,9 @@ export async function authRoutes(app: FastifyInstance) {
 
         // 检查是否是之前绑定过但解绑了的用户（feishu_open_id 已清空但 username 仍为 feishu_ 前缀）
         const existing = db
-          .prepare('SELECT * FROM users WHERE username = ? AND feishu_open_id IS NULL')
+          .prepare(
+            'SELECT * FROM users WHERE username = ? AND feishu_open_id IS NULL AND deleted_at IS NULL',
+          )
           .get(username) as UserRow | undefined
 
         if (existing) {
@@ -219,6 +244,7 @@ export async function authRoutes(app: FastifyInstance) {
             feishu_avatar_url: info.avatar_url || null,
             username_changed: 0,
             created_at: new Date().toISOString(),
+            deleted_at: null,
           }
         }
       } else {
@@ -265,6 +291,7 @@ export async function authRoutes(app: FastifyInstance) {
         },
       })
     } catch (e: unknown) {
+      app.log.error({ err: e }, 'feishu login failed')
       const msg = e instanceof Error ? e.message : '飞书登录失败'
       return fail(reply, 500, msg)
     }

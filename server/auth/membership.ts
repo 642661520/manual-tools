@@ -61,6 +61,25 @@ export function hasProjectRole(
 }
 
 /**
+ * 检查用户在项目中的内容角色（编辑/审核/发布）。
+ * 与 hasProjectRole 的区别：admin 不自动绕过，必须显式在 project_members 中有对应角色。
+ * 用于内容操作（编辑、审核、状态流转、指派编辑者、发布版本等）。
+ */
+export function hasContentRole(
+  userId: string,
+  _systemRole: string,
+  projectId: string,
+  minRole: 'viewer' | 'writer' | 'pm',
+): boolean {
+  const db = getDb()
+  const row = db
+    .prepare('SELECT role FROM project_members WHERE project_id = ? AND user_id = ?')
+    .get(projectId, userId) as { role: string } | undefined
+  if (!row) return false
+  return (ROLE_HIERARCHY[row.role] || 0) >= (ROLE_HIERARCHY[minRole] || 0)
+}
+
+/**
  * 严格检查：用户必须显式在 project_members 表中。
  * 用于成员管理操作。
  * admin 可以管理任何项目的成员。
