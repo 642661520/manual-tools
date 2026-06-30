@@ -2,6 +2,7 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProject } from '@/composables/useProject'
+import { showErrorToast } from '@/composables/toast'
 import { search, type SearchResult } from '@/api/endpoints/search'
 
 const router = useRouter()
@@ -42,7 +43,8 @@ async function doSearch() {
     results.value = res.results
     total.value = res.total
     selectedIndex.value = -1
-  } catch {
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '搜索失败')
     results.value = []
   } finally {
     searching.value = false
@@ -110,7 +112,7 @@ defineExpose({ open })
             ref="inputRef"
             v-model="query"
             type="text"
-            class="flex-1 outline-none text-base placeholder-gray-400"
+            class="flex-1 outline-none text-base bg-transparent text-primary placeholder:text-muted"
             :placeholder="currentProjectId ? '搜索当前项目中的手册内容...' : '请先选择一个项目'"
             @keydown="onKeydown"
           />

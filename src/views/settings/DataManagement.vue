@@ -2,6 +2,7 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useAuth } from '@/composables/useAuth'
 import { useProject } from '@/composables/useProject'
+import { showErrorToast, showSuccessToast } from '@/composables/toast'
 import * as dataApi from '@/api/endpoints/data-tasks'
 import type {
   ExportEstimate,
@@ -10,7 +11,7 @@ import type {
   DataTaskInfo,
 } from '@shared/types'
 
-const { isAdmin } = useAuth()
+const { isAdmin, canManageProject } = useAuth()
 const { currentProjectId } = useProject()
 
 // ---- 导出预估 ----
@@ -22,7 +23,8 @@ async function loadEstimate() {
   estimateLoading.value = true
   try {
     estimate.value = await dataApi.getExportEstimate(currentProjectId.value)
-  } catch {
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '获取导出估算失败')
     estimate.value = null
   } finally {
     estimateLoading.value = false
@@ -45,8 +47,8 @@ async function loadExportHistory() {
   try {
     const tasks = await dataApi.listTasks(`project:${currentProjectId.value}`)
     exportHistory.value = tasks.filter((t) => t.type === 'export')
-  } catch {
-    /* ignore */
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '加载导出历史失败')
   }
 }
 
@@ -57,7 +59,9 @@ async function startExport() {
     const { taskId } = await dataApi.startExport(currentProjectId.value)
     exportTaskId.value = taskId
     pollExportTask()
-  } catch {
+    showSuccessToast('导出任务已启动')
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '启动导出失败')
     exporting.value = false
   }
 }
@@ -93,7 +97,8 @@ function pollExportTask(attempt = 0) {
         exporting.value = false
         exportTaskId.value = null
       }
-    } catch {
+    } catch (e: unknown) {
+      showErrorToast(e instanceof Error ? e.message : '导出任务状态查询失败')
       stopPolling()
       exporting.value = false
     }
@@ -110,8 +115,8 @@ function stopPolling() {
 async function downloadTaskFile(taskId: string) {
   try {
     await dataApi.downloadExport(taskId)
-  } catch {
-    /* ignore */
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '下载导出文件失败')
   }
 }
 
@@ -120,8 +125,9 @@ async function removeTask(taskId: string) {
     await dataApi.deleteTask(taskId)
     await loadExportHistory()
     await loadImportHistory()
-  } catch {
-    /* ignore */
+    showSuccessToast('任务已删除')
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '删除任务失败')
   }
 }
 
@@ -145,8 +151,8 @@ async function loadImportHistory() {
   try {
     const tasks = await dataApi.listTasks(`project:${currentProjectId.value}`)
     importHistory.value = tasks.filter((t) => t.type === 'import')
-  } catch {
-    /* ignore */
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '加载导入历史失败')
   }
 }
 
@@ -277,7 +283,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="isAdmin" class="card mb-6">
+  <div v-if="canManageProject" class="card mb-6">
     <h2 class="text-sm font-semibold text-secondary mb-4">数据管理</h2>
 
     <!-- 项目导出 -->
@@ -428,8 +434,8 @@ onUnmounted(() => {
         </div>
 
         <div class="flex gap-2 mt-4">
-          <button class="btn-primary text-sm" @click="confirmImport">确认导入</button>
-          <button class="btn-secondary text-sm" @click="cancelImport">取消</button>
+          <button type="button" class="btn-primary text-sm" @click="confirmImport">确认导入</button>
+          <button type="button" class="btn-secondary text-sm" @click="cancelImport">取消</button>
         </div>
       </div>
 

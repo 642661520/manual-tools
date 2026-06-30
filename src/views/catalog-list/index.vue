@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useProject } from '@/composables/useProject'
 import { useAuth } from '@/composables/useAuth'
 import { useDialog } from '@/composables/useDialog'
+import { showErrorToast, showSuccessToast } from '@/composables/toast'
 import { getTitleHash, getCoverColors } from '@/composables/useCoverColors'
 import {
   getCatalogs,
@@ -19,7 +20,7 @@ import CreateEditManualModal from '@/components/CreateEditManualModal.vue'
 
 const router = useRouter()
 const { currentProjectId } = useProject()
-const { canManageProject } = useAuth()
+const { isProjectPM } = useAuth()
 const { dangerConfirm, alert } = useDialog()
 
 const exportingSite = ref<Set<string>>(new Set())
@@ -155,8 +156,9 @@ async function handleDelete(id: string, title: string) {
   try {
     await apiDeleteCatalog(id)
     catalogs.value = catalogs.value.filter((c) => c.id !== id)
-  } catch {
-    // 错误由 api client 统一处理
+    showSuccessToast('手册已删除')
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '删除手册失败')
   }
 }
 
@@ -193,7 +195,7 @@ watch(currentProjectId, () => {
         </span>
       </template>
       <template #right>
-        <button v-if="canManageProject" class="btn-primary text-sm" @click="openCreateModal">
+        <button v-if="isProjectPM" class="btn-primary text-sm" @click="openCreateModal">
           <span class="i-lucide-plus w-4 h-4 inline-block align-middle" />
           新建手册
         </button>
@@ -208,9 +210,9 @@ watch(currentProjectId, () => {
         <EmptyState
           icon="i-lucide-books"
           title="暂无手册"
-          :description="canManageProject ? '创建第一本手册，开始编排操作文档' : '暂无可查看的手册'"
+          :description="isProjectPM ? '创建第一本手册，开始编排操作文档' : '暂无可查看的手册'"
         >
-          <button v-if="canManageProject" class="btn-primary mt-4" @click="openCreateModal">
+          <button v-if="isProjectPM" class="btn-primary mt-4" @click="openCreateModal">
             <span class="i-lucide-plus w-4 h-4 inline-block align-middle" />
             新建手册
           </button>
@@ -327,7 +329,7 @@ watch(currentProjectId, () => {
                   <span>{{ formatDate(cat.updatedAt) }}</span>
                 </div>
               </div>
-              <div v-if="canManageProject" class="flex items-center gap-0.5 flex-shrink-0">
+              <div v-if="isProjectPM" class="flex items-center gap-0.5 flex-shrink-0">
                 <button
                   v-tooltip="'编辑信息'"
                   class="text-muted hover:color-accent p-1 transition-colors"
@@ -351,7 +353,7 @@ watch(currentProjectId, () => {
                 <span v-else class="i-lucide-download w-3.5 h-3.5 inline-block align-middle" />
                 离线站点
               </button>
-              <template v-if="canManageProject">
+              <template v-if="isProjectPM">
                 <button
                   class="flex-1 text-xs text-secondary hover:color-accent bg-base hover:bg-active py-1.5 rounded-md transition-colors"
                   @click.stop="() => goToEdit(cat.id)"

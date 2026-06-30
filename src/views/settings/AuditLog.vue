@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { getAuditLogs, type AuditLogEntry } from '@/api/endpoints/audit'
+import { showErrorToast } from '@/composables/toast'
 import SelectDropdown from '@/components/SelectDropdown.vue'
 import type { SelectOption } from '@/components/SelectDropdown.vue'
 import Paginator from '@/components/Paginator.vue'
@@ -83,8 +84,8 @@ async function load() {
     })
     rows.value = result.rows
     total.value = result.total
-  } catch {
-    /* ignore */
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '加载审计日志失败')
   } finally {
     loading.value = false
   }

@@ -52,7 +52,10 @@ const actions = [
       <span class="i-lucide-sparkles w-3.5 h-3.5" />AI 助手
     </div>
 
-    <div v-if="!props.selectedText" class="text-xs text-muted bg-yellow-50 rounded p-2">
+    <div
+      v-if="!props.selectedText"
+      class="text-xs text-muted bg-yellow-50 dark:bg-yellow-500/15 rounded p-2"
+    >
       在编辑器中选中文本后可使用，或对全文操作
     </div>
 
@@ -60,10 +63,10 @@ const actions = [
       <button
         v-for="a in actions"
         :key="a.key"
-        class="flex flex-col items-center gap-0.5 p-2 rounded-lg border border-default hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
+        class="flex flex-col items-center gap-0.5 p-2 rounded-lg border border-default hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/15 transition-colors text-left"
         @click="() => run(a.key)"
       >
-        <span :class="a.icon" class="w-4 h-4 text-blue-500" />
+        <span :class="a.icon" class="w-4 h-4 text-blue-500 dark:text-blue-400" />
         <span class="text-xs font-medium text-secondary">{{ a.label }}</span>
         <span class="text-[10px] text-muted">{{ a.desc }}</span>
       </button>

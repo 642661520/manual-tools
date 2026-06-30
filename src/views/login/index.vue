@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { getFeishuLoginUrl } from '@/api/endpoints/auth'
+import { isFeishuClient } from '@/composables/useFeishuAutoLogin'
 import FormField from '@/components/FormField.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import PasswordInput from '@/components/PasswordInput.vue'
@@ -15,6 +16,42 @@ const username = ref('')
 const password = ref('')
 const error = ref('')
 const loading = ref(false)
+
+// 飞书客户端自动 OAuth 登录
+const autoLogging = ref(false)
+const oauthCountdown = ref(0)
+
+async function tryAutoLogin() {
+  if (!isFeishuClient()) {
+    autoLogging.value = false
+    return
+  }
+
+  autoLogging.value = true
+  oauthCountdown.value = 2
+
+  const redirect = route.query.redirect as string | undefined
+
+  const timer = setInterval(() => {
+    oauthCountdown.value--
+    if (oauthCountdown.value <= 0) clearInterval(timer)
+  }, 1000)
+
+  await new Promise((r) => setTimeout(r, 2000))
+  clearInterval(timer)
+  oauthCountdown.value = 0
+
+  try {
+    const { url } = await getFeishuLoginUrl(redirect)
+    window.location.href = url
+  } catch {
+    autoLogging.value = false
+  }
+}
+
+onMounted(() => {
+  tryAutoLogin()
+})
 
 async function handleLogin() {
   if (!username.value.trim() || !password.value.trim()) {
@@ -76,52 +113,69 @@ async function feishuLogin() {
     <!-- 卡片 -->
     <div class="relative z-10 w-96 max-w-full">
       <div class="card !shadow-lg p-8">
-        <div class="text-center mb-6">
-          <img src="/favicon.svg" alt="Logo" class="w-14 h-14 mx-auto mb-3" />
-          <h1 class="text-2xl font-bold text-primary">操作手册编写平台</h1>
-          <p class="text-sm text-secondary mt-1">请登录系统</p>
-        </div>
+        <!-- 自动登录中 -->
+        <template v-if="autoLogging">
+          <div class="text-center mb-6">
+            <img src="/favicon.svg" alt="Logo" class="w-14 h-14 mx-auto mb-3" />
+            <h1 class="text-2xl font-bold text-primary">操作手册编写平台</h1>
+          </div>
+          <div class="text-center text-muted py-2">
+            <span class="i-lucide-loader-2 w-8 h-8 inline-block animate-spin mb-3" />
+            <p class="text-sm font-medium">
+              正在跳转飞书授权登录...（{{ oauthCountdown }}秒后自动跳转）
+            </p>
+          </div>
+        </template>
 
-        <form class="space-y-3" @submit.prevent="handleLogin">
-          <ErrorMessage :message="error" />
+        <!-- 登录表单 -->
+        <template v-else>
+          <div class="text-center mb-6">
+            <img src="/favicon.svg" alt="Logo" class="w-14 h-14 mx-auto mb-3" />
+            <h1 class="text-2xl font-bold text-primary">操作手册编写平台</h1>
+            <p class="text-sm text-secondary mt-1">请登录系统</p>
+          </div>
 
-          <FormField label="用户名">
-            <input
-              v-model="username"
-              class="input"
-              type="text"
-              placeholder="输入用户名"
-              autofocus
-            />
-          </FormField>
+          <form class="space-y-3" @submit.prevent="handleLogin">
+            <ErrorMessage :message="error" />
 
-          <FormField label="密码">
-            <PasswordInput v-model="password" placeholder="输入密码" />
-          </FormField>
+            <FormField label="用户名">
+              <input
+                v-model="username"
+                class="input"
+                type="text"
+                placeholder="输入用户名"
+                autofocus
+              />
+            </FormField>
 
-          <button type="submit" class="btn-primary w-full justify-center" :disabled="loading">
-            {{ loading ? '登录中...' : '登录' }}
+            <FormField label="密码">
+              <PasswordInput v-model="password" placeholder="输入密码" />
+            </FormField>
+
+            <button type="submit" class="btn-primary w-full justify-center" :disabled="loading">
+              {{ loading ? '登录中...' : '登录' }}
+            </button>
+          </form>
+
+          <div class="relative my-3">
+            <div class="absolute inset-0 flex items-center">
+              <div class="w-full border-t border-default" />
+            </div>
+            <div class="relative flex justify-center text-xs">
+              <span class="bg-surface px-2 text-muted">或</span>
+            </div>
+          </div>
+
+          <button
+            class="btn-secondary w-full justify-center"
+            :disabled="feishuLoading"
+            @click="feishuLogin"
+          >
+            <span class="i-lucide-link w-4 h-4 inline-block align-middle mr-1" />{{
+              feishuLoading ? '跳转中...' : '飞书登录'
+            }}
           </button>
-        </form>
-
-        <div class="relative my-3">
-          <div class="absolute inset-0 flex items-center">
-            <div class="w-full border-t border-default" />
-          </div>
-          <div class="relative flex justify-center text-xs">
-            <span class="bg-surface px-2 text-muted">或</span>
-          </div>
-        </div>
-
-        <button
-          class="btn-secondary w-full justify-center"
-          :disabled="feishuLoading"
-          @click="feishuLogin"
-        >
-          <span class="i-lucide-link w-4 h-4 inline-block align-middle mr-1" />{{
-            feishuLoading ? '跳转中...' : '飞书登录'
-          }}
-        </button>
+        </template>
       </div>
     </div>
   </div>

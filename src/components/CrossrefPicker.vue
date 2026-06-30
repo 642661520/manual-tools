@@ -2,22 +2,9 @@
 import { ref, computed, watch } from 'vue'
 import { useProject } from '@/composables/useProject'
 import { getFeatures } from '@/api/endpoints/features'
+import { getCategories } from '@/api/endpoints/categories'
+import type { FeatureSummary, CategoryInfo, SectionDef } from '@shared/types'
 import ModalDialog from './ModalDialog.vue'
-
-// API 返回的原始特征数据（sections 为 JSON 字符串）
-interface FeatureApiEntry {
-  id: string
-  title: string
-  sections: string
-  module: string
-}
-
-interface FeatureEntry {
-  id: string
-  title: string
-  module: string
-  sections: { key: string; title: string }[]
-}
 
 const emit = defineEmits<{
   close: []
@@ -33,7 +20,8 @@ const props = defineProps<{
 
 const { currentProjectId } = useProject()
 
-const features = ref<FeatureEntry[]>([])
+const features = ref<FeatureSummary[]>([])
+const categories = ref<CategoryInfo[]>([])
 const searchQuery = ref('')
 const selectedFeatureId = ref<string | null>(null)
 const selectedSectionKey = ref<string | null>(null)
@@ -42,21 +30,30 @@ const customLabel = ref('')
 const loading = ref(false)
 const error = ref('')
 
+const categoryMap = computed(() => {
+  const map = new Map<string, string>()
+  for (const c of categories.value) {
+    map.set(c.id, c.name)
+  }
+  return map
+})
+
 const moduleGroups = computed(() => {
-  const filtered = searchQuery.value
-    ? features.value.filter(
-        (f: FeatureEntry) =>
-          f.title.includes(searchQuery.value) ||
-          f.module.includes(searchQuery.value) ||
-          f.sections.some((s: { key: string; title: string }) =>
-            s.title.includes(searchQuery.value),
-          ),
-      )
+  const q = searchQuery.value.trim().toLowerCase()
+  const filtered = q
+    ? features.value.filter((f) => {
+        const catName = f.categoryId ? categoryMap.value.get(f.categoryId) || '' : ''
+        return (
+          f.title.toLowerCase().includes(q) ||
+          catName.toLowerCase().includes(q) ||
+          f.sections.some((s) => s.title.toLowerCase().includes(q))
+        )
+      })
     : features.value
 
-  const groups: Record<string, FeatureEntry[]> = {}
+  const groups: Record<string, FeatureSummary[]> = {}
   for (const f of filtered) {
-    const mod = f.module || '未分类'
+    const mod = f.categoryId ? categoryMap.value.get(f.categoryId) || '未分类' : '未分类'
     if (!groups[mod]) groups[mod] = []
     groups[mod].push(f)
   }
@@ -65,29 +62,31 @@ const moduleGroups = computed(() => {
 
 const selectedLabel = computed(() => {
   if (!selectedFeatureId.value) return ''
-  const f = features.value.find((f: FeatureEntry) => f.id === selectedFeatureId.value)
+  const f = features.value.find((f) => f.id === selectedFeatureId.value)
   if (!f) return ''
   if (selectedSectionKey.value) {
-    const sec = f.sections.find(
-      (s: { key: string; title: string }) => s.key === selectedSectionKey.value,
-    )
+    const sec = f.sections.find((s) => s.key === selectedSectionKey.value)
     return sec ? `${f.title} › ${sec.title}` : f.title
   }
   return f.title
 })
 
-async function loadFeatures() {
+async function loadData() {
   if (!currentProjectId.value) return
   loading.value = true
   error.value = ''
   try {
-    const list = (await getFeatures(currentProjectId.value)) as unknown as FeatureApiEntry[]
-    features.value = list.map((f) => ({
-      id: f.id,
-      title: f.title,
-      module: f.module,
-      sections: JSON.parse(f.sections || '[]') as { key: string; title: string }[],
+    const [featList, catList] = await Promise.all([
+      getFeatures(currentProjectId.value),
+      getCategories(currentProjectId.value),
+    ])
+    features.value = featList.map((f) => ({
+      ...f,
+      // sections 在 API 返回中是 JSON 字符串，需要解析
+      sections:
+        typeof f.sections === 'string' ? (JSON.parse(f.sections) as SectionDef[]) : f.sections,
     }))
+    categories.value = catList
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : '加载失败'
   } finally {
@@ -112,15 +111,13 @@ function selectSection(featureId: string, sectionKey: string) {
 
 function confirm() {
   if (!selectedFeatureId.value) return
-  const f = features.value.find((f: FeatureEntry) => f.id === selectedFeatureId.value)
+  const f = features.value.find((f) => f.id === selectedFeatureId.value)
   if (!f) return
 
   const label = customLabel.value.trim() || selectedLabel.value
 
   if (selectedSectionKey.value) {
-    const sec = f.sections.find(
-      (s: { key: string; title: string }) => s.key === selectedSectionKey.value,
-    )
+    const sec = f.sections.find((s) => s.key === selectedSectionKey.value)
     if (sec) {
       emit('select', { featureId: f.id, label, sectionKey: sec.key, sectionTitle: sec.title })
       return
@@ -131,10 +128,6 @@ function confirm() {
 
 watch(selectedLabel, (val) => {
   if (val) customLabel.value = val
-})
-
-watch(expandedFeatureId, (id) => {
-  if (id) customLabel.value = selectedLabel.value
 })
 
 function removeRef() {
@@ -148,13 +141,14 @@ watch(
       selectedFeatureId.value = props.currentFeatureId || null
       selectedSectionKey.value = props.currentSectionKey || null
       expandedFeatureId.value = props.currentFeatureId || null
-      if (features.value.length === 0) loadFeatures()
+      customLabel.value = ''
+      if (features.value.length === 0) loadData()
     }
   },
 )
 
 watch(currentProjectId, () => {
-  if (props.visible) loadFeatures()
+  if (props.visible) loadData()
 })
 </script>
 
@@ -191,12 +185,12 @@ watch(currentProjectId, () => {
       </div>
 
       <template v-else>
-        <div v-for="(items, mod) in moduleGroups" :key="mod" class="mb-3">
-          <div class="text-xs text-muted font-medium mb-1.5 px-1">
+        <div v-for="(items, mod) in moduleGroups" :key="mod" class="mb-4">
+          <div class="text-xs text-muted font-medium mb-2 px-1">
             {{ mod }}
           </div>
 
-          <div v-for="f in items" :key="f.id">
+          <div v-for="f in items" :key="f.id" class="mb-1">
             <div
               class="px-3 py-2 rounded-lg cursor-pointer transition-colors border flex items-center gap-2"
               :class="
@@ -220,7 +214,7 @@ watch(currentProjectId, () => {
 
             <div
               v-if="expandedFeatureId === f.id && f.sections.length > 0"
-              class="ml-7 mt-0.5 mb-1 border-l-2 border-light pl-4"
+              class="ml-7 mt-1 border-l-2 border-light pl-4 space-y-0.5"
             >
               <div
                 v-for="sec in f.sections"
@@ -242,8 +236,8 @@ watch(currentProjectId, () => {
     </div>
 
     <!-- 底部操作栏 -->
-    <div class="flex items-center justify-between pt-3 mt-3 border-t border-light">
-      <button v-if="currentFeatureId" class="btn-danger text-sm" @click="removeRef">
+    <div class="flex items-center justify-between pt-3 mt-3 border-t border-default">
+      <button v-if="currentFeatureId" type="button" class="btn-danger text-sm" @click="removeRef">
         移除引用
       </button>
       <div v-else />
@@ -254,12 +248,19 @@ watch(currentProjectId, () => {
           <input
             v-model="customLabel"
             type="text"
-            class="w-36 px-2 py-1.5 text-sm border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--c-accent)] focus:border-transparent"
+            class="w-36 px-2 py-1.5 text-sm bg-surface text-primary placeholder:text-muted border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--c-accent)] focus:border-transparent"
             placeholder="引用显示文字"
           />
         </div>
-        <button class="btn-secondary text-sm" @click="() => emit('close')">取消</button>
-        <button class="btn-primary text-sm" :disabled="!selectedFeatureId" @click="confirm">
+        <button type="button" class="btn-secondary text-sm" @click="() => emit('close')">
+          取消
+        </button>
+        <button
+          type="button"
+          class="btn-primary text-sm"
+          :disabled="!selectedFeatureId"
+          @click="confirm"
+        >
           插入引用
         </button>
       </div>

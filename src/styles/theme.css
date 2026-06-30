@@ -27,6 +27,9 @@
   --c-danger-hover: #b91c1c;
   --c-danger-bg: #fef2f2;
 
+  /* 成功色 */
+  --c-success: #16a34a;
+
   /* 语义背景（警告/成功） */
   --c-warning-bg: #fffbeb;
   --c-success-bg: #f0fdf4;
@@ -62,6 +65,9 @@ html.dark {
   --c-danger: #ef4444;
   --c-danger-hover: #dc2626;
   --c-danger-bg: #3b1a1a;
+
+  /* 成功色 */
+  --c-success: #4ade80;
 
   /* 语义背景（警告/成功） */
   --c-warning-bg: #3b2e0a;

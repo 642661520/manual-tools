@@ -70,7 +70,10 @@ router.beforeEach(async (to, _from, next) => {
 
   if (to.meta.requiresAuth) {
     const valid = await validateToken()
-    if (!valid) return next('/login')
+    if (!valid) {
+      const redirect = to.fullPath
+      return next({ path: '/login', query: redirect !== '/login' ? { redirect } : {} })
+    }
 
     const user = getStoredUser()
     // 游客只能访问个人中心

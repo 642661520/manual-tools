@@ -29,7 +29,11 @@ function updatePosition() {
     left: `${rect.left}px`,
   }
 
-  if (rect.bottom + estimatedHeight <= window.innerHeight) {
+  const spaceBelow = window.innerHeight - rect.bottom
+  const spaceAbove = rect.top
+
+  // Place below if it fits, or if there's more space below than above
+  if (estimatedHeight <= spaceBelow || spaceBelow >= spaceAbove) {
     popupStyle.value.top = `${rect.bottom + 4}px`
   } else {
     popupStyle.value.bottom = `${window.innerHeight - rect.top + 4}px`
@@ -169,7 +173,7 @@ onUnmounted(() => {
                 v-for="c in MAX_COLS"
                 :key="`${r}-${c}`"
                 class="w-5 h-5 cursor-pointer transition-colors duration-75"
-                :class="r <= hoverRow && c <= hoverCol ? 'bg-blue-500' : 'bg-surface'"
+                :class="r <= hoverRow && c <= hoverCol ? 'bg-[var(--c-accent)]' : 'bg-surface'"
                 @mouseenter="() => onHover(r, c)"
                 @click="() => insert(r, c)"
               />

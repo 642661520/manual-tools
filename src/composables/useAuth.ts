@@ -10,6 +10,7 @@ import {
 import { getMembers } from '@/api/endpoints/projects'
 import { resetTokenValidation, currentUser } from '@/utils/token-validation'
 import { useProject } from './useProject'
+import { showErrorToast } from './toast'
 
 const token = ref<string | null>(localStorage.getItem('auth_token'))
 const currentProjectRole = ref<'pm' | 'writer' | 'viewer' | null>(null)
@@ -22,7 +23,14 @@ export function useAuth() {
   const isGuest = computed(() => currentUser.value?.role === 'guest')
 
   // 项目角色便捷计算
+  // canManageProject：包含 admin 绕过，用于项目设置（成员管理、审核链、导入导出）
   const canManageProject = computed(() => isAdmin.value || currentProjectRole.value === 'pm')
+  // isProjectPM：纯项目角色，用于内容操作（编辑/审核/发布/指派编辑者）
+  const isProjectPM = computed(() => currentProjectRole.value === 'pm')
+  // isProjectWriter：纯项目角色，用于内容编辑
+  const isProjectWriter = computed(
+    () => currentProjectRole.value === 'pm' || currentProjectRole.value === 'writer',
+  )
   const canWriteContent = computed(
     () =>
       isAdmin.value || currentProjectRole.value === 'pm' || currentProjectRole.value === 'writer',
@@ -38,17 +46,13 @@ export function useAuth() {
         setProjectRole(null)
         return
       }
-      // admin 自动拥有所有项目权限
-      if (currentUser.value?.role === 'admin') {
-        setProjectRole('pm')
-        return
-      }
       // 查询成员列表确定项目角色
       try {
         const members = await getMembers(projectId)
         const me = members.find((m) => m.id === currentUser.value?.id)
         setProjectRole(me?.projectRole || null)
-      } catch {
+      } catch (e: unknown) {
+        showErrorToast(e instanceof Error ? e.message : '加载项目角色失败')
         setProjectRole(null)
       }
     },
@@ -75,8 +79,8 @@ export function useAuth() {
       const data = await getCurrentUser()
       currentUser.value = data.user
       localStorage.setItem('auth_user', JSON.stringify(data.user))
-    } catch {
-      /* ignore */
+    } catch (e: unknown) {
+      showErrorToast(e instanceof Error ? e.message : '加载当前用户信息失败')
     }
   }
 
@@ -121,6 +125,8 @@ export function useAuth() {
     isGuest,
     canManageProject,
     canWriteContent,
+    isProjectPM,
+    isProjectWriter,
     currentProjectRole,
     setProjectRole,
     login,

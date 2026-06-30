@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useProject } from '@/composables/useProject'
+import { showErrorToast, showSuccessToast } from '@/composables/toast'
 import { useDialog } from '@/composables/useDialog'
 import {
   getMembers,
@@ -74,8 +75,8 @@ async function loadAllUsers() {
   try {
     const result = await getUsers(9999, 0)
     allUsers.value = result.rows
-  } catch {
-    /* ignore */
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '加载用户列表失败')
   }
 }
 
@@ -104,6 +105,7 @@ async function handleAddMember() {
     selectedUserId.value = ''
     selectedProjectRole.value = 'writer'
     await loadMembers()
+    showSuccessToast('成员已添加')
   } catch (e: unknown) {
     addMemberError.value = e instanceof Error ? e.message : '添加失败'
   }
@@ -114,6 +116,7 @@ async function handleRemoveMember(targetUserId: string) {
   try {
     await removeMember(currentProjectId.value!, targetUserId)
     await loadMembers()
+    showSuccessToast('成员已移除')
   } catch (e: unknown) {
     membersError.value = e instanceof Error ? e.message : '移除失败'
   }
@@ -123,6 +126,7 @@ async function changeMemberRole(targetUserId: string, newRole: string) {
   try {
     await addMember(currentProjectId.value!, targetUserId, newRole)
     await loadMembers()
+    showSuccessToast('成员角色已更新')
   } catch (e: unknown) {
     membersError.value = e instanceof Error ? e.message : '更新失败'
   }
@@ -161,6 +165,7 @@ async function saveReviewChain() {
       reviewChain.value.map((c) => c.id),
     )
     await loadReviewChain()
+    showSuccessToast('审核流程已保存')
   } catch (e: unknown) {
     reviewChainError.value = e instanceof Error ? e.message : '保存失败'
   } finally {

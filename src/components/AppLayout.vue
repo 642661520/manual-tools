@@ -9,6 +9,9 @@ import { useTheme } from '@/composables/useTheme'
 import SelectDropdown from '@/components/SelectDropdown.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import SearchBox from '@/components/SearchBox.vue'
+import { isFeishuClient } from '@/composables/useFeishuAutoLogin'
+
+const inFeishu = isFeishuClient()
 
 const router = useRouter()
 const route = useRoute()
@@ -303,6 +306,7 @@ onUnmounted(() => {
             </button>
             <div class="border-t border-light my-1" />
             <button
+              v-if="!inFeishu"
               class="w-full text-left px-4 py-2 text-sm color-danger hover:bg-danger flex items-center gap-2"
               @click="handleLogout"
             >
@@ -405,6 +409,7 @@ onUnmounted(() => {
               <span class="i-lucide-shield w-5 h-5 flex-shrink-0" />系统设置
             </button>
             <button
+              v-if="!inFeishu"
               class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm color-danger hover:bg-danger transition-colors"
               @click="handleLogout"
             >
@@ -416,7 +421,7 @@ onUnmounted(() => {
     </Transition>
   </Teleport>
 
-  <!-- 全局错误提示 -->
+  <!-- 全局提示 -->
   <Teleport to="body">
     <div
       class="z-9999 fixed top-3 sm:top-5 right-3 sm:right-5 left-3 sm:left-auto flex flex-col gap-3"
@@ -425,9 +430,21 @@ onUnmounted(() => {
         <div
           v-for="t in toasts"
           :key="t.id"
-          class="flex items-start gap-3 bg-surface rounded-lg shadow-lg border border-[var(--c-danger)]/20 border-l-4 border-l-[var(--c-danger)] px-4 py-3 max-w-full sm:max-w-96"
+          class="flex items-start gap-3 bg-surface rounded-xl shadow-sm border border-default px-4 py-3 max-w-full sm:max-w-96 overflow-hidden relative"
         >
-          <span class="i-lucide-alert-circle w-5 h-5 color-danger shrink-0 mt-0.5" />
+          <!-- 左侧彩色指示条 -->
+          <div
+            class="absolute left-0 top-0 bottom-0 w-1"
+            :class="t.type === 'success' ? 'bg-[var(--c-success)]' : 'bg-[var(--c-danger)]'"
+          />
+          <span
+            class="w-5 h-5 shrink-0 mt-0.5"
+            :class="
+              t.type === 'success'
+                ? 'i-lucide-check-circle color-success'
+                : 'i-lucide-alert-circle color-danger'
+            "
+          />
           <p class="text-sm text-secondary leading-relaxed">
             {{ t.message }}
           </p>
@@ -473,8 +490,12 @@ onUnmounted(() => {
 }
 
 /* 隐藏滚动条（用于横向滚动工具栏等） */
+.scrollbar-none {
+  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: none; /* Firefox */
+}
 .scrollbar-none::-webkit-scrollbar {
-  display: none;
+  display: none; /* Chrome/Safari/Edge */
 }
 
 @media print {

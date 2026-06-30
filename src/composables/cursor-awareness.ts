@@ -27,13 +27,11 @@ export const CursorAwareness = (awareness: Awareness) => {
         if (allChanges.length === 1 && allChanges[0] === awareness.clientID) return
 
         const view = this.editor.view
-        if (view.hasFocus()) {
-          requestAnimationFrame(() => {
-            if (!view.isDestroyed) {
-              view.dispatch(view.state.tr.setMeta(cursorPluginKey, {}))
-            }
-          })
-        }
+        requestAnimationFrame(() => {
+          if (!view.isDestroyed) {
+            view.dispatch(view.state.tr.setMeta(cursorPluginKey, {}))
+          }
+        })
       }
       awareness.on('update', awarenessHandler)
     },

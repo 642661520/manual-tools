@@ -5,6 +5,7 @@ import Sortable from 'sortablejs'
 import { useProject } from '@/composables/useProject'
 import { useAuth } from '@/composables/useAuth'
 import { useDialog } from '@/composables/useDialog'
+import { showErrorToast, showSuccessToast } from '@/composables/toast'
 import { useResponsiveSidebar } from '@/composables/useResponsiveSidebar'
 import { getFeatures } from '@/api/endpoints/features'
 import {
@@ -79,7 +80,7 @@ import CreateEditManualModal from '@/components/CreateEditManualModal.vue'
 const route = useRoute()
 const router = useRouter()
 const { currentProjectId } = useProject()
-const { canManageProject } = useAuth()
+const { isProjectPM } = useAuth()
 const { confirm, dangerConfirm } = useDialog()
 const catalogId = computed(() => route.params.id as string)
 
@@ -117,8 +118,23 @@ function openMoveMenu(e: MouseEvent, featureId: string) {
     return
   }
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-  moveMenuX.value = rect.left
-  moveMenuY.value = rect.bottom + 4
+  const menuW = 160
+  const menuH = Math.min((catalog.value.entries.filter(isPart).length || 1) * 36 + 28, 300)
+
+  // 水平方向：优先右侧展开，不够则左侧
+  if (rect.left + menuW > window.innerWidth) {
+    moveMenuX.value = Math.max(0, rect.right - menuW)
+  } else {
+    moveMenuX.value = rect.left
+  }
+
+  // 垂直方向：优先下方展开，不够则上方
+  if (rect.bottom + menuH > window.innerHeight) {
+    moveMenuY.value = Math.max(0, rect.top - menuH - 4)
+  } else {
+    moveMenuY.value = rect.bottom + 4
+  }
+
   movingFeatureId.value = featureId
 }
 
@@ -128,8 +144,23 @@ function openPoolMoveMenu(e: MouseEvent, f: FeatureSummary) {
     return
   }
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-  poolMenuX.value = rect.right
-  poolMenuY.value = rect.top
+  const menuW = 160
+  const menuH = Math.min((catalog.value.entries.filter(isPart).length || 1) * 36 + 28, 300)
+
+  // 水平：优先左侧展开，不够则右侧
+  if (rect.right - menuW < 0) {
+    poolMenuX.value = rect.left
+  } else {
+    poolMenuX.value = rect.right - menuW
+  }
+
+  // 垂直
+  if (rect.bottom + menuH > window.innerHeight) {
+    poolMenuY.value = Math.max(0, rect.top - menuH - 4)
+  } else {
+    poolMenuY.value = rect.bottom + 4
+  }
+
   movingPoolFeature.value = f
 }
 
@@ -219,12 +250,18 @@ async function loadData() {
   const catalogIdVal = catalogId.value
   const pid = currentProjectId.value
 
-  const [featuresRes, categoriesRes] = await Promise.all([
-    getFeatures(pid || undefined),
-    getCategories(pid || undefined),
-  ])
-  allFeatures.value = featuresRes
-  categories.value = categoriesRes
+  try {
+    const [featuresRes, categoriesRes] = await Promise.all([
+      getFeatures(pid || undefined),
+      getCategories(pid || undefined),
+    ])
+    allFeatures.value = featuresRes
+    categories.value = categoriesRes
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '加载内容列表失败')
+    loading.value = false
+    return
+  }
 
   try {
     const data = (await getCatalog(catalogIdVal)) as unknown as CatalogResponse
@@ -263,7 +300,8 @@ async function loadData() {
       title: data.title,
       entries: (data.features || []).map(parseNode),
     }
-  } catch {
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '加载手册失败')
     // 无权访问或不存在，清空内容
     catalog.value = { title: '', entries: [] }
   }
@@ -285,6 +323,7 @@ function addFeature(f: FeatureSummary) {
       approvedSections: f.approvedSections,
     },
   })
+  sortVersion.value++
   dirty.value = true
   highlightedId.value = f.id
   nextTick(() => {
@@ -305,6 +344,7 @@ function addPart() {
     title: `篇 ${partCount}`,
     features: [],
   })
+  sortVersion.value++
   dirty.value = true
 }
 
@@ -312,9 +352,9 @@ function addPart() {
 function removePart(index: number) {
   const node = catalog.value.entries[index]
   if (!isPart(node)) return
-  // 将 part 内的 features 提升到 entries 顶层
   const promoted = node.features
   catalog.value.entries.splice(index, 1, ...promoted)
+  sortVersion.value++
   dirty.value = true
 }
 
@@ -334,6 +374,7 @@ function addFeatureToPart(targetPartId: string, f: FeatureSummary) {
       approvedSections: f.approvedSections,
     },
   })
+  sortVersion.value++
   dirty.value = true
   highlightedId.value = f.id
   nextTick(() => {
@@ -351,14 +392,15 @@ function removeFeatureFromPart(partIndex: number, featIndex: number) {
   if (!isPart(node)) return
   const [removed] = node.features.splice(featIndex, 1)
   if (removed) {
-    // 插入到该 part 之后
     catalog.value.entries.splice(partIndex + 1, 0, removed)
   }
+  sortVersion.value++
   dirty.value = true
 }
 
 function removeFeature(entryIndex: number) {
   catalog.value.entries.splice(entryIndex, 1)
+  sortVersion.value++
   if (expandedIndex.value === entryIndex) expandedIndex.value = null
   else if (expandedIndex.value !== null && expandedIndex.value > entryIndex) expandedIndex.value--
   dirty.value = true
@@ -366,9 +408,14 @@ function removeFeature(entryIndex: number) {
 
 async function deleteCatalog(id: string) {
   if (!(await dangerConfirm('确定删除此手册？\n导出版本历史也将被删除，不可恢复。'))) return
-  await apiDeleteCatalog(id)
-  // 删除后返回列表页
-  router.push('/manuals')
+  try {
+    await apiDeleteCatalog(id)
+    // 删除后返回列表页
+    router.push('/manuals')
+    showSuccessToast('手册已删除')
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '删除手册失败')
+  }
 }
 
 function toggleExpand(index: number) {
@@ -555,6 +602,7 @@ function getGlobalFeatNum(entryIndex: number, featIndex?: number): number {
 // ====== 拖拽系统 ======
 // SortableJS 负责同容器内排序；左侧池 HTML5 拖拽负责添加到右侧
 const sortList = ref<HTMLElement>()
+const sortVersion = ref(0)
 
 // ---- 左侧池 HTML5 拖拽 → 右侧 ----
 
@@ -575,6 +623,8 @@ function onDrop(e: DragEvent) {
   if (target.closest('.part-drop-target')) return
   const featureId = e.dataTransfer?.getData('text/plain')
   if (!featureId) return
+  // 如果已在 catalog 中，跳过（可能是池未及时更新的竞态）
+  if (selectedFeatureIds.value.has(featureId)) return
   const f = allFeatures.value.find((x: FeatureSummary) => x.id === featureId)
   if (f) addFeature(f)
 }
@@ -607,6 +657,19 @@ function onPartDrop(e: DragEvent) {
   if (!targetPartId) return
   const featureId = e.dataTransfer?.getData('text/plain')
   if (!featureId) return
+
+  // 如果已在 catalog 中（顶层），执行移动而非添加
+  const existing = findEntryById(featureId)
+  if (existing && existing.type === 'main') {
+    moveFeatureToPart(featureId, targetPartId)
+    dirty.value = true
+    nextTick(() => initAllSorts())
+    return
+  }
+
+  // 已在 Part 内或不存在 → 跳过
+  if (selectedFeatureIds.value.has(featureId)) return
+
   const f = allFeatures.value.find((x: FeatureSummary) => x.id === featureId)
   if (!f) return
   const node = catalog.value.entries.find((e) => isPart(e) && (e as CatPart).id === targetPartId)
@@ -623,6 +686,7 @@ function onPartDrop(e: DragEvent) {
       approvedSections: f.approvedSections,
     },
   })
+  sortVersion.value++
   dirty.value = true
   nextTick(() => initAllSorts())
 }
@@ -631,18 +695,18 @@ function onPartDrop(e: DragEvent) {
 
 function moveFeatureToPart(featureId: string, targetPartId: string) {
   const src = findEntryById(featureId)
-  if (!src || src.type === 'part') return // 只在顶层才能移入 Part
-  const n = catalog.value.entries[src.entryIndex]
-  if (!n || isPart(n)) return
-  const [moved] = catalog.value.entries.splice(src.entryIndex, 1) as unknown as CatEntry[]
+  if (!src || src.type === 'part') return
+  const entry = catalog.value.entries[src.entryIndex]
+  if (!entry || isPart(entry)) return
+
   const targetNode = catalog.value.entries.find(
     (e) => isPart(e) && (e as CatPart).id === targetPartId,
   )
-  if (!targetNode || !isPart(targetNode)) {
-    catalog.value.entries.push(moved)
-  } else {
-    targetNode.features.push(moved)
-  }
+  if (!targetNode || !isPart(targetNode)) return
+
+  catalog.value.entries.splice(src.entryIndex, 1)
+  targetNode.features.push(entry as CatEntry)
+  sortVersion.value++
   expandedIndex.value = null
   dirty.value = true
   nextTick(() => initAllSorts())
@@ -655,7 +719,16 @@ function handleMoveToPart(featureId: string, targetPartId: string) {
 
 function handleAddToPart(targetPartId: string, feature: FeatureSummary | null) {
   if (!feature) return
-  addFeatureToPart(targetPartId, feature)
+  // 若已在 catalog 中（池未及时更新的竞态），执行移动而非添加
+  const existing = findEntryById(feature.id)
+  if (existing) {
+    if (existing.type === 'main') {
+      moveFeatureToPart(feature.id, targetPartId)
+    }
+    // 已在 Part 内 → 不重复添加
+  } else {
+    addFeatureToPart(targetPartId, feature)
+  }
   movingPoolFeature.value = null
 }
 
@@ -692,6 +765,7 @@ function initSort() {
     ghostClass: 'bg-active',
     onEnd(evt) {
       if (evt.oldIndex === undefined || evt.newIndex === undefined) return
+      if (evt.oldIndex === evt.newIndex) return
       const [moved] = catalog.value.entries.splice(evt.oldIndex, 1)
       catalog.value.entries.splice(evt.newIndex, 0, moved)
       expandedIndex.value = null
@@ -776,6 +850,14 @@ onMounted(async () => {
   initAllSorts()
 })
 
+// entries 数组被替换时强制重建 Sortable 容器，消除 DOM 残留
+watch(
+  () => catalog.value.entries,
+  () => {
+    sortVersion.value++
+  },
+)
+
 // 手册内容变化时重建拖拽
 watch(
   () => catalog.value.entries.length,
@@ -811,7 +893,7 @@ watch(currentProjectId, () => {
           catalog.title || '未命名手册'
         }}</span>
         <button
-          v-if="canManageProject"
+          v-if="isProjectPM"
           v-tooltip="'编辑手册信息'"
           class="text-muted hover:color-accent transition-colors flex-shrink-0"
           @click="showEditInfoModal = true"
@@ -829,7 +911,7 @@ watch(currentProjectId, () => {
           >
         </span>
         <ErrorMessage :message="saveError" />
-        <span :class="{ invisible: !canManageProject }" class="inline-flex items-center gap-2">
+        <span :class="{ invisible: !isProjectPM }" class="inline-flex items-center gap-2">
           <button
             class="btn-secondary text-sm text-red-400 hover:color-danger"
             @click="() => deleteCatalog(catalogId)"
@@ -846,7 +928,7 @@ watch(currentProjectId, () => {
     <div class="flex-1 flex overflow-hidden">
       <!-- 左侧：可选内容（仅 PM 可编辑） -->
       <aside
-        v-if="canManageProject"
+        v-if="isProjectPM"
         class="w-72 border-r border-default bg-surface flex-shrink-0 flex-col hidden md:flex"
       >
         <div class="p-4 flex-shrink-0">
@@ -902,7 +984,7 @@ watch(currentProjectId, () => {
       <!-- 移动端内容池抽屉 -->
       <Teleport to="body">
         <Transition name="slide-left">
-          <div v-if="showPool && canManageProject" class="fixed inset-0 z-40 md:hidden">
+          <div v-if="showPool && isProjectPM" class="fixed inset-0 z-40 md:hidden">
             <div class="absolute inset-0 bg-black/30" @click="closePool" />
             <aside
               class="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] bg-surface shadow-xl flex flex-col"
@@ -970,7 +1052,7 @@ watch(currentProjectId, () => {
       <!-- 右侧：已编排内容 -->
       <main class="flex-1 overflow-y-auto bg-base p-3 sm:p-6" @dragover="onDragOver" @drop="onDrop">
         <!-- 移动端内容池按钮 -->
-        <div v-if="canManageProject" class="mb-3 max-w-3xl flex items-center gap-2">
+        <div v-if="isProjectPM" class="mb-3 max-w-3xl flex items-center gap-2">
           <button
             class="md:hidden btn-secondary text-sm flex items-center gap-1"
             @click="togglePool"
@@ -982,7 +1064,7 @@ watch(currentProjectId, () => {
           </button>
         </div>
 
-        <div ref="sortList" class="space-y-3 max-w-3xl min-h-[240px] pb-24">
+        <div ref="sortList" :key="sortVersion" class="space-y-3 max-w-3xl min-h-[240px] pb-24">
           <!-- 空状态 / 拖放目标区 -->
           <div
             v-if="catalog.entries.length === 0"
@@ -1009,7 +1091,7 @@ watch(currentProjectId, () => {
             >
               <div class="flex items-center gap-3 px-4 py-3 bg-indigo-50 dark:bg-indigo-900/25">
                 <div
-                  v-if="canManageProject"
+                  v-if="isProjectPM"
                   class="drag-handle cursor-grab text-muted hover:text-secondary"
                 >
                   <span class="i-lucide-grip-vertical w-4 h-4 inline-block align-middle" />
@@ -1025,7 +1107,7 @@ watch(currentProjectId, () => {
                 />
                 <span class="text-xs text-muted flex-shrink-0">{{ node.features.length }} 章</span>
                 <button
-                  v-if="canManageProject"
+                  v-if="isProjectPM"
                   v-tooltip="'删除此篇（内容将提升到顶层）'"
                   class="text-red-400 hover:color-danger text-sm flex-shrink-0"
                   @click="() => removePart(ni)"
@@ -1061,8 +1143,9 @@ watch(currentProjectId, () => {
                     @click="() => toggleExpand(ni * 10000 + fi)"
                   >
                     <div
-                      v-if="canManageProject"
+                      v-if="isProjectPM"
                       class="part-feat-drag cursor-grab text-muted hover:text-secondary flex-shrink-0"
+                      @click.stop
                     >
                       <span class="i-lucide-grip-vertical w-3.5 h-3.5 inline-block align-middle" />
                     </div>
@@ -1092,7 +1175,7 @@ watch(currentProjectId, () => {
                       </span>
                     </div>
                     <button
-                      v-if="canManageProject"
+                      v-if="isProjectPM"
                       v-tooltip="'移出此篇'"
                       class="text-muted hover:color-danger text-xs"
                       @click.stop="() => removeFeatureFromPart(ni, fi)"
@@ -1106,7 +1189,7 @@ watch(currentProjectId, () => {
                     v-if="expandedIndex === ni * 10000 + fi"
                     class="border-t border-light bg-base px-4 py-2"
                   >
-                    <div v-if="canManageProject" class="text-xs text-muted mb-2">
+                    <div v-if="isProjectPM" class="text-xs text-muted mb-2">
                       小节排序（拖拽调整，点击 × 移除）
                     </div>
                     <div class="section-sort-area space-y-1" :data-feature-id="fe.feature.id">
@@ -1116,7 +1199,7 @@ watch(currentProjectId, () => {
                         class="flex items-center gap-2 text-sm bg-surface px-3 py-1.5 rounded border border-light group"
                       >
                         <div
-                          v-if="canManageProject"
+                          v-if="isProjectPM"
                           class="section-drag-handle cursor-grab text-muted hover:text-secondary"
                         >
                           <span
@@ -1128,7 +1211,7 @@ watch(currentProjectId, () => {
                         >
                         <span class="text-secondary flex-1">{{ sec.title }}</span>
                         <button
-                          v-if="canManageProject"
+                          v-if="isProjectPM"
                           v-tooltip="'移除此小节'"
                           class="text-red-400 hover:color-danger"
                           @click.stop="() => removeSectionInPart(ni, fi, sec.key)"
@@ -1175,8 +1258,9 @@ watch(currentProjectId, () => {
                 @click="() => toggleExpand(ni)"
               >
                 <div
-                  v-if="canManageProject"
+                  v-if="isProjectPM"
                   class="drag-handle cursor-grab text-muted hover:text-secondary flex-shrink-0"
+                  @click.stop
                 >
                   <span class="i-lucide-grip-vertical w-4 h-4 inline-block align-middle" />
                 </div>
@@ -1222,10 +1306,7 @@ watch(currentProjectId, () => {
                     {{ node.feature.description }}
                   </div>
                 </div>
-                <div
-                  v-if="canManageProject && catalog.entries.some((e) => isPart(e))"
-                  class="relative"
-                >
+                <div v-if="isProjectPM && catalog.entries.some((e) => isPart(e))" class="relative">
                   <button
                     v-tooltip="'移至篇'"
                     class="text-muted hover:text-indigo-500 text-xs px-1.5 py-1 rounded"
@@ -1262,7 +1343,7 @@ watch(currentProjectId, () => {
                   </Teleport>
                 </div>
                 <button
-                  v-if="canManageProject"
+                  v-if="isProjectPM"
                   class="text-red-400 hover:color-danger text-sm"
                   @click.stop="() => removeFeature(ni)"
                 >
@@ -1272,7 +1353,7 @@ watch(currentProjectId, () => {
 
               <!-- 展开的 section 排序 -->
               <div v-if="expandedIndex === ni" class="border-t border-light bg-base px-4 py-2">
-                <div v-if="canManageProject" class="text-xs text-muted mb-2">
+                <div v-if="isProjectPM" class="text-xs text-muted mb-2">
                   小节排序（拖拽调整，点击 × 移除）
                 </div>
                 <div class="section-sort-area space-y-1" :data-feature-id="node.feature.id">
@@ -1282,7 +1363,7 @@ watch(currentProjectId, () => {
                     class="flex items-center gap-2 text-sm bg-surface px-3 py-1.5 rounded border border-light group"
                   >
                     <div
-                      v-if="canManageProject"
+                      v-if="isProjectPM"
                       class="section-drag-handle cursor-grab text-muted hover:text-secondary"
                     >
                       <span class="i-lucide-grip-vertical w-3.5 h-3.5 inline-block align-middle" />
@@ -1292,7 +1373,7 @@ watch(currentProjectId, () => {
                     >
                     <span class="text-secondary flex-1">{{ sec.title }}</span>
                     <button
-                      v-if="canManageProject"
+                      v-if="isProjectPM"
                       v-tooltip="'移除此小节'"
                       class="text-red-400 hover:color-danger"
                       @click.stop="() => removeSection(ni, sec.key)"

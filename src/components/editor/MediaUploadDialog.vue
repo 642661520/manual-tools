@@ -8,6 +8,7 @@ import ModalDialog from '@/components/ModalDialog.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import { uploadImage, uploadVideo } from '@/api/endpoints/upload'
 import { useDialog } from '@/composables/useDialog'
+import { showSuccessToast } from '@/composables/toast'
 
 const { alert } = useDialog()
 
@@ -94,6 +95,7 @@ async function handleUpload(e: Event) {
     const { url } = await uploadFn(file)
     emit('insert', { type: props.mediaType, src: url })
     emit('update:visible', false)
+    showSuccessToast('上传成功')
   } catch (e: unknown) {
     await alert('上传失败: ' + (e instanceof Error ? e.message : '未知错误'))
   } finally {
@@ -115,7 +117,7 @@ defineExpose({ open })
     :loading="uploading"
     width-class="max-w-md"
     @confirm="confirm"
-    @cancel="cancel"
+    @close="cancel"
   >
     <!-- URL 输入 -->
     <div class="mb-3">

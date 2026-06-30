@@ -177,21 +177,21 @@ watch(
 )
 
 const variantSelected: Record<string, string> = {
-  primary: 'border-blue-400 bg-active',
-  warning: 'border-orange-400 bg-orange-50',
-  danger: 'border-red-400 bg-danger',
+  primary: 'border-blue-400 dark:border-blue-300 bg-active',
+  warning: 'border-orange-400 dark:border-orange-300 bg-orange-50 dark:bg-orange-500/15',
+  danger: 'border-red-400 dark:border-red-300 bg-danger',
 }
 
 const variantRadio: Record<string, string> = {
-  primary: 'border-blue-500',
-  warning: 'border-orange-500',
-  danger: 'border-red-500',
+  primary: 'border-blue-500 dark:border-blue-400',
+  warning: 'border-orange-500 dark:border-orange-400',
+  danger: 'border-red-500 dark:border-red-400',
 }
 
 const variantRadioFill: Record<string, string> = {
-  primary: 'bg-blue-500',
-  warning: 'bg-orange-500',
-  danger: 'bg-red-500',
+  primary: 'bg-blue-500 dark:bg-blue-400',
+  warning: 'bg-orange-500 dark:bg-orange-400',
+  danger: 'bg-red-500 dark:bg-red-400',
 }
 </script>
 
@@ -229,7 +229,7 @@ const variantRadioFill: Record<string, string> = {
           :class="
             selectedIdx === idx
               ? variantSelected[opt.variant]
-              : 'border-default hover:bg-hover hover:border-gray-300'
+              : 'border-default hover:bg-hover hover:border-[var(--c-text-muted)]'
           "
           @click="() => selectOption(opt, idx)"
         >
@@ -237,7 +237,7 @@ const variantRadioFill: Record<string, string> = {
             <!-- 单选圆圈 -->
             <span
               class="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors"
-              :class="selectedIdx === idx ? variantRadio[opt.variant] : 'border-gray-300'"
+              :class="selectedIdx === idx ? variantRadio[opt.variant] : 'border-default'"
             >
               <span
                 v-if="selectedIdx === idx"

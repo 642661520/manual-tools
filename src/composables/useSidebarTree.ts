@@ -88,7 +88,18 @@ export function useSidebarTree(catalogEntries: Ref<CatalogEntry[]>, features: Re
 
   const hasParts = computed(() => catalogEntries.value.some((e) => isCatalogPart(e)))
 
-  const totalChapters = computed(() => chapterMap.value.size)
+  // 使用树中实际可见的章节数（已跳过删除的 feature）
+  const totalChapters = computed(() => {
+    let count = 0
+    for (const node of tree.value) {
+      if (node.type === 'part') {
+        count += node.children.length
+      } else {
+        count++
+      }
+    }
+    return count
+  })
 
   return { tree, chapterMap, hasParts, totalChapters }
 }

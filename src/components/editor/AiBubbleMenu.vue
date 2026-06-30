@@ -94,7 +94,9 @@ watch(
       <button
         class="flex items-center gap-1 h-7 px-2 rounded text-xs font-medium transition-colors"
         :class="
-          showPopover ? 'bg-violet-100 text-violet-700' : 'text-violet-500 hover:bg-violet-50'
+          showPopover
+            ? 'bg-violet-100 dark:bg-violet-500/25 text-violet-700 dark:text-violet-300'
+            : 'text-violet-500 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-500/15'
         "
         @mousedown.prevent="showPopover = !showPopover"
       >

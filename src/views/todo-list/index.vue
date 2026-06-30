@@ -12,21 +12,31 @@ const todos = ref<TodoItem[]>([])
 const loading = ref(true)
 
 const statusGroups: { key: string; label: string; color: string; bg: string }[] = [
-  { key: 'rejected', label: '需修改', color: 'text-red-600', bg: 'bg-red-50 border-red-200' },
+  {
+    key: 'rejected',
+    label: '需修改',
+    color: 'text-orange-700 dark:text-orange-300',
+    bg: 'bg-orange-100 dark:bg-orange-900/30 border-orange-200 dark:border-orange-700',
+  },
   {
     key: 'in_progress',
     label: '编写中',
-    color: 'text-amber-600',
-    bg: 'bg-amber-50 border-amber-200',
+    color: 'color-accent dark:text-blue-300',
+    bg: 'bg-blue-100 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700',
   },
   { key: 'draft', label: '待开始', color: 'text-secondary', bg: 'bg-base border-default' },
   {
     key: 'pending_review',
     label: '待审核',
-    color: 'text-blue-600',
-    bg: 'bg-[var(--c-accent-bg)] color-accent border-[var(--c-accent)]/30',
+    color: 'text-yellow-700 dark:text-yellow-300',
+    bg: 'bg-yellow-100 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-700',
   },
-  { key: 'approved', label: '已完成', color: 'text-green-600', bg: 'bg-green-50 border-green-200' },
+  {
+    key: 'approved',
+    label: '已完成',
+    color: 'text-emerald-700 dark:text-emerald-300',
+    bg: 'bg-emerald-100 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700',
+  },
 ]
 
 const groupedTodos = computed(() => {
@@ -101,7 +111,7 @@ watch(currentProjectId, loadTodos)
                   {{ t.featureTitle }} › {{ t.sectionTitle }}
                   <span
                     v-if="t.todoType === 'review'"
-                    class="text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded ml-1.5 font-normal"
+                    class="text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 px-1.5 py-0.5 rounded ml-1.5 font-normal"
                     >审核</span
                   >
                 </div>

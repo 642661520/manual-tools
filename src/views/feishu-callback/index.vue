@@ -10,6 +10,22 @@ const mode = ref<'login' | 'bind'>('bind')
 const errorMsg = ref('')
 const successMsg = ref('')
 
+/** 从 state 参数中解码 redirect 目标地址
+ *  state 格式: login:<base64_redirect>:<random> 或 login:<random> */
+function parseRedirectFromState(stateParam?: string): string | null {
+  if (!stateParam) return null
+  const parts = stateParam.split(':')
+  // login:<base64>:<random> → parts[1] 是 base64 编码的 redirect
+  if (parts.length === 3 && parts[0] === 'login') {
+    try {
+      return atob(parts[1])
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
 onMounted(async () => {
   const code = route.query.code as string | undefined
   const stateParam = route.query.state as string | undefined
@@ -38,8 +54,11 @@ async function handleLogin(code: string) {
     successMsg.value =
       data.user.role === 'guest' ? '登录成功，您的账号正在等待系统管理员授权' : '登录成功'
 
+    const stateParam = route.query.state as string | undefined
+    const redirect = parseRedirectFromState(stateParam)
+
     setTimeout(() => {
-      window.location.href = '/features'
+      window.location.href = redirect || '/features'
     }, 1500)
   } catch (e: unknown) {
     status.value = 'error'

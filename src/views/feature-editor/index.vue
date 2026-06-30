@@ -3,10 +3,12 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useDialog } from '@/composables/useDialog'
+import { showErrorToast, showSuccessToast } from '@/composables/toast'
 import { useResponsiveSidebar } from '@/composables/useResponsiveSidebar'
 import {
   getFeature,
   updateSectionStatus,
+  updateSections,
   deleteOrphaned as apiDeleteOrphaned,
 } from '@/api/endpoints/features'
 import { getUsers } from '@/api/endpoints/auth'
@@ -56,7 +58,7 @@ type ComponentStatus =
   | 'pending_review'
   | 'rejected'
   | 'approved'
-const { canManageProject, canWriteContent } = useAuth()
+const { isProjectPM, isProjectWriter } = useAuth()
 
 const { dangerConfirm } = useDialog()
 const featureId = computed(() => route.params.id as string)
@@ -66,19 +68,26 @@ const feature = ref<FeatureDetail | null>(null)
 const loading = ref(true)
 const loadError = ref('')
 
+// 无小节对话框
+const showNoSectionDialog = ref(false)
+const noSectionNewName = ref('')
+const noSectionCreating = ref(false)
+
 const currentSection = ref('')
 const currentSectionData = computed(() => {
   const sec = feature.value?.sections.find((s) => s.key === currentSection.value)
   if (sec) return sec
   if (currentSection.value === '_default') {
     const ds = (feature.value as FeatureDetailExt)?.defaultSection
-    return (
-      ds || {
-        key: '_default',
-        title: feature.value?.title || '正文',
-        status: 'draft' as ComponentStatus,
-      }
-    )
+    if (ds) return ds
+    // 有显式小节时 _default 归入游离文档，从 orphaned 中查找
+    const orphanedDoc = feature.value?.orphaned?.find((o) => o.key === '_default')
+    if (orphanedDoc) return orphanedDoc
+    return {
+      key: '_default',
+      title: feature.value?.title || '正文',
+      status: 'draft' as ComponentStatus,
+    }
   }
   return feature.value?.orphaned?.find((o) => o.key === currentSection.value) || null
 })
@@ -90,7 +99,7 @@ const docId = computed(() => {
 
 // 当前小节是否可编辑：无写入权限或 pending_review/approved 时锁定
 const editable = computed(() => {
-  if (!canWriteContent.value) return false
+  if (!isProjectWriter.value) return false
   const s = currentSectionData.value?.status || 'draft'
   return s !== 'pending_review' && s !== 'approved'
 })
@@ -128,7 +137,7 @@ const sectionStatusLog = computed(() => {
 
 // 当前用户是否是当前审核环节的审核人
 const isCurrentReviewer = computed(() => {
-  if (!canManageProject.value) return false
+  if (!isProjectPM.value) return false
   const status = currentSectionData.value?.status
   if (status !== 'pending_review') return false
   if (reviewChain.value.length === 0) return true // 无链时任何 PM 可审
@@ -146,6 +155,14 @@ async function loadFeature() {
   try {
     const data = await getFeature(featureId.value)
     feature.value = data as FeatureDetailExt
+
+    // 无显式小节且未创建默认小节 → 弹窗处理
+    if (data.sections.length === 0 && !(data as FeatureDetailExt).defaultSection) {
+      showNoSectionDialog.value = true
+      loading.value = false
+      return
+    }
+
     const fromUrl = route.query.section as string | undefined
     if (fromUrl && data.sections.find((s) => s.key === fromUrl)) {
       currentSection.value = fromUrl
@@ -158,6 +175,45 @@ async function loadFeature() {
     loadError.value = '加载失败: ' + (e instanceof Error ? e.message : String(e))
   } finally {
     loading.value = false
+  }
+}
+
+// ---- 无小节对话框操作 ----
+
+function generateSectionKey(): string {
+  return crypto.randomUUID().slice(0, 8)
+}
+
+function closeNoSectionDialog() {
+  showNoSectionDialog.value = false
+  router.push('/features')
+}
+
+async function createDefaultAndEnter() {
+  showNoSectionDialog.value = false
+  currentSection.value = '_default'
+  // 文档会在编辑器加载时由 ensureDocumentRecord 自动创建
+  loading.value = true
+  await loadProjectMembers()
+  loading.value = false
+}
+
+async function addSectionAndEnter() {
+  const name = noSectionNewName.value.trim()
+  if (!name) return
+  noSectionCreating.value = true
+  try {
+    const key = generateSectionKey()
+    await updateSections(featureId.value, { sections: [{ key, title: name }] })
+    showNoSectionDialog.value = false
+    currentSection.value = key
+    // 重新加载 feature 以获取完整的 sections 数据
+    await loadFeature()
+    await loadProjectMembers()
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '创建小节失败')
+  } finally {
+    noSectionCreating.value = false
   }
 }
 
@@ -176,14 +232,14 @@ function userDisplayName(u: ApiUser): string {
 }
 
 const users = ref<ApiUser[]>([])
-const projectMemberIds = ref<Set<string>>(new Set())
+const projectMemberRoles = ref<Map<string, string>>(new Map())
 const newAssigneeId = ref<string | null>(null)
 
 async function loadUsers() {
   try {
     users.value = (await getUsers(9999, 0)).rows as ApiUser[]
-  } catch {
-    /* ignore */
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '加载用户列表失败')
   }
 }
 
@@ -192,9 +248,9 @@ async function loadProjectMembers() {
   if (!pid) return
   try {
     const members = await getMembers(pid)
-    projectMemberIds.value = new Set(members.map((m) => m.id))
-  } catch {
-    /* ignore */
+    projectMemberRoles.value = new Map(members.map((m) => [m.id, m.projectRole || 'viewer']))
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '加载项目成员失败')
   }
 }
 
@@ -209,7 +265,7 @@ function getCurrentAssignees(): string[] {
 
 function getUserName(uid: string): string {
   const u = users.value.find((u) => u.id === uid)
-  return u ? userDisplayName(u) : uid
+  return u ? userDisplayName(u) : '已删除用户'
 }
 
 function getUserAvatar(uid: string): string | null {
@@ -218,7 +274,12 @@ function getUserAvatar(uid: string): string | null {
 
 function availableUsers() {
   const assigned = new Set(getCurrentAssignees())
-  return users.value.filter((u) => !assigned.has(u.id) && projectMemberIds.value.has(u.id))
+  return users.value.filter((u) => {
+    if (assigned.has(u.id)) return false
+    const role = projectMemberRoles.value.get(u.id)
+    // 只有 writer 可被指派为编辑者，PM 无需指派
+    return role === 'writer'
+  })
 }
 
 async function addAssignee(sectionKey: string, uid: string) {
@@ -240,21 +301,27 @@ async function updateAssignees(sectionKey: string, assignees: string[]) {
   let target: { assignees?: string } | undefined
   if (sectionKey === '_default') {
     const ds = (feature.value as FeatureDetailExt)?.defaultSection
-    if (!ds) {
-      // 没有 defaultSection 时创建一个挂到 FeatureDetailExt 上
-      const newDs: DefaultSection = {
-        key: '_default',
-        title: feature.value?.title || '正文',
-        status: 'draft',
-        assignees: '[]',
-        reviewNote: '',
-        reviewStep: 0,
-        statusLog: '[]',
-      }
-      ;(feature.value as FeatureDetailExt).defaultSection = newDs
-      target = newDs
-    } else {
+    if (ds) {
       target = ds
+    } else {
+      // 有显式小节时 _default 可能已归入游离文档，先从 orphaned 查找
+      target = feature.value?.orphaned?.find((o) => o.key === '_default') as
+        | { assignees?: string }
+        | undefined
+      if (!target) {
+        // 都不存在时创建一个挂到 FeatureDetailExt 上
+        const newDs: DefaultSection = {
+          key: '_default',
+          title: feature.value?.title || '正文',
+          status: 'draft',
+          assignees: '[]',
+          reviewNote: '',
+          reviewStep: 0,
+          statusLog: '[]',
+        }
+        ;(feature.value as FeatureDetailExt).defaultSection = newDs
+        target = newDs
+      }
     }
   } else {
     target = feature.value?.sections.find((s) => s.key === sectionKey) as
@@ -290,12 +357,12 @@ function statusIcon(status: string): string {
 
 function statusLogIcon(action: string): string {
   const icons: Record<string, string> = {
-    submitted: 'i-lucide-send text-blue-400',
-    approved: 'i-lucide-check-circle text-green-500',
+    submitted: 'i-lucide-send text-blue-400 dark:text-blue-300',
+    approved: 'i-lucide-check-circle text-green-500 dark:text-green-400',
     rejected: 'i-lucide-x-circle color-danger',
-    direct_approved: 'i-lucide-zap text-yellow-500',
+    direct_approved: 'i-lucide-zap text-yellow-500 dark:text-yellow-400',
     reset_to_draft: 'i-lucide-rotate-ccw text-muted',
-    reset_to_in_progress: 'i-lucide-rotate-ccw text-orange-400',
+    reset_to_in_progress: 'i-lucide-rotate-ccw text-orange-400 dark:text-orange-300',
   }
   return icons[action] || 'i-lucide-circle text-muted'
 }
@@ -343,17 +410,17 @@ function selectSection(key: string) {
 }
 
 const hasStatusTransitions = computed(() => {
-  if (!canWriteContent.value) return false // viewer 无任何状态操作
+  if (!isProjectWriter.value) return false // viewer 无任何状态操作
   const s = currentSectionData.value?.status || 'draft'
-  if (!canManageProject.value) return s === 'draft' || s === 'in_progress' || s === 'rejected'
+  if (!isProjectPM.value) return s === 'draft' || s === 'in_progress' || s === 'rejected'
   return true // PM 始终有可用操作
 })
 
 const statusActionLabel = computed(() => {
   const s = currentSectionData.value?.status || 'draft'
-  if (!canManageProject.value && (s === 'draft' || s === 'in_progress')) return '提交审核'
-  if (!canManageProject.value && s === 'rejected') return '重新提交审核'
-  if (canManageProject.value && s === 'pending_review' && isCurrentReviewer.value) return '审核...'
+  if (!isProjectPM.value && (s === 'draft' || s === 'in_progress')) return '提交审核'
+  if (!isProjectPM.value && s === 'rejected') return '重新提交审核'
+  if (isProjectPM.value && s === 'pending_review' && isCurrentReviewer.value) return '审核...'
   return '变更状态'
 })
 
@@ -367,17 +434,23 @@ async function handleStatusTransition(
     await updateSectionStatus(featureId.value, sectionKey, body as UpdateSectionStatusBody)
     showStatusModal.value = false
     await loadFeature()
-  } catch {
-    /* ignore */
+    showSuccessToast('状态已更新')
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '更新小节状态失败')
   }
 }
 
 // 删除游离文档
 async function deleteOrphaned(sectionKey: string) {
   if (!(await dangerConfirm(`确定删除游离文档「${sectionKey}」？\n内容不可恢复。`))) return
-  await apiDeleteOrphaned(featureId.value, sectionKey)
-  if (feature.value?.orphaned) {
-    feature.value.orphaned = feature.value.orphaned.filter((o) => o.key !== sectionKey)
+  try {
+    await apiDeleteOrphaned(featureId.value, sectionKey)
+    if (feature.value?.orphaned) {
+      feature.value.orphaned = feature.value.orphaned.filter((o) => o.key !== sectionKey)
+    }
+    showSuccessToast('游离文档已删除')
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '删除游离文档失败')
   }
 }
 </script>
@@ -393,6 +466,56 @@ async function deleteOrphaned(sectionKey: string) {
         {{ loadError || '内容不存在' }}
       </p>
       <router-link to="/features" class="btn-secondary text-sm"> 返回列表 </router-link>
+    </div>
+  </div>
+
+  <!-- 无小节弹窗 -->
+  <div
+    v-else-if="showNoSectionDialog && feature"
+    class="h-full flex items-center justify-center bg-[var(--c-bg-base)]"
+  >
+    <div class="bg-surface rounded-xl shadow-lg w-full max-w-md mx-4 p-6">
+      <div class="text-center mb-6">
+        <span class="i-lucide-file-question w-10 h-10 text-muted inline-block align-middle" />
+        <h2 class="text-lg font-semibold mt-3">该内容暂无小节</h2>
+        <p class="text-sm text-secondary mt-1">创建时未勾选「创建默认小节」。</p>
+      </div>
+
+      <!-- PM：选择创建默认 或 新建小节 -->
+      <template v-if="isProjectPM">
+        <div class="space-y-3">
+          <button class="btn-primary w-full" @click="createDefaultAndEnter">
+            创建默认小节（正文）
+          </button>
+          <div class="flex items-center gap-2 text-xs text-muted px-1">
+            <span class="flex-1 h-px bg-border" />
+            <span>或</span>
+            <span class="flex-1 h-px bg-border" />
+          </div>
+          <div class="flex gap-2">
+            <input
+              v-model="noSectionNewName"
+              class="input flex-1"
+              placeholder="小节标题"
+              :disabled="noSectionCreating"
+              @keyup.enter="addSectionAndEnter"
+            />
+            <button
+              class="btn-secondary text-sm flex-shrink-0"
+              :disabled="!noSectionNewName.trim() || noSectionCreating"
+              @click="addSectionAndEnter"
+            >
+              {{ noSectionCreating ? '创建中...' : '新建并编辑' }}
+            </button>
+          </div>
+        </div>
+      </template>
+
+      <!-- 非 PM：只能返回 -->
+      <template v-else>
+        <p class="text-sm text-secondary text-center mb-4">请联系项目负责人添加小节后再编辑。</p>
+        <button class="btn-secondary w-full" @click="closeNoSectionDialog">返回列表</button>
+      </template>
     </div>
   </div>
 
@@ -438,9 +561,11 @@ async function deleteOrphaned(sectionKey: string) {
               <div
                 class="w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 bg-active color-accent font-medium"
               >
-                <span class="i-lucide-file-text w-4 h-4 inline-block flex-shrink-0 text-blue-400" />
+                <span
+                  class="i-lucide-file-text w-4 h-4 inline-block flex-shrink-0 text-blue-400 dark:text-blue-300"
+                />
                 <span class="flex-1 truncate">正文</span>
-                <span class="text-xs text-blue-400">默认</span>
+                <span class="text-xs text-blue-400 dark:text-blue-300">默认</span>
               </div>
             </template>
             <button
@@ -474,7 +599,7 @@ async function deleteOrphaned(sectionKey: string) {
         >
           <span class="text-xs font-semibold text-muted uppercase flex items-center gap-1"
             ><span
-              class="i-lucide-alert-triangle w-3.5 h-3.5 text-orange-400 inline-block align-middle"
+              class="i-lucide-alert-triangle w-3.5 h-3.5 text-orange-400 dark:text-orange-300 inline-block align-middle"
             />游离文档</span
           >
           <p class="text-xs text-muted mt-1 mb-2">这些文档的小节已从骨架中移除</p>
@@ -485,15 +610,15 @@ async function deleteOrphaned(sectionKey: string) {
               class="w-full text-left px-3 py-1.5 rounded text-sm transition-colors flex items-center gap-2"
               :class="
                 currentSection === o.key
-                  ? 'bg-orange-50 text-orange-700'
+                  ? 'bg-orange-50 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300'
                   : 'text-muted hover:bg-hover line-through'
               "
               @click="() => selectSection(o.key)"
             >
               <span class="flex-1 truncate">{{ o.key }}</span>
               <button
-                v-if="canManageProject"
-                class="text-red-400 hover:color-danger text-xs flex-shrink-0 p-1"
+                v-if="isProjectPM"
+                class="text-red-400 dark:text-red-300 hover:color-danger text-xs flex-shrink-0 p-1"
                 @click.stop="() => deleteOrphaned(o.key)"
               >
                 <span class="i-lucide-x w-4 h-4 inline-block align-middle" />
@@ -505,10 +630,10 @@ async function deleteOrphaned(sectionKey: string) {
         <div v-if="currentSectionData" class="px-4 pb-4">
           <div
             v-if="isOrphaned"
-            class="bg-orange-50 border border-orange-200 rounded p-2 mb-3 text-xs text-orange-600"
+            class="bg-orange-50 dark:bg-orange-500/15 border border-orange-200 dark:border-orange-700 rounded p-2 mb-3 text-xs text-orange-600 dark:text-orange-300"
           >
             <span
-              class="i-lucide-alert-triangle w-4 h-4 text-orange-500 mr-1 inline-block"
+              class="i-lucide-alert-triangle w-4 h-4 text-orange-500 dark:text-orange-400 mr-1 inline-block"
             />此小节已从骨架中移除，内容未删除。可将内容合并到现有小节后清除。
           </div>
           <div class="text-xs font-semibold text-muted uppercase mb-1">当前小节</div>
@@ -535,8 +660,8 @@ async function deleteOrphaned(sectionKey: string) {
           <StatusTransitionModal
             :visible="showStatusModal"
             :current-status="(currentSectionData?.status || 'draft') as ComponentStatus"
-            :can-manage-project="canManageProject"
-            :can-write-content="canWriteContent"
+            :can-manage-project="isProjectPM"
+            :can-write-content="isProjectWriter"
             :is-current-reviewer="isCurrentReviewer"
             @close="showStatusModal = false"
             @confirm="(payload) => handleStatusTransition(currentSection, payload)"
@@ -549,7 +674,7 @@ async function deleteOrphaned(sectionKey: string) {
               {{ assigneeError }}
             </p>
             <!-- PM：tag 模式多选 -->
-            <div v-if="canManageProject">
+            <div v-if="isProjectPM">
               <div class="flex flex-wrap gap-1 mb-2">
                 <span
                   v-for="uid in getCurrentAssignees()"
@@ -631,7 +756,7 @@ async function deleteOrphaned(sectionKey: string) {
             <div
               v-for="(entry, i) in sectionStatusLog.slice().reverse()"
               :key="i"
-              class="py-2 border-b border-gray-50"
+              class="py-2 border-b border-default"
             >
               <!-- 第一行：图标 + 操作类型 + 时间 -->
               <div class="flex items-center gap-1.5">
@@ -692,10 +817,10 @@ async function deleteOrphaned(sectionKey: string) {
                       class="w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 bg-active color-accent font-medium"
                     >
                       <span
-                        class="i-lucide-file-text w-4 h-4 inline-block flex-shrink-0 text-blue-400"
+                        class="i-lucide-file-text w-4 h-4 inline-block flex-shrink-0 text-blue-400 dark:text-blue-300"
                       />
                       <span class="flex-1 truncate">正文</span>
-                      <span class="text-xs text-blue-400">默认</span>
+                      <span class="text-xs text-blue-400 dark:text-blue-300">默认</span>
                     </div>
                   </template>
                   <button
@@ -728,7 +853,7 @@ async function deleteOrphaned(sectionKey: string) {
               >
                 <span class="text-xs font-semibold text-muted uppercase flex items-center gap-1"
                   ><span
-                    class="i-lucide-alert-triangle w-3.5 h-3.5 text-orange-400 inline-block align-middle"
+                    class="i-lucide-alert-triangle w-3.5 h-3.5 text-orange-400 dark:text-orange-300 inline-block align-middle"
                   />游离文档</span
                 >
                 <nav class="space-y-1 mt-2">
@@ -738,7 +863,7 @@ async function deleteOrphaned(sectionKey: string) {
                     class="w-full text-left px-3 py-1.5 rounded text-sm transition-colors flex items-center gap-2"
                     :class="
                       currentSection === o.key
-                        ? 'bg-orange-50 text-orange-700'
+                        ? 'bg-orange-50 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300'
                         : 'text-muted hover:bg-hover line-through'
                     "
                     @click="() => selectSection(o.key)"

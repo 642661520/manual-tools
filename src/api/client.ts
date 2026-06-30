@@ -137,14 +137,32 @@ export const api = {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    if (filename) {
-      const disposition = res.headers.get('content-disposition')
-      if (disposition) {
+    // 优先从响应头提取文件名
+    const disposition = res.headers.get('content-disposition')
+    if (disposition) {
+      // 优先匹配 RFC 5987 格式: filename*=UTF-8''...
+      const starMatch = disposition.match(/filename\*=(?:UTF-8''|utf-8'')([^;\n]*)/i)
+      if (starMatch) {
+        a.download = decodeURIComponent(starMatch[1].trim())
+      } else {
+        // 回退到普通 filename= 格式
         const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
-        if (match) a.download = match[1].replace(/['"]/g, '')
+        if (match) {
+          let fname = match[1].replace(/['"]/g, '')
+          // 如果包含 % 则尝试 URL 解码
+          if (fname.includes('%')) {
+            try {
+              fname = decodeURIComponent(fname)
+            } catch {
+              /* 解码失败保持原样 */
+            }
+          }
+          a.download = fname
+        }
       }
-      if (!a.download) a.download = filename
     }
+    // 其次使用传入的文件名，最后兜底
+    if (!a.download) a.download = filename || 'download'
     document.body.appendChild(a)
     a.click()
     a.remove()

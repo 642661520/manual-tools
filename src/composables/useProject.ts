@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import type { ProjectInfo } from '@shared/types'
 import { getProjects } from '@/api/endpoints/projects'
+import { showErrorToast } from './toast'
 
 const projects = ref<ProjectInfo[]>([])
 const currentProjectId = ref<string | null>(localStorage.getItem('active_project_id'))
@@ -29,8 +30,8 @@ export function useProject() {
         persist()
       }
       loaded.value = true
-    } catch {
-      /* ignore */
+    } catch (e: unknown) {
+      showErrorToast(e instanceof Error ? e.message : '加载项目列表失败')
     }
   }
 

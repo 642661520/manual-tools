@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useProject } from '@/composables/useProject'
 import { useDialog } from '@/composables/useDialog'
+import { showErrorToast, showSuccessToast } from '@/composables/toast'
 import * as authApi from '@/api/endpoints/auth'
 import * as projectApi from '@/api/endpoints/projects'
 import * as dataApi from '@/api/endpoints/data-tasks'
@@ -54,8 +55,8 @@ async function loadUsers() {
     const result = await authApi.getUsers(usersPageSize, offset)
     localUsers.value = result.rows
     usersTotal.value = result.total
-  } catch {
-    /* ignore */
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '加载用户列表失败')
   }
 }
 
@@ -100,6 +101,7 @@ async function addUser() {
     showAddUser.value = false
     newUser.value = { username: '', displayName: '', password: '', role: 'member' }
     await loadUsers()
+    showSuccessToast('用户创建成功')
   } catch (e: unknown) {
     addUserError.value = e instanceof Error ? e.message : '网络错误，添加失败'
   }
@@ -110,8 +112,9 @@ async function deleteUser(id: string) {
   try {
     await authApi.deleteUser(id)
     await loadUsers()
-  } catch {
-    /* ignore */
+    showSuccessToast('用户已删除')
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '删除用户失败')
   }
 }
 
@@ -119,8 +122,9 @@ async function changeUserRole(userId: string, newRole: string) {
   try {
     await authApi.changeUserRole(userId, newRole)
     await loadUsers()
-  } catch {
-    /* ignore */
+    showSuccessToast('用户角色已更新')
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '修改用户角色失败')
   }
 }
 
@@ -153,6 +157,7 @@ async function createProject() {
     showAddProject.value = false
     newProject.value = { name: '', description: '' }
     await loadProjects()
+    showSuccessToast('项目创建成功')
   } catch (e: unknown) {
     projectError.value = e instanceof Error ? e.message : '网络错误，创建失败'
   }
@@ -184,8 +189,9 @@ async function deleteProject(id: string) {
     await projectApi.deleteProject(id)
     await loadProjects()
     await nextTick()
-  } catch {
-    /* ignore */
+    showSuccessToast('项目已删除')
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '删除项目失败')
   }
 }
 
@@ -265,6 +271,7 @@ async function handleDeleteUploadFile(file: UploadFileInfo) {
     await dataApi.deleteUpload(file.path)
     uploadFilesResult.value = `已删除: ${file.path}`
     await loadUploadFiles()
+    showSuccessToast('文件已删除')
   } catch (e: unknown) {
     uploadFilesError.value = e instanceof Error ? e.message : '删除失败'
   }
@@ -278,6 +285,7 @@ async function handleCleanAllOrphans() {
     const result = await dataApi.deleteOrphans()
     uploadFilesResult.value = `已清理 ${result.deleted} 个文件，释放 ${formatSize(result.freedBytes)}`
     await loadUploadFiles()
+    showSuccessToast(`已清理 ${result.deleted} 个文件，释放 ${formatSize(result.freedBytes)}`)
   } catch (e: unknown) {
     uploadFilesError.value = e instanceof Error ? e.message : '清理失败'
   }
@@ -360,7 +368,8 @@ async function ensureBlobUrl(entry: cacheApi.RemoteCacheEntry): Promise<string> 
 async function getThumbnailUrl(entry: cacheApi.RemoteCacheEntry): Promise<string> {
   try {
     return await ensureBlobUrl(entry)
-  } catch {
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '加载缩略图失败')
     return ''
   }
 }
@@ -382,7 +391,8 @@ async function openPreview(entry: cacheApi.RemoteCacheEntry) {
   } else {
     try {
       previewBlobUrl.value = await ensureBlobUrl(entry)
-    } catch {
+    } catch (e: unknown) {
+      showErrorToast(e instanceof Error ? e.message : '预览文件失败')
       previewBlobUrl.value = ''
     }
   }
@@ -502,6 +512,7 @@ async function handleDeleteRemoteEntry(entry: cacheApi.RemoteCacheEntry) {
     cacheCleanResult.value = `已删除: ${shortUrl(entry.url, 50)}`
     await loadRemoteEntries(remoteOffset.value)
     await loadCacheStats()
+    showSuccessToast('远程缓存条目已删除')
   } catch (e: unknown) {
     cacheStatsError.value = e instanceof Error ? e.message : '删除失败'
   }
@@ -515,6 +526,7 @@ async function handleCleanCache() {
     const r = await cacheApi.cleanExpired()
     cacheCleanResult.value = `已清理远程缓存 ${r.remoteCleaned} 条，导出缓存 ${r.exportCleaned} 条`
     await loadCacheStats()
+    showSuccessToast('缓存已清理')
   } catch (e: unknown) {
     cacheStatsError.value = e instanceof Error ? e.message : '清理缓存失败'
   } finally {
@@ -534,6 +546,7 @@ async function handleDeleteExportEntry(entry: cacheApi.ExportCacheEntry) {
     exportEntries.value = exportEntries.value.filter((e) => e.id !== entry.id)
     cacheCleanResult.value = `已删除: ${entry.fileName}`
     await loadCacheStats()
+    showSuccessToast('导出缓存已删除')
   } catch (e: unknown) {
     cacheStatsError.value = e instanceof Error ? e.message : '删除失败'
   }
@@ -559,6 +572,7 @@ async function handleClearAllRemote() {
     remoteOffset.value = 0
     cacheCleanResult.value = `已清除远程缓存 ${r.deleted} 条`
     await loadCacheStats()
+    showSuccessToast('远程缓存已清除')
   } catch (e: unknown) {
     cacheStatsError.value = e instanceof Error ? e.message : '清除远程缓存失败'
   } finally {

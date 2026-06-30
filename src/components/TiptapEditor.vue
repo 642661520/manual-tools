@@ -916,7 +916,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
       </span>
     </div>
 
-    <TableBubbleMenu :editor="editor" />
+    <TableBubbleMenu :editor="editor" :editable="editable && !readOnly" />
     <AiBubbleMenu v-if="editor" :editor="editor" :editable="editable" />
 
     <CrossrefPicker
@@ -1003,7 +1003,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
         <span
           v-if="readOnly"
           v-tooltip="'当前项目已锁定为只读模式，仅供查阅'"
-          class="flex items-center gap-1 px-1.5 py-0.5 rounded text-orange-600 bg-orange-50 border border-orange-200"
+          class="flex items-center gap-1 px-1.5 py-0.5 rounded text-orange-600 dark:text-orange-300 bg-orange-50 dark:bg-orange-500/15 border border-orange-200 dark:border-orange-700"
         >
           <span class="i-lucide-eye w-3 h-3" />
           只读
@@ -1045,6 +1045,12 @@ defineExpose({ connected, synced, initialSyncDone, editor })
   font-size: 15px;
   line-height: 1.75;
   color: var(--c-text-primary);
+}
+/* 只读模式下保留光标，允许选中复制 */
+.tiptap-editor .ProseMirror[contenteditable='false'] {
+  caret-color: auto;
+  cursor: text;
+  user-select: text;
 }
 .tiptap-editor .ProseMirror h1 {
   font-size: 2em;
@@ -1157,7 +1163,7 @@ defineExpose({ connected, synced, initialSyncDone, editor })
   pointer-events: none;
 }
 .tiptap-editor .ProseMirror .selectedCell {
-  background: rgba(59, 130, 246, 0.1);
+  background: var(--c-bg-active);
 }
 .tiptap-editor .ProseMirror a {
   color: var(--c-accent);

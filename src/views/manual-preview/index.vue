@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useProject } from '@/composables/useProject'
 import { useAuth } from '@/composables/useAuth'
 import { useDialog } from '@/composables/useDialog'
+import { showErrorToast, showSuccessToast } from '@/composables/toast'
 import { useSidebarTree } from '@/composables/useSidebarTree'
 import { useResponsiveSidebar } from '@/composables/useResponsiveSidebar'
 import {
@@ -26,11 +27,12 @@ import PreviewSidebar from './PreviewSidebar.vue'
 import PreviewContent from './PreviewContent.vue'
 import VersionDiff from '@/components/VersionDiff.vue'
 import LoadingState from '@/components/LoadingState.vue'
+import CheckboxField from '@/components/CheckboxField.vue'
 
 const route = useRoute()
 const router = useRouter()
 const { currentProjectId } = useProject()
-const { canManageProject } = useAuth()
+const { isProjectPM } = useAuth()
 const { alert, dangerConfirm } = useDialog()
 
 // ====== 手册 ID（从路由获取） ======
@@ -62,8 +64,8 @@ async function loadVersions() {
     const fromUrl = route.query.version as string | undefined
     selectedVersionId.value =
       fromUrl && versions.value.some((v: CatalogVersionInfo) => v.id === fromUrl) ? fromUrl : null
-  } catch {
-    /* ignore */
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '加载版本列表失败')
   }
 }
 
@@ -164,11 +166,10 @@ async function loadPreview() {
   notFound.value = false
   try {
     if (selectedVersionId.value) {
-      const data = await getVersionPreview(
-        selectedCatalogId.value,
-        selectedVersionId.value,
-        previewMode.value,
-      )
+      // 历史版本使用其自身发布时的状态快照
+      const ver = versions.value.find((v: CatalogVersionInfo) => v.id === selectedVersionId.value)
+      const mode = ver?.publishScope === 'approved' ? 'approved' : 'all'
+      const data = await getVersionPreview(selectedCatalogId.value, selectedVersionId.value, mode)
       catalogTitle.value = data.title
       previewData.value = {
         title: data.title,
@@ -196,7 +197,8 @@ async function loadPreview() {
       return
     }
     syncChapterFromHash()
-  } catch {
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '加载手册预览失败')
     notFound.value = true
     previewData.value = { title: '', features: [], entries: [] }
   } finally {
@@ -207,6 +209,8 @@ async function loadPreview() {
 // ====== 操作 ======
 const exportingMd = ref(false)
 const exportingPdf = ref(false)
+const showPdfProgress = ref(false)
+const pdfProgressMessage = ref('')
 const publishing = ref(false)
 const publishDialogVisible = ref(false)
 const publishChangeNotes = ref('')
@@ -256,7 +260,8 @@ async function loadReviewStats() {
       allData.features.flatMap((f) => f.sections.map((s) => `${f.id}/${s.key}`)),
     )
     reviewStats.value = { approved: approvedSet.size, total: allSet.size }
-  } catch {
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '加载审核统计失败')
     reviewStats.value = null
   }
 }
@@ -278,7 +283,7 @@ async function doPublish() {
     publishDialogVisible.value = false
     await loadVersions()
     const approvedMsg = data.total > 0 ? `（${data.approved}/${data.total} 已审核）` : ''
-    await alert(`版本 v${data.versionMajor}.${data.versionMinor} 已发布 ${approvedMsg}`)
+    showSuccessToast(`版本 v${data.versionMajor}.${data.versionMinor} 已发布 ${approvedMsg}`)
   } catch (e: unknown) {
     publishError.value = e instanceof Error ? e.message : '网络错误'
   } finally {
@@ -332,6 +337,7 @@ async function saveVersionSettings() {
     await Promise.all(tasks)
     versionSettingsVisible.value = false
     await loadVersions()
+    showSuccessToast('版本设置已保存')
   } catch (e: unknown) {
     settingsError.value = e instanceof Error ? e.message : '网络错误'
   } finally {
@@ -353,8 +359,9 @@ async function doDeleteFromSettings() {
       selectedVersionId.value = null
     }
     await loadVersions()
+    showSuccessToast('版本已删除')
   } catch (e: unknown) {
-    await alert('删除失败: ' + (e instanceof Error ? e.message : '网络错误'))
+    showErrorToast(e instanceof Error ? e.message : '删除版本失败')
   }
 }
 
@@ -373,19 +380,26 @@ async function exportMarkdown() {
 async function exportPdf() {
   if (!selectedCatalogId.value) return
   exportingPdf.value = true
+  showPdfProgress.value = true
+  pdfProgressMessage.value = '正在生成 PDF...'
   try {
     let url: string
     const mode = previewMode.value === 'approved' ? 'approved' : undefined
     if (selectedVersionId.value) {
-      url = getVersionPdfExportUrl(selectedCatalogId.value, selectedVersionId.value, mode)
+      // 历史版本 PDF 使用其自身发布时的状态快照
+      const ver = versions.value.find((v: CatalogVersionInfo) => v.id === selectedVersionId.value)
+      const vMode = ver?.publishScope === 'approved' ? 'approved' : undefined
+      url = getVersionPdfExportUrl(selectedCatalogId.value, selectedVersionId.value, vMode)
     } else {
       url = getPdfExportUrl(selectedCatalogId.value, mode)
     }
+    pdfProgressMessage.value = '正在下载 PDF...'
     await api.download(url)
   } catch (e: unknown) {
     await alert('导出失败: ' + (e instanceof Error ? e.message : '网络错误'))
   } finally {
     exportingPdf.value = false
+    showPdfProgress.value = false
   }
 }
 
@@ -505,7 +519,7 @@ onUnmounted(() => {
                 ...versions.map((v) => {
                   const vis = visibilityLabels[v.visibility] || '项目成员'
                   const st = v.status !== 'active' ? ` · ${statusLabels[v.status]}` : ''
-                  const sc = v.publishScope === 'all' ? ' ⚠' : ''
+                  const sc = v.publishScope === 'all' ? ' · 含未审核' : ''
                   return {
                     value: v.id,
                     label: `v${v.versionMajor}.${v.versionMinor} · ${vis}${st}${sc}`,
@@ -533,7 +547,7 @@ onUnmounted(() => {
           />
 
           <!-- PM：实时内容 -->
-          <template v-if="canManageProject && selectedCatalogId && !selectedVersionId">
+          <template v-if="isProjectPM && selectedCatalogId && !selectedVersionId">
             <div class="w-px h-4 sm:h-5 bg-[var(--c-border-input)] hidden sm:block flex-shrink-0" />
             <a
               :href="docUrl"
@@ -593,7 +607,7 @@ onUnmounted(() => {
           </template>
 
           <!-- PM：历史版本 -->
-          <template v-if="canManageProject && selectedCatalogId && selectedVersionId">
+          <template v-if="isProjectPM && selectedCatalogId && selectedVersionId">
             <div class="w-px h-4 sm:h-5 bg-[var(--c-border-input)] hidden sm:block flex-shrink-0" />
             <button
               v-tooltip="'版本设置'"
@@ -646,7 +660,7 @@ onUnmounted(() => {
           </template>
 
           <!-- 运维 -->
-          <template v-if="!canManageProject && selectedCatalogId">
+          <template v-if="!isProjectPM && selectedCatalogId">
             <div class="w-px h-4 sm:h-5 bg-[var(--c-border-input)] hidden sm:block flex-shrink-0" />
             <a
               :href="docUrl"
@@ -838,10 +852,10 @@ onUnmounted(() => {
             小节已通过
           </span>
         </div>
-        <label class="flex items-center gap-2 text-xs text-secondary cursor-pointer">
-          <input v-model="publishApprovedOnly" type="checkbox" class="rounded" />
-          <span>仅发布已审核内容（未审核的小节将不包含在文档中）</span>
-        </label>
+        <CheckboxField
+          v-model="publishApprovedOnly"
+          label="仅发布已审核内容（未审核的小节将不包含在文档中）"
+        />
       </div>
     </ModalDialog>
 
@@ -923,6 +937,24 @@ onUnmounted(() => {
     :versions="versions"
     @close="diffVisible = false"
   />
+
+  <!-- PDF 导出进度弹窗 -->
+  <Teleport to="body">
+    <div
+      v-if="showPdfProgress"
+      class="fixed inset-0 z-[70] flex items-center justify-center bg-black/30"
+    >
+      <div
+        class="bg-surface rounded-xl shadow-2xl border border-default px-8 py-6 min-w-[300px] text-center"
+      >
+        <span
+          class="i-lucide-loader-2 w-8 h-8 animate-spin text-[var(--c-accent)] mx-auto block mb-4"
+        />
+        <p class="text-sm text-secondary">{{ pdfProgressMessage }}</p>
+        <p class="text-xs text-muted mt-2">请稍候，PDF 生成可能需要一些时间</p>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>

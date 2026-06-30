@@ -81,15 +81,13 @@ function updateDropdownPosition() {
     width: `${rect.width}px`,
   }
 
-  if (
-    rect.bottom + estimatedHeight <= window.innerHeight ||
-    (rect.bottom + estimatedHeight > window.innerHeight &&
-      rect.top > window.innerHeight - rect.bottom)
-  ) {
-    // Place below
+  const spaceBelow = window.innerHeight - rect.bottom
+  const spaceAbove = rect.top
+
+  // Place below if it fits, or if there's more space below than above
+  if (estimatedHeight <= spaceBelow || spaceBelow >= spaceAbove) {
     dropdownStyle.value.top = `${rect.bottom + 4}px`
   } else {
-    // Place above
     dropdownStyle.value.bottom = `${window.innerHeight - rect.top + 4}px`
   }
 }

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useProject } from '@/composables/useProject'
 import { useDialog } from '@/composables/useDialog'
+import { showErrorToast, showSuccessToast } from '@/composables/toast'
 import Sortable from 'sortablejs'
 import FormField from '@/components/FormField.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
@@ -12,12 +13,14 @@ import EmptyState from '@/components/EmptyState.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import SelectDropdown from '@/components/SelectDropdown.vue'
 import ColorPicker from '@/components/ColorPicker.vue'
+import CheckboxField from '@/components/CheckboxField.vue'
 import {
   getFeatures,
   createFeature,
   updateFeature,
   deleteFeature,
   getFeature,
+  updateSections,
 } from '@/api/endpoints/features'
 import {
   getCategories,
@@ -40,7 +43,7 @@ type FeatureRow = FeatureSummary & {
 type CategoryItem = CategoryInfo & { sortOrder: number }
 
 const router = useRouter()
-const { canManageProject } = useAuth()
+const { isProjectPM } = useAuth()
 const { currentProjectId } = useProject()
 const { confirm, dangerConfirm } = useDialog()
 const features = ref<FeatureRow[]>([])
@@ -58,11 +61,9 @@ const featureForm = ref({
   description: '',
   categoryId: null as string | null,
   sections: [] as SectionDef[],
+  createDefaultSection: true,
 })
 const featureFormId = ref<string | null>(null)
-const newSectionTitle = ref('')
-const featureSectionSortEl = ref<HTMLElement>()
-let featureSectionSortable: Sortable | null = null
 
 function generateKey(): string {
   return crypto.randomUUID().slice(0, 8)
@@ -71,9 +72,14 @@ function generateKey(): string {
 function openCreateDialog() {
   featureDialogMode.value = 'create'
   featureFormId.value = null
-  featureForm.value = { title: '', description: '', categoryId: null, sections: [] }
+  featureForm.value = {
+    title: '',
+    description: '',
+    categoryId: null,
+    sections: [],
+    createDefaultSection: true,
+  }
   featureFormError.value = ''
-  newSectionTitle.value = ''
   showFeatureDialog.value = true
 }
 
@@ -86,32 +92,14 @@ async function openEditDialog(featureId: string) {
       title: data.title,
       description: data.description,
       categoryId: data.categoryId || null,
-      sections: data.sections.map((s) => ({ key: s.key, title: s.title })),
+      sections: [] as SectionDef[],
+      createDefaultSection: false,
     }
     featureFormError.value = ''
-    newSectionTitle.value = ''
     showFeatureDialog.value = true
   } catch (e) {
     console.error('Failed to load feature:', e)
   }
-}
-
-function addSection() {
-  const title = newSectionTitle.value.trim()
-  if (!title) {
-    featureFormError.value = '请输入小节标题'
-    return
-  }
-  featureFormError.value = ''
-  featureForm.value.sections.push({ key: generateKey(), title })
-  newSectionTitle.value = ''
-}
-
-async function removeSection(index: number) {
-  if (featureDialogMode.value === 'edit' && featureForm.value.sections.length <= 1) {
-    if (!(await confirm('删除最后一个小节将导致内容无法保存，确定删除？'))) return
-  }
-  featureForm.value.sections.splice(index, 1)
 }
 
 async function saveFeature() {
@@ -125,44 +113,107 @@ async function saveFeature() {
       await createFeature({
         title: featureForm.value.title,
         description: featureForm.value.description,
-        sections: featureForm.value.sections,
         categoryId: featureForm.value.categoryId ?? undefined,
         projectId: currentProjectId.value ?? undefined,
+        createDefaultSection: featureForm.value.createDefaultSection,
       })
     } else {
       await updateFeature(featureFormId.value!, {
         title: featureForm.value.title,
         description: featureForm.value.description,
-        sections: featureForm.value.sections,
         categoryId: featureForm.value.categoryId ?? undefined,
       })
     }
     showFeatureDialog.value = false
-    featureForm.value = { title: '', description: '', categoryId: null, sections: [] }
+    featureForm.value = {
+      title: '',
+      description: '',
+      categoryId: null,
+      sections: [],
+      createDefaultSection: true,
+    }
     await loadFeatures()
+    showSuccessToast(featureDialogMode.value === 'create' ? '内容已创建' : '内容已更新')
   } catch (e: unknown) {
     featureFormError.value = e instanceof Error ? e.message : '网络错误，保存失败'
   }
 }
 
-function initFeatureSectionSort() {
-  if (featureSectionSortable) {
-    featureSectionSortable.destroy()
-    featureSectionSortable = null
+// ---- 展开列表内联小节管理 ----
+
+const sectionAddInputs = reactive<Record<string, string>>({})
+const sectionSortables = new Map<string, Sortable>()
+
+function getSectionAddInput(featureId: string): string {
+  if (!(featureId in sectionAddInputs)) {
+    sectionAddInputs[featureId] = ''
   }
-  if (!featureSectionSortEl.value) return
-  featureSectionSortable = Sortable.create(featureSectionSortEl.value, {
+  return sectionAddInputs[featureId]
+}
+function setSectionAddInput(featureId: string, val: string) {
+  sectionAddInputs[featureId] = val
+}
+
+async function addSectionInline(featureId: string) {
+  const title = (sectionAddInputs[featureId] || '').trim()
+  if (!title) return
+  const feat = features.value.find((f) => f.id === featureId)
+  if (!feat) return
+  const currentSections = parseSections(feat.sections)
+  const newSections = [...currentSections, { key: generateKey(), title }]
+  try {
+    await updateSections(featureId, { sections: newSections })
+    sectionAddInputs[featureId] = ''
+    await loadFeatures()
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '添加小节失败')
+  }
+}
+
+async function removeSectionInline(featureId: string, index: number) {
+  const feat = features.value.find((f) => f.id === featureId)
+  if (!feat) return
+  const currentSections = parseSections(feat.sections)
+  const removed = currentSections[index]
+  if (!(await dangerConfirm(`确定删除小节「${removed.title}」？\n已编辑的内容将变为游离文档。`)))
+    return
+  const newSections = currentSections.filter((_, i) => i !== index)
+  try {
+    await updateSections(featureId, { sections: newSections })
+    await loadFeatures()
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '删除小节失败')
+  }
+}
+
+function initSectionSort(featureId: string, el: HTMLElement | null) {
+  // 清理旧实例
+  const old = sectionSortables.get(featureId)
+  if (old) old.destroy()
+  sectionSortables.delete(featureId)
+
+  if (!el) return
+  const sortable = Sortable.create(el, {
     animation: 200,
     handle: '.drag-handle',
     ghostClass: 'bg-active',
-    onEnd(evt) {
-      if (evt.oldIndex !== undefined && evt.newIndex !== undefined) {
-        const items = featureForm.value.sections
-        const [moved] = items.splice(evt.oldIndex, 1)
-        items.splice(evt.newIndex, 0, moved)
+    onEnd: async (evt) => {
+      if (evt.oldIndex === undefined || evt.newIndex === undefined) return
+      if (evt.oldIndex === evt.newIndex) return
+      const feat = features.value.find((f) => f.id === featureId)
+      if (!feat) return
+      const items = [...parseSections(feat.sections)]
+      const [moved] = items.splice(evt.oldIndex, 1)
+      items.splice(evt.newIndex, 0, moved)
+      try {
+        await updateSections(featureId, { sections: items })
+        await loadFeatures()
+      } catch (e: unknown) {
+        showErrorToast(e instanceof Error ? e.message : '排序保存失败')
       }
     },
   })
+  sectionSortables.set(featureId, sortable)
 }
 
 // 分类管理
@@ -190,8 +241,8 @@ async function loadCategories() {
     categories.value = (await getCategories(
       currentProjectId.value ?? undefined,
     )) as unknown as CategoryItem[]
-  } catch {
-    /* ignore */
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '加载分类失败')
   }
 }
 
@@ -242,6 +293,7 @@ async function createCategory() {
     })
     newCategory.value = { name: '', color: '#6366f1' }
     await loadCategories()
+    showSuccessToast('分类已创建')
   } catch (e: unknown) {
     categoryError.value = e instanceof Error ? e.message : '网络错误'
   }
@@ -267,6 +319,7 @@ async function saveEditCategory() {
     })
     editingCategory.value = null
     await loadCategories()
+    showSuccessToast('分类已更新')
   } catch (e: unknown) {
     categoryError.value = e instanceof Error ? e.message : '网络错误'
   }
@@ -277,8 +330,13 @@ async function deleteCategory(id: string) {
   const msg =
     count > 0 ? `确定删除此分类？该分类下有 ${count} 个内容将变为"未分类"。` : '确定删除此分类？'
   if (!(await dangerConfirm(msg))) return
-  await apiDeleteCategory(id)
-  await loadCategories()
+  try {
+    await apiDeleteCategory(id)
+    await loadCategories()
+    showSuccessToast('分类已删除')
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '删除分类失败')
+  }
 }
 
 const categoryInfo = computed(() => {
@@ -329,18 +387,6 @@ async function loadFeatures() {
   }
 }
 
-watch(showFeatureDialog, async (val) => {
-  if (val) {
-    await nextTick()
-    initFeatureSectionSort()
-  } else {
-    if (featureSectionSortable) {
-      featureSectionSortable.destroy()
-      featureSectionSortable = null
-    }
-  }
-})
-
 watch(showCategoryDialog, async (val) => {
   if (val) {
     await nextTick()
@@ -354,8 +400,13 @@ async function deleteCustomFeature(id: string) {
     ? `确定删除「${f.title}」？\n${f.totalSections} 个小节文档将被一并删除，不可恢复。`
     : '确定删除此内容？'
   if (!(await dangerConfirm(msg))) return
-  await deleteFeature(id)
-  await loadFeatures()
+  try {
+    await deleteFeature(id)
+    await loadFeatures()
+    showSuccessToast('内容已删除')
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '删除内容失败')
+  }
 }
 
 function openEditor(id: string) {
@@ -374,14 +425,10 @@ watch(currentProjectId, loadFeatures)
         <p class="text-sm text-secondary mt-1">内容管理与状态总览</p>
       </div>
       <div class="flex items-center gap-3">
-        <button
-          v-if="canManageProject"
-          class="btn-secondary text-sm"
-          @click="showCategoryDialog = true"
-        >
+        <button v-if="isProjectPM" class="btn-secondary text-sm" @click="showCategoryDialog = true">
           <span class="i-lucide-tag w-4 h-4 inline-block align-middle mr-1" />分类管理
         </button>
-        <button v-if="canManageProject" class="btn-secondary text-sm" @click="openCreateDialog">
+        <button v-if="isProjectPM" class="btn-secondary text-sm" @click="openCreateDialog">
           <span class="i-lucide-plus w-4 h-4 inline-block align-middle mr-1" />新建内容
         </button>
       </div>
@@ -444,14 +491,14 @@ watch(currentProjectId, loadFeatures)
                   >
                   <StatusBadge :status="getOverallStatus(f)" variant="badge" />
                   <button
-                    v-if="canManageProject"
+                    v-if="isProjectPM"
                     class="text-blue-400 hover:color-accent text-sm"
                     @click.stop="() => openEditDialog(f.id)"
                   >
                     设置
                   </button>
                   <button
-                    v-if="canManageProject"
+                    v-if="isProjectPM"
                     class="text-red-400 hover:color-danger text-sm"
                     @click.stop="() => deleteCustomFeature(f.id)"
                   >
@@ -464,17 +511,45 @@ watch(currentProjectId, loadFeatures)
                 v-if="expandedFeatureId === f.id"
                 class="bg-base px-10 py-3 border-t border-light"
               >
-                <div class="text-xs text-muted mb-2">小节</div>
-                <div class="space-y-1">
+                <div class="text-xs text-muted mb-2 flex items-center gap-2">
+                  <span>小节</span>
+                  <span
+                    v-if="isProjectPM && parseSections(f.sections).length > 1"
+                    class="text-muted/50"
+                    >— 拖拽调整顺序</span
+                  >
+                </div>
+                <div
+                  class="space-y-1"
+                  :data-section-sort="f.id"
+                  :ref="
+                    (el: any) => {
+                      if (el && expandedFeatureId === f.id) initSectionSort(f.id, el as HTMLElement)
+                    }
+                  "
+                >
                   <div
-                    v-for="sec in parseSections(f.sections)"
+                    v-for="(sec, i) in parseSections(f.sections)"
                     :key="sec.key"
-                    class="flex items-center gap-3 text-sm py-1.5 px-3 rounded hover:bg-surface cursor-pointer transition-colors"
+                    class="flex items-center gap-3 text-sm py-1.5 px-3 rounded hover:bg-surface cursor-pointer transition-colors group"
                     @click="() => openEditor(f.id)"
                   >
-                    <span class="text-secondary">{{ sec.title }}</span>
+                    <div
+                      v-if="isProjectPM"
+                      class="drag-handle cursor-grab text-muted hover:text-secondary flex-shrink-0"
+                    >
+                      <span class="i-lucide-grip-vertical w-4 h-4 inline-block align-middle" />
+                    </div>
+                    <span class="text-secondary flex-1 truncate">{{ sec.title }}</span>
+                    <button
+                      v-if="isProjectPM"
+                      class="text-red-400 hover:color-danger text-xs p-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                      @click.stop="() => removeSectionInline(f.id, i)"
+                    >
+                      <span class="i-lucide-x w-4 h-4 inline-block align-middle" />
+                    </button>
                   </div>
-                  <!-- 无显式小节但有默认小节文档 -->
+                  <!-- 无显式小节，有 _default 文档 -->
                   <div
                     v-if="parseSections(f.sections).length === 0 && f.totalSections > 0"
                     class="flex items-center gap-3 text-sm py-1.5 px-3 rounded hover:bg-surface cursor-pointer transition-colors"
@@ -483,11 +558,30 @@ watch(currentProjectId, loadFeatures)
                     <span class="text-secondary">正文</span>
                     <span class="text-xs text-muted">默认小节</span>
                   </div>
+                  <!-- 无显式小节，无文档 -->
                   <div
                     v-if="parseSections(f.sections).length === 0 && f.totalSections === 0"
                     class="text-xs text-muted py-2"
                   >
-                    暂无小节
+                    <template v-if="isProjectPM">暂无小节，在上方输入框中添加</template>
+                    <template v-else>暂无小节</template>
+                  </div>
+                  <!-- 添加小节（PM only） -->
+                  <div v-if="isProjectPM" class="flex items-center gap-2 pt-1">
+                    <input
+                      :value="getSectionAddInput(f.id)"
+                      class="input text-sm flex-1 !py-1"
+                      placeholder="新增小节标题"
+                      @input="(e: any) => setSectionAddInput(f.id, e.target.value)"
+                      @keyup.enter="addSectionInline(f.id)"
+                    />
+                    <button
+                      class="btn-secondary text-sm flex-shrink-0 !py-1"
+                      :disabled="!getSectionAddInput(f.id)?.trim()"
+                      @click="addSectionInline(f.id)"
+                    >
+                      添加
+                    </button>
                   </div>
                 </div>
               </div>
@@ -500,7 +594,7 @@ watch(currentProjectId, loadFeatures)
           :title="currentProjectId ? '暂无内容' : '未选择项目'"
           :description="
             currentProjectId
-              ? canManageProject
+              ? isProjectPM
                 ? '点击「新建内容」创建第一个内容'
                 : '当前项目暂无内容'
               : '请先加入项目，或联系管理员'
@@ -553,48 +647,21 @@ watch(currentProjectId, loadFeatures)
                 placeholder="简要描述内容用途"
               />
             </FormField>
-            <div>
-              <label class="label">小节</label>
-              <div
-                v-if="featureForm.sections.length > 0"
-                ref="featureSectionSortEl"
-                class="mb-3 space-y-1"
-              >
-                <div
-                  v-for="(s, i) in featureForm.sections"
-                  :key="s.key"
-                  class="flex items-center gap-2 text-sm bg-base px-3 py-1.5 rounded"
-                >
-                  <div class="drag-handle cursor-grab text-muted hover:text-secondary">
-                    <span class="i-lucide-grip-vertical w-4 h-4 inline-block align-middle" />
-                  </div>
-                  <span class="flex-1 text-secondary">{{ s.title }}</span>
-                  <button
-                    class="text-red-400 hover:color-danger text-xs p-1"
-                    @click="() => removeSection(i)"
-                  >
-                    <span class="i-lucide-x w-4 h-4 inline-block align-middle" />
-                  </button>
-                </div>
-              </div>
-              <div class="flex gap-2">
-                <input
-                  v-model="newSectionTitle"
-                  class="input flex-1"
-                  placeholder="小节标题"
-                  @keyup.enter="addSection"
-                />
-                <button class="btn-secondary text-sm flex-shrink-0" @click="addSection">
-                  添加
-                </button>
-              </div>
-              <p class="text-xs text-muted mt-1">拖拽可调整小节顺序，可留空使用默认小节</p>
-            </div>
+            <!-- 新建时可选择是否创建默认小节 -->
+            <CheckboxField
+              v-if="featureDialogMode === 'create'"
+              v-model="featureForm.createDefaultSection"
+              label="创建默认小节（正文）"
+              description="勾选后可立即在正文中编写内容；后续添加小节时正文将变为游离文档"
+            />
+            <p v-else class="text-xs text-muted">小节可在展开列表中添加、拖拽排序</p>
           </div>
         </div>
         <div class="px-6 py-4 border-t border-default flex justify-end gap-3 flex-shrink-0">
-          <button class="btn-secondary" @click="showFeatureDialog = false">取消</button>
-          <button class="btn-primary" @click="saveFeature">
+          <button type="button" class="btn-secondary" @click="showFeatureDialog = false">
+            取消
+          </button>
+          <button type="button" class="btn-primary" @click="saveFeature">
             {{ featureDialogMode === 'create' ? '创建' : '保存' }}
           </button>
         </div>

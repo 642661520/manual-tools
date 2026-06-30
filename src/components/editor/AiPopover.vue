@@ -98,7 +98,7 @@ function onKeydown(e: KeyboardEvent) {
       >
         <div class="flex items-center justify-between px-4 py-3 border-b border-light">
           <span class="text-sm font-medium text-secondary flex items-center gap-1.5">
-            <span class="i-lucide-sparkles w-4 h-4 text-violet-500" />AI 助手
+            <span class="i-lucide-sparkles w-4 h-4 text-violet-500 dark:text-violet-400" />AI 助手
           </span>
           <button class="text-muted hover:text-secondary" @click="() => emit('close')">
             <span class="i-lucide-x w-4 h-4" />
@@ -117,7 +117,7 @@ function onKeydown(e: KeyboardEvent) {
             <button
               v-for="p in presets"
               :key="p.key"
-              class="flex-1 flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg border border-default hover:border-violet-300 hover:bg-violet-50 transition-colors"
+              class="flex-1 flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg border border-default hover:border-violet-300 dark:hover:border-violet-600 hover:bg-violet-50 dark:hover:bg-violet-500/15 transition-colors"
               :class="{ 'opacity-50 pointer-events-none': loading }"
               :disabled="loading"
               @click="() => runPreset(p.key)"
@@ -160,7 +160,7 @@ function onKeydown(e: KeyboardEvent) {
           <div v-if="result && !loading" class="space-y-3">
             <!-- eslint-disable vue/no-v-html -- AI 返回格式化文本，需渲染富文本 -->
             <div
-              class="bg-violet-50 rounded-lg p-3 max-h-64 overflow-y-auto text-sm text-secondary leading-relaxed"
+              class="bg-violet-50 dark:bg-violet-500/10 rounded-lg p-3 max-h-64 overflow-y-auto text-sm text-secondary leading-relaxed"
               v-html="result"
             />
             <!-- eslint-enable vue/no-v-html -->

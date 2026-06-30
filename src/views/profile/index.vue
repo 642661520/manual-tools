@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuth } from '@/composables/useAuth'
 import { useDialog } from '@/composables/useDialog'
+import { showErrorToast, showSuccessToast } from '@/composables/toast'
 import {
   updateNotifyPrefs,
   getFeishuBindingStatus,
@@ -14,6 +15,9 @@ import FormField from '@/components/FormField.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import PasswordInput from '@/components/PasswordInput.vue'
+import { isFeishuClient } from '@/composables/useFeishuAutoLogin'
+
+const inFeishu = isFeishuClient()
 
 const { user, isGuest, logout, refreshUser, token, updateProfile, updateUsername } = useAuth()
 const { confirm } = useDialog()
@@ -60,8 +64,9 @@ async function saveNotifyPrefs() {
       user.value.notifyEnabled = notifyEnabled.value
       user.value.notifyPrefs = { ...notifyPrefs.value }
     }
-  } catch {
-    /* ignore */
+    showSuccessToast('通知设置已保存')
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '保存通知设置失败')
   } finally {
     notifySaving.value = false
   }
@@ -90,8 +95,8 @@ async function loadFeishuBinding() {
     feishuBound.value = data.bound
     feishuName.value = data.name || ''
     feishuAvatar.value = data.avatarUrl || ''
-  } catch {
-    /* ignore */
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '加载飞书绑定状态失败')
   }
 }
 
@@ -142,8 +147,9 @@ async function unbindFeishu() {
     feishuBound.value = false
     feishuName.value = ''
     feishuAvatar.value = ''
-  } catch {
-    /* ignore */
+    showSuccessToast('飞书已解绑')
+  } catch (e: unknown) {
+    showErrorToast(e instanceof Error ? e.message : '解绑飞书失败')
   }
 }
 
@@ -210,6 +216,7 @@ async function submitEditProfile() {
       await updateUsername(un)
     }
     showEditProfile.value = false
+    showSuccessToast('个人信息已更新')
   } catch (e: unknown) {
     editProfileError.value = e instanceof Error ? e.message : '保存失败'
   } finally {
@@ -275,6 +282,7 @@ async function submitChangePassword() {
     localStorage.setItem('auth_token', data.token)
     showChangePassword.value = false
     await refreshUser()
+    showSuccessToast('密码已修改')
   } catch (e: unknown) {
     changePasswordError.value = e instanceof Error ? e.message : '网络错误，修改失败'
   }
@@ -345,6 +353,7 @@ onMounted(() => {
             修改密码
           </button>
           <button
+            v-if="!inFeishu"
             class="btn-secondary text-sm w-full sm:w-auto justify-center"
             @click="handleLogout"
           >
@@ -366,7 +375,7 @@ onMounted(() => {
         <span class="text-sm">接收飞书通知</span>
         <button
           class="relative w-10 h-5.5 rounded-full transition-colors duration-200 flex-shrink-0"
-          :class="notifyEnabled ? 'bg-active0' : 'bg-[var(--c-border-input)]'"
+          :class="notifyEnabled ? 'bg-[var(--c-accent)]' : 'bg-[var(--c-border-input)]'"
           @click="toggleNotifyEnabled"
         >
           <span
@@ -389,7 +398,7 @@ onMounted(() => {
           <span class="text-sm text-secondary">{{ item.label }}</span>
           <button
             class="relative w-10 h-5.5 rounded-full transition-colors duration-200 flex-shrink-0"
-            :class="notifyPrefs[item.key] ? 'bg-active0' : 'bg-[var(--c-border-input)]'"
+            :class="notifyPrefs[item.key] ? 'bg-[var(--c-accent)]' : 'bg-[var(--c-border-input)]'"
             @click="() => toggleNotifyPref(item.key)"
           >
             <span
@@ -416,7 +425,9 @@ onMounted(() => {
           </div>
           <div class="text-xs text-green-600">已绑定</div>
         </div>
-        <button class="btn-secondary text-sm" @click="unbindFeishu">解除绑定</button>
+        <button v-if="!inFeishu" class="btn-secondary text-sm" @click="unbindFeishu">
+          解除绑定
+        </button>
       </div>
 
       <div v-else>

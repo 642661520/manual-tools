@@ -34,6 +34,7 @@ const emit = defineEmits<{
           {{ title }}
         </h2>
         <button
+          type="button"
           class="w-7 h-7 flex items-center justify-center rounded hover:bg-hover"
           @click="() => emit('close')"
         >

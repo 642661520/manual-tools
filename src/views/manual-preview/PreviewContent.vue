@@ -244,10 +244,7 @@ onUnmounted(() => {
     <template v-if="chNum === 0">
       <div class="max-w-4xl mx-auto py-3 sm:py-6 lg:py-8 px-3 sm:px-6">
         <!-- Hero Banner -->
-        <div
-          class="relative overflow-hidden rounded-xl mb-8 select-none"
-          style="aspect-ratio: 16/9; max-height: 380px"
-        >
+        <div class="relative overflow-hidden rounded-xl mb-8 select-none h-48 sm:h-64 lg:h-80">
           <!-- Layer 1: 对角渐变背景 -->
           <div
             class="absolute inset-0"
@@ -329,7 +326,7 @@ onUnmounted(() => {
               <span>{{ v.changeNotes || '（无变更说明）' }}</span>
               <span
                 v-if="v.publishScope === 'all'"
-                class="text-xs px-1 py-0 rounded bg-yellow-100 text-yellow-700 flex-shrink-0"
+                class="text-xs px-1 py-0 rounded bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 flex-shrink-0"
                 title="此版本发布时包含了未审核内容"
                 >含未审核</span
               >

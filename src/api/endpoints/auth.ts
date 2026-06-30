@@ -28,8 +28,9 @@ export function feishuLogin(code: string): Promise<LoginResponse> {
   return api.post<LoginResponse>('/api/v1/auth/feishu/login', { code })
 }
 
-export function getFeishuLoginUrl(): Promise<OAuthUrlResponse> {
-  return api.get<OAuthUrlResponse>('/api/v1/auth/feishu/login-url')
+export function getFeishuLoginUrl(redirect?: string): Promise<OAuthUrlResponse> {
+  const params = redirect ? `?redirect=${encodeURIComponent(redirect)}` : ''
+  return api.get<OAuthUrlResponse>(`/api/v1/auth/feishu/login-url${params}`)
 }
 
 // ---- 当前用户 ----
