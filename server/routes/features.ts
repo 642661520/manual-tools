@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { getDb } from '../db/index.js'
 import { authMiddleware, requireRole, ensureProjectWritable } from '../auth/middleware.js'
-import { isProjectMember, hasProjectRole, hasContentRole } from '../auth/membership.js'
+import { isProjectMember, hasContentRole } from '../auth/membership.js'
 import { success, created, ok, fail } from '../lib/response.js'
 import { v4 as uuid } from 'uuid'
 import {

@@ -6,12 +6,7 @@ import { join } from 'path'
 import { ZipArchive } from 'archiver'
 import { getDb } from '../db/index.js'
 import { authMiddleware, requireRole, ensureProjectWritable } from '../auth/middleware.js'
-import {
-  isProjectMember,
-  hasProjectRole,
-  hasContentRole,
-  assertCatalogMember,
-} from '../auth/membership.js'
+import { isProjectMember, hasContentRole, assertCatalogMember } from '../auth/membership.js'
 import { recordAudit } from '../services/audit.js'
 import { success, created, ok, fail } from '../lib/response.js'
 import { v4 as uuid } from 'uuid'

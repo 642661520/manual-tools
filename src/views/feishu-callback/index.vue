@@ -18,7 +18,7 @@ function parseRedirectFromState(stateParam?: string): string | null {
   // login:<base64>:<random> → parts[1] 是 base64 编码的 redirect
   if (parts.length === 3 && parts[0] === 'login') {
     try {
-      return atob(parts[1])
+      return window.atob(parts[1])
     } catch {
       return null
     }

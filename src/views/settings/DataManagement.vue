@@ -11,7 +11,7 @@ import type {
   DataTaskInfo,
 } from '@shared/types'
 
-const { isAdmin, canManageProject } = useAuth()
+const { canManageProject } = useAuth()
 const { currentProjectId } = useProject()
 
 // ---- 导出预估 ----

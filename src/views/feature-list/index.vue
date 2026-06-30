@@ -45,7 +45,7 @@ type CategoryItem = CategoryInfo & { sortOrder: number }
 const router = useRouter()
 const { isProjectPM } = useAuth()
 const { currentProjectId } = useProject()
-const { confirm, dangerConfirm } = useDialog()
+const { dangerConfirm } = useDialog()
 const features = ref<FeatureRow[]>([])
 const loading = ref(true)
 const expandedFeatureId = ref<string | null>(null)
@@ -520,13 +520,13 @@ watch(currentProjectId, loadFeatures)
                   >
                 </div>
                 <div
-                  class="space-y-1"
-                  :data-section-sort="f.id"
                   :ref="
                     (el: any) => {
                       if (el && expandedFeatureId === f.id) initSectionSort(f.id, el as HTMLElement)
                     }
                   "
+                  class="space-y-1"
+                  :data-section-sort="f.id"
                 >
                   <div
                     v-for="(sec, i) in parseSections(f.sections)"

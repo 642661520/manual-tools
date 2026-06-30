@@ -11,7 +11,7 @@ import {
 import { authMiddleware, ensureProjectWritable } from '../auth/middleware.js'
 import { config } from '../config.js'
 import { verifyToken } from '../auth/jwt.js'
-import { isProjectMember, hasProjectRole, hasContentRole } from '../auth/membership.js'
+import { isProjectMember, hasContentRole } from '../auth/membership.js'
 import { getDb } from '../db/index.js'
 import { ok, fail } from '../lib/response.js'
 import {

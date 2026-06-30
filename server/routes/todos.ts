@@ -17,6 +17,12 @@ interface TodoItem {
   todoType: 'write' | 'review'
 }
 
+interface DocWithMeta extends DocumentRow {
+  feature_title: string
+  feature_project_id: string
+  member_role?: string
+}
+
 export async function todoRoutes(app: FastifyInstance) {
   app.get('/api/v1/todos', { preHandler: authMiddleware }, async (req, reply) => {
     const { projectId } = req.query as { projectId?: string }
@@ -36,7 +42,7 @@ export async function todoRoutes(app: FastifyInstance) {
     const todos: TodoItem[] = []
 
     // 查询项目下的文档
-    let docs: (DocumentRow & { feature_title: string; feature_project_id: string })[]
+    let docs: DocWithMeta[]
     if (projectId) {
       docs = db
         .prepare(`
@@ -46,7 +52,7 @@ export async function todoRoutes(app: FastifyInstance) {
         WHERE f.project_id = ?
         ORDER BY f.title, d.section_key
       `)
-        .all(projectId) as (DocumentRow & { feature_title: string; feature_project_id: string })[]
+        .all(projectId) as DocWithMeta[]
     } else if (userRole === 'member') {
       docs = db
         .prepare(`
@@ -56,11 +62,7 @@ export async function todoRoutes(app: FastifyInstance) {
         JOIN project_members pm ON f.project_id = pm.project_id AND pm.user_id = ?
         ORDER BY f.title, d.section_key
       `)
-        .all(userId) as (DocumentRow & {
-        feature_title: string
-        feature_project_id: string
-        member_role: string
-      })[]
+        .all(userId) as DocWithMeta[]
     } else {
       docs = db
         .prepare(`
@@ -69,7 +71,7 @@ export async function todoRoutes(app: FastifyInstance) {
         JOIN features f ON f.id = d.feature_id
         ORDER BY f.title, d.section_key
       `)
-        .all() as (DocumentRow & { feature_title: string; feature_project_id: string })[]
+        .all() as DocWithMeta[]
     }
 
     // 缓存 feature sections
@@ -129,7 +131,7 @@ export async function todoRoutes(app: FastifyInstance) {
 
         // 1. 编写任务：当前用户被指派，且可编写，且文档状态允许编写
         // pending_review / approved 状态下不生成编写任务（已提交/已审核）
-        const memberRole = (doc as any).member_role as string | undefined
+        const memberRole = doc.member_role
         const canWrite = !memberRole || memberRole === 'writer' || memberRole === 'pm'
         const writeStatuses = ['draft', 'in_progress', 'rejected']
         if (assignees.includes(userId) && canWrite && writeStatuses.includes(doc.status)) {
